@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 22:50 UTC
+Last updated: 2026-10-23 23:08 UTC
 
 ## Resume
 
@@ -35,10 +35,18 @@ current-ce6facfb-repaired-workflow/ and -clean6-workflow/. Do not resume those
 failed evidence directories. Both root sources are quiescent except the finished
 typing check. Full normal0 retry and all unit/corpus/client runs remain required.
 
-Next, after this push: fetch canonical work into /workspace/tcl-lsp-diagnostic
-and /workspace/tcl-lsp-owned, save/discard ONLY our known diffs, reset both to
-the same new canonical proof base. Apply full9 --zz in diagnostic and exactly
-six no-switch files in owned; scoped fmt. Freeze both roots throughout proofs.
+Active proof base83774d43464c7d177bcd505ef22fe898ffee9a25 (latest canonical
+work at publication). Both roots now RESET/APPLIED/FROZEN: diagnostic full9
+--zz; owned exactly six/no switch/no realm/interprocedural. Scoped fmt passed.
+Source typing repair is in HEAD. Full driver83448, controls opt0 BUILT0warnings,23-case runtime active;
+clean6 driver83943 waits successful complete controls. Client helpers
+spectcl83759/server83755 are waiting. Logs:
+/tmp/perf-83774d43-{repaired,clean6}-workflow.log and
+/tmp/perf-83774d43-client-{spectcl,server}.log. Evidence directories:
+current-83774d43-{repaired,clean6}-workflow/. Read actual JSON/logs before
+restarting workers. Latest23-case inventory is complete/listed; positive current-source controls are
+passing so far, full BOTH verdict pending. Source must remain frozen.
+
 Prepared scripts (also saved as tools/*.py.txt):
 - /tmp/perf-latest-repaired-workflow.py: complete current controls opt0
   (expected23 including original19,3 existing Native35 controls and actual
@@ -48,8 +56,7 @@ Prepared scripts (also saved as tools/*.py.txt):
   process, retaining every byte/hash/assertion and all child receipts. Only
   Equal passes. After corpus AND fresh SpecTcl cleanup, original compiler
   filters/nonUTF8 control BOTH and unchanged1000-depth case ALONE BOTH.
-- /tmp/perf-latest-clean6-workflow.py: update its full-workflow prefix to the
-  NEW proof-base hash before launch. Wait successful current report controls,
+- /tmp/perf-latest-clean6-workflow.py: full-workflow prefix is83774d43. Wait successful current report controls,
   run no-switch lexer BOTH, build clean6 compiler0, preserve exact private ELF,
   then wait full/compiler/client cleanup before unchanged filters/deep BOTH.
   Old ENV is ignored in this six-file no-switch source. Strict inventory
@@ -59,12 +66,16 @@ Prepared scripts (also saved as tools/*.py.txt):
   and golden_packs3 BOTH at the SAME source base, original budgets/threads.
 - /tmp/perf-latest-client-proofs.py server: wait both latest compiler drivers'
   artifact cleanup, then fresh current-source server2 BOTH,180s unchanged.
-Both new main scripts and both client helpers must launch after reset. Source
+Both main scripts and both client helpers are LAUNCHED. Source
 has changed in56 core/server files and3 SpecTcl files since b6; prior client
 results are interim evidence, not current-source substitutes.
 
 Resource policy: SpecTcl BOTH modes inherit CPUs0,1; latest builders/controls/
-corpus CPUs2,3. Cgroup quota4CPU/16GiB. Latest deep cases run alone only after
+corpus CPUs2,3. Cgroup quota4CPU/16GiB. Clean6 idle waiter was restarted BEFORE any build/test
+to use cargo-j1, preventing concurrent normal/unit rustc alongside full normal1.
+Receipt: current-83774d43-clean6-workflow/waiter-memory-ordering.json. No
+runtime paused and no inputs/assertions/thread counts changed. Latest deep
+cases run alone only after
 all corpus/SpecTcl/build cleanup. No runtime paused. Separate target directories
 per root; never copied/shared. /tmp/perf-env.sh plus agent-build-env.sh; pinned
 Tcl9.0.4/8.6.18/Jim0.84 via tmp links; assertions/overflow enabled. No ENOSPC.
@@ -87,11 +98,10 @@ Frozen b6 interim results, retained separately:
   startup same first role-count assertion0vs1 (8.596/5.314s), later reindex
   unreached; workspace_symbol timeout180 BOTH (180.024/180.048s). Artifacts
   removed; current-b6ea6dc5/crate-tests-default-after-memory/.
-- b6 SpecTcl driver42380 STILL RUNNING, /tmp/perf-b6-spectcl.log. NEW eval_loader
-  28/28 PASS263.054s; OLD currently running; golden_packs next. CPUs0,1 reserved.
-  Do not mutate full root /workspace/tcl-lsp-perf-latest or restart this worker.
-  Main normal1 corpus/library builder can overlap on other CPUs; fresh SpecTcl
-  helper waits for its actual final cleanup before using CPUs0,1.
+- b6 SpecTcl COMPLETE/PASS, zeroP2F/0warnings: eval_loader28/28 BOTH
+  (263.054/301.019s), golden_packs3/3 BOTH (227.942/430.240s). Exact source
+  matches build, both executables deleted; spectcl-final-verification.json.
+  Frozen b6 root can stay untouched; fresh837 SpecTcl still waits normal1 build.
 
 After genuine current-source proofs, assess all original baseline passes and
 preserve every timeout/resource/assertion outcome. Run scoped fmt and latest
@@ -103,17 +113,21 @@ code commit, rebased latest. Refresh compiler-owned2-file patch and write exact
 requested proven-at-commit readiness only after true proof. No realm.rs or
 interprocedural.rs production hunk in our commit.
 
-Residual image/segment/LSP currentness/empty-region drafts are Blocked/routed,
+Residual image/segment/LSP currentness/empty-region drafts are refreshed837
+(off-tree apply/parser/scoped fmt only) and remain Blocked/routed,
 uncompiled/unproven. They do not fix all review4.1 shapes or deep OOM. Full
 source/context limits and required owner proofs are in residual-routing.md.
 Current b6 contended opt1 wall (capture included, comparison excluded): calls80
 old26815/new2721/old15968ms; upvar30 old73450/new15071/old46401ms;
 load_embedded old14514/new2964/old16003ms, ordered full PackSet equal. Origin
 same load API4665ms is separate; no cross-API/release claim. Final current
-before/after timings in perf-NOTES.md remain required before stopping.
+before/after timings in perf-NOTES.md remain required before stopping. The
+queued /tmp/perf-837-clippy-after-clients.py waits final server cleanup, then
+runs scoped fmt and compiler all-target Clippy without changing source or
+suppressing any lint; preserve/classify every baseline/new diagnostic.
 
 Publish own evidence/NOTES/this file at most30min apart from publisher root.
-Last own push ce6facfb at22:34UTC, superseded by this update. Fetch origin work
+Own checkpoint in this update at2026-10-23 23:08 UTC; next push within30min. Fetch origin work
 and rebase before every normal push, retry rejection; no force/PR. Footer:
 Co-Authored-By: Codex <noreply@openai.com>.
 

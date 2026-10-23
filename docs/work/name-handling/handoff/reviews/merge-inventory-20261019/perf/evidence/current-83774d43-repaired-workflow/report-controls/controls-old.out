@@ -1,0 +1,9 @@
+
+running 23 tests
+test analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::empty_allocated_body_rejects_wrong_roles_geometry_and_duplicates ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::empty_installed_body_requires_the_current_complete_source_card ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::empty_allocated_body_requires_the_current_complete_source_card ... ok
+test analyser::authenticated_report::body_correspondence::owner_controls::supported_logical_alias_roles_keep_the_shared_declaration ... ok

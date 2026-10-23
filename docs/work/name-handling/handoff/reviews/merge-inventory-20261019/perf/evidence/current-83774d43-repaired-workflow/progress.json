@@ -1,0 +1,16 @@
+{
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "started_unix": 1792795937.001152,
+  "pid": 83448,
+  "rust_diff_sha256": "8d34b06306190679c0de73d223bc3c33accec4f428a3e56d5e17d21c1e57949e",
+  "policy": "After original server cleanup, latest builds/controls/corpus use CPUs2,3; both SpecTcl modes inherit reserved CPUs0,1. Compiler filters run only after corpus and SpecTcl cleanup. No shared targets, changed inputs/assertions/budgets or paused tests.",
+  "runs": [],
+  "affinity": [
+    2,
+    3
+  ],
+  "compiler_binary": {
+    "path": "/workspace/tcl-lsp-diagnostic/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+    "sha256": "149471813a0e2d79298c0d7020431d4207abcb5ed76c7fd0e339f0fad7bcde80"
+  }
+}

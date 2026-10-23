@@ -1,0 +1,7 @@
+{
+  "head": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "stage": "server",
+  "pid": 83755,
+  "started_unix": 1792795974.897414,
+  "policy": "Actual latest-source client test build/run/delete. Original inputs/assertions/thread limits/budgets. SpecTcl uses CPUs0,1 after original b6 SpecTcl cleanup and latest normal1 build. Server runs after all corpus/compiler/SpecTcl cleanup."
+}

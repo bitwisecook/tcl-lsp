@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import hashlib,json,os,subprocess,time
+root=Path('/workspace/tcl-lsp-diagnostic');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-83774d43-repaired-workflow');out=base/'final-lints';out.mkdir(exist_ok=False);record={'started_unix':time.time(),'pid':os.getpid(),'policy':'Wait all corpus/compiler/client cleanup; check scoped fmt and compiler all-target Clippy. Preserve every baseline diagnostic and classify six owned/API source spans; no suppressions or source formatting edits.'};(out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
+while not (base/'server-run-final.json').exists():time.sleep(3)
+os.sched_setaffinity(0,{0,1,2,3});env=dict(os.environ,CARGO_INCREMENTAL='0',CARGO_PROFILE_DEV_DEBUG='0',CARGO_PROFILE_TEST_DEBUG='0',CARGO_PROFILE_DEV_OPT_LEVEL='1',CARGO_PROFILE_TEST_OPT_LEVEL='1',CARGO_PROFILE_DEV_DEBUG_ASSERTIONS='true',CARGO_PROFILE_TEST_DEBUG_ASSERTIONS='true',CARGO_PROFILE_DEV_OVERFLOW_CHECKS='true',CARGO_PROFILE_TEST_OVERFLOW_CHECKS='true',CARGO_TARGET_DIR=str(root/'target'))
+meta=json.loads((perf/'patch-inputs.json').read_text());owned=set(meta['owned']);api={'rust/tcl-compiler/src/analyser/authenticated_report.rs','rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs','rust/tcl-compiler/src/command_binding/generated_procedures.rs'};before=subprocess.check_output(['git','diff','--','rust'],cwd=root);paths=subprocess.check_output(['git','diff','--name-only','--','rust'],cwd=root,text=True).splitlines()
+with (out/'fmt.out').open('w') as f:record['fmt_exit']=subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true','--check',*paths],cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
+start=time.monotonic()
+with (out/'clippy.jsonl').open('w') as f,(out/'clippy.stderr').open('w') as e:record['clippy_exit']=subprocess.run(['cargo','clippy','--locked','-j2','-p','tcl-compiler','--all-targets','--message-format=json','--','-D','warnings'],cwd=root,env=env,stdout=f,stderr=e).returncode
+messages=[];artifacts=[]
+for line in (out/'clippy.jsonl').read_text().splitlines():
+ try:r=json.loads(line)
+ except ValueError:continue
+ if r.get('reason')=='compiler-artifact' and r.get('executable'):artifacts.append(Path(r['executable']))
+ if r.get('reason')=='compiler-message':
+  m=r['message'];files={s['file_name'] for s in m['spans'] if s['is_primary']};messages.append({'level':m['level'],'code':m.get('code'),'message':m['message'],'primary_files':sorted(files),'owned':bool(files&owned),'api_repair':bool(files&api),'rendered':m.get('rendered')})
+(out/'diagnostics.json').write_text(json.dumps(messages,indent=2)+'\n')
+for p in artifacts:p.unlink(missing_ok=True)
+record.update(head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),clippy_wall_s=time.monotonic()-start,diagnostics=len(messages),owned_diagnostics=sum(m['owned'] for m in messages),api_diagnostics=sum(m['api_repair'] for m in messages),rust_diff_unchanged=before==subprocess.check_output(['git','diff','--','rust'],cwd=root),finished_unix=time.time(),executables_removed=all(not p.exists() for p in artifacts));(out/'final.json').write_text(json.dumps(record,indent=2)+'\n');print(json.dumps(record),flush=True)

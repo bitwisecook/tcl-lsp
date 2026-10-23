@@ -1,0 +1,5 @@
+{
+  "time_unix": 1792796258.496244,
+  "old_idle_waiter": 83602,
+  "policy": "Restart only idle clean6 waiter before any build/test/artifact. Use cargo-j1 for compiler build so its normal/unit rustc do not overlap the full normal1 builder; LLVM retains reserved CPUs2,3. Original test threads/inputs/assertions/budgets unchanged. No test paused."
+}

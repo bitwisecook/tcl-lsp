@@ -5,7 +5,7 @@
 from pathlib import Path
 import hashlib,json,os,re,shutil,subprocess,tempfile,time
 root=Path('/workspace/tcl-lsp-owned');perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')
-full=base/'current-ce6facfb-repaired-workflow';head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();out=base/('current-'+head[:8]+'-clean6-workflow');out.mkdir(exist_ok=False)
+full=base/'current-83774d43-repaired-workflow';head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();out=base/('current-'+head[:8]+'-clean6-workflow');out.mkdir(exist_ok=True);assert set(p.name for p in out.iterdir())<={'progress.json','source.patch','waiter-memory-ordering.json'}, 'cannot reuse a started proof directory'
 record={'head':head,'pid':os.getpid(),'started_unix':time.time(),'scope':'Exactly six owned files, no switch or realm/interprocedural. Old ENV is ignored. Complete source diff recorded. Original filters/inputs/assertions/threads unchanged; both runs keep original resource failures.','runs':[]};(out/'source.patch').write_bytes(subprocess.check_output(['git','diff','--','rust'],cwd=root))
 def save(): (out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
 def sha(p):
@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='perf-latest-clean6-') as td:
   with (out/'lexer.log').open('w') as f:code=subprocess.run(['python3',str(perf/'tools/run_crate_proofs.py'),str(root),'--stage','lexer','--opt-level','0','--target-dir',str(root/'target'),'--evidence-dir',str(out/'lexer')],cwd=root,env=env,stdout=f,stderr=subprocess.STDOUT).returncode
   record['runs'].append({'stage':'lexer','exit':code});save();assert code==0
   start=time.monotonic()
-  with (out/'compiler-build.jsonl').open('w') as f,(out/'compiler-build.stderr').open('w') as e:code=subprocess.run(['cargo','test','--locked','-j2','-p','tcl-compiler','--lib','--no-run','--message-format=json'],cwd=root,env=env,stdout=f,stderr=e).returncode
+  with (out/'compiler-build.jsonl').open('w') as f,(out/'compiler-build.stderr').open('w') as e:code=subprocess.run(['cargo','test','--locked','-j1','-p','tcl-compiler','--lib','--no-run','--message-format=json'],cwd=root,env=env,stdout=f,stderr=e).returncode
   warnings=[]
   for line in (out/'compiler-build.jsonl').read_text().splitlines():
    r=json.loads(line)

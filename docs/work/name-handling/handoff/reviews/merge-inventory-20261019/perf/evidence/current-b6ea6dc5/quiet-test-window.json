@@ -79,6 +79,49 @@
       "state": "S",
       "start": "7858808",
       "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py /workspace/tcl-lsp-perf-latest --stage spectcl --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5/crate-tests-opt1 --wait-before-tests /tmp/perf-b6-spec-quiet-ready "
-    }
-  }
+    },
+    "summary": {
+      "spectcl/eval_loader/new": {
+        "returncode": 0,
+        "seconds": 263.054,
+        "passed": 28,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-eval_loader-new.out",
+        "pass_to_fail": []
+      },
+      "spectcl/eval_loader/old": {
+        "returncode": 0,
+        "seconds": 301.019,
+        "passed": 28,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-eval_loader-old.out"
+      },
+      "spectcl/golden_packs/new": {
+        "returncode": 0,
+        "seconds": 227.942,
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-golden_packs-new.out",
+        "pass_to_fail": []
+      },
+      "spectcl/golden_packs/old": {
+        "returncode": 0,
+        "seconds": 430.24,
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-golden_packs-old.out"
+      }
+    },
+    "executables_removed": true,
+    "finished_unix": 1792796367.6964984
+  },
+  "finished_unix": 1792796367.7005951
 }

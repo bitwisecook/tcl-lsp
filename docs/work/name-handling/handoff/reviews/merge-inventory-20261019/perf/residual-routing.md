@@ -186,3 +186,15 @@ claim. It does not repair the1000-level nested-source resource failure. Owners
 must retain all guards and prove full AnalysisResult/PackSet equality before
 accepting it. The earlier one-stack clone observation is not a frequency or
 complexity estimate.
+
+## Canonical refresh83774d43
+
+Image/segment drafts and the nested Logical inventory draft refresh to83774d43.
+Ordered analyser application reproduces scoped formatted snapshots. Relevant
+source files match the exact canonical HEAD despite the separate full9 proof
+batch. No production source is edited. All remain Blocked/routed, uncompiled
+and semantically unproven, with the same full-buffer comparison and per-lens
+outer reconstruction limits. The1000-depth OOM and broader review4.1 shapes
+are not fixed by these drafts. Owners must retain all currentness/coverage/
+registry/identity guards and prove complete reports, PackSets and positive
+ordinary-path results before accepting changes.

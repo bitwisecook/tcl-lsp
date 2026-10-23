@@ -19,10 +19,22 @@
     "log": "tests-spectcl-eval_loader-old.out"
   },
   "spectcl/golden_packs/new": {
-    "status": "running",
-    "log": "tests-spectcl-golden_packs-new.out"
+    "returncode": 0,
+    "seconds": 227.942,
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-spectcl-golden_packs-new.out",
+    "pass_to_fail": []
   },
   "spectcl/golden_packs/old": {
-    "status": "pending"
+    "returncode": 0,
+    "seconds": 430.24,
+    "passed": 3,
+    "failed": 0,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-spectcl-golden_packs-old.out"
   }
 }

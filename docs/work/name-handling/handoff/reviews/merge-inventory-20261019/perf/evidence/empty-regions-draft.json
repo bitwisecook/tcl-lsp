@@ -1,0 +1,8 @@
+{
+  "base": "83774d43464c7d177bcd505ef22fe898ffee9a25",
+  "checked_unix": 1792796035.014934,
+  "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+  "before_sha256": "db03d7f0748cade0bbae4fa8b177aadc3d4857d2fe89e7abf67604b0c0d84d08",
+  "after_sha256": "1e29c18742e80bf9b0c77f4ce5047ddeec502921d89fe1bac3f8debcba280870",
+  "status": "Blocked/routed compiler/compiler-names; off-tree apply/parser/scoped fmt only; uncompiled, semantically unproven. Does not fix original1000-depth OOM."
+}

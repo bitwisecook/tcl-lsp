@@ -1,0 +1,50 @@
+{
+  "checked_unix": 1792796539.9922838,
+  "source_base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "current_rust_diff_matches_build": true,
+  "build_warnings": 0,
+  "all_four_original_suites_pass": true,
+  "summary": {
+    "spectcl/eval_loader/new": {
+      "returncode": 0,
+      "seconds": 263.054,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-spectcl-eval_loader-new.out",
+      "pass_to_fail": []
+    },
+    "spectcl/eval_loader/old": {
+      "returncode": 0,
+      "seconds": 301.019,
+      "passed": 28,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-spectcl-eval_loader-old.out"
+    },
+    "spectcl/golden_packs/new": {
+      "returncode": 0,
+      "seconds": 227.942,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-spectcl-golden_packs-new.out",
+      "pass_to_fail": []
+    },
+    "spectcl/golden_packs/old": {
+      "returncode": 0,
+      "seconds": 430.24,
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-spectcl-golden_packs-old.out"
+    }
+  },
+  "executables_removed": true,
+  "artifact_count": 2,
+  "scope": "Frozen b6 interim validation; fresh837 source runs remain pending. CPUs0,1 both modes, build/check work on other reserved CPUs; unchanged assertions/budgets."
+}
