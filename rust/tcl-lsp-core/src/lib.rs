@@ -26,8 +26,8 @@
 //! the `tcl-lsp-server` binary links against this crate
 //! directly over the LSP protocol.
 
-// Match the compiler crate for retained receipt auto-traits in test consumers.
-#![cfg_attr(test, recursion_limit = "256")]
+// Match the compiler crate for retained receipt auto-traits.
+#![recursion_limit = "256"]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 // Long linear fail-closed guard chains and scenario tests; splitting them is
