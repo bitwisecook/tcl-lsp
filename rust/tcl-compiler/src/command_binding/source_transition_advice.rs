@@ -1436,6 +1436,8 @@ impl OriginalSourceTransitionAdviceTape {
         self.registry_barriers.extend(other.registry_barriers);
         self.interpreter_bodies.extend(other.interpreter_bodies);
         self.interpreter_paths.extend(other.interpreter_paths);
+        #[cfg(debug_assertions)]
+        self.trace_authored_jim_inventory(&other.authored_jim_classes);
         merge_receipt_inventory(&mut self.authored_jim_classes, other.authored_jim_classes);
         merge_receipt_inventory(&mut self.authored_jim_calls, other.authored_jim_calls);
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);

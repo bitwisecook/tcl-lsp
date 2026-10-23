@@ -279,6 +279,77 @@ fn jim_list_fields(
 }
 
 impl OriginalSourceTransitionAdviceTape {
+    #[cfg(debug_assertions)]
+    pub(super) fn trace_authored_jim_inventory(
+        &self,
+        incoming: &std::collections::BTreeMap<u32, Option<Arc<OriginalAuthoredJimClass>>>,
+    ) {
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_none() {
+            return;
+        }
+        for (offset, incoming) in incoming {
+            let Some(previous) = self.authored_jim_classes.get(offset) else {
+                continue;
+            };
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.class.inventory_merge offset={} previous={} incoming={}",
+                offset,
+                previous.is_some(),
+                incoming.is_some(),
+            );
+            if let (Some(previous), Some(incoming)) = (previous, incoming) {
+                Self::trace_authored_jim_conflict(*offset, previous, incoming);
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn trace_authored_jim_conflict(
+        offset: u32,
+        previous: &OriginalAuthoredJimClass,
+        incoming: &OriginalAuthoredJimClass,
+    ) {
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.class.inventory_facets offset={} factory={} purpose={} slot={} lineage={} parent={} variables_at={} variables={} bases={}",
+            offset,
+            previous.factory == incoming.factory,
+            previous.purpose == incoming.purpose,
+            previous.slot == incoming.slot,
+            previous.lineage == incoming.lineage,
+            previous.parent_body == incoming.parent_body,
+            previous.variables_at == incoming.variables_at,
+            previous.variables == incoming.variables,
+            previous.bases == incoming.bases,
+        );
+        let previous = &previous.factory;
+        let incoming = &incoming.factory;
+        eprintln!(
+            "JIM_SOURCE_OWNER stage=jim.class.inventory_factory offset={} original={} head={} arguments={} context={} registry={} config={} dialect={} roles={} lineage={} obligations={} uncertainty={} input={} declaration={} logical_body={} logical_scope={} c_body={} c_namespace={} c_path={} procedure_body={} member_body={} catalogue_body={}",
+            offset,
+            previous.original == incoming.original,
+            previous.head == incoming.head,
+            previous.arguments == incoming.arguments,
+            previous.context == incoming.context,
+            previous.registry == incoming.registry,
+            previous.config == incoming.config,
+            previous.dialect == incoming.dialect,
+            previous.roles == incoming.roles,
+            previous.lineage == incoming.lineage,
+            previous.obligations == incoming.obligations,
+            previous.uncertain_operations == incoming.uncertain_operations,
+            previous.logical_input == incoming.logical_input,
+            previous.declaration == incoming.declaration,
+            previous.logical_body == incoming.logical_body,
+            previous.logical_scope == incoming.logical_scope,
+            previous.c_source_body == incoming.c_source_body,
+            previous.c_source_namespace == incoming.c_source_namespace,
+            previous.c_source_path == incoming.c_source_path,
+            previous.procedure_body == incoming.procedure_body,
+            previous.member_catalogue_body == incoming.member_catalogue_body,
+            previous.catalogue_body == incoming.catalogue_body,
+        );
+    }
+
     pub(crate) fn authored_jim_class(&self, offset: u32) -> Option<&Arc<OriginalAuthoredJimClass>> {
         self.authored_jim_classes.get(&offset)?.as_ref()
     }
