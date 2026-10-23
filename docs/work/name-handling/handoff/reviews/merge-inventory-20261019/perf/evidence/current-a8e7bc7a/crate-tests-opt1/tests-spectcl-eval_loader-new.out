@@ -29,3 +29,20 @@ test semantic_operation_round_trips_through_the_renderer ... ok
 test the_block_readers_still_report_from_the_evaluated_path ... ok
 test the_new_two_point_oh_words_load_identically_on_both_routes ... ok
 test the_ratified_words_load_identically_on_both_routes ... ok
+test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path ... FAILED
+
+failures:
+
+---- every_shipped_pack_loads_identically_with_and_without_the_static_fast_path stdout ----
+
+thread 'every_shipped_pack_loads_identically_with_and_without_the_static_fast_path' (27452) panicked at rust/tcl-spectcl/tests/eval_loader.rs:194:9:
+/workspace/tcl-lsp-perf-latest/specs/eda_xilinx.tclspec: snapshots diverge at line 1 (byte 32):
+  a: …pack eda_xilinx dsl 2.0 display Some("AMD Xilinx Vivado") load_error None…
+  b: …pack eda_xilinx dsl 2.0 display None load_error Some(BudgetExhausted("wall clock"))…
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_shipped_pack_loads_identically_with_and_without_the_static_fast_path
+
+test result: FAILED. 27 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3333.33s

@@ -1,0 +1,10 @@
+{
+  "exit": 0,
+  "wall_s": 3.507021994002571,
+  "copy_removed_on_scope_exit": true,
+  "selection_valid": false,
+  "executed_tests": 0,
+  "expected_tests": 1,
+  "acceptance": false,
+  "reason": "Wrong module-qualified --exact selector; no test ran. Preserved as an invalid diagnostic attempt, not a pass."
+}

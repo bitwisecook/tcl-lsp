@@ -1,0 +1,98 @@
+#define _GNU_SOURCE
+#include <errno.h>
+#include <link.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <ucontext.h>
+#include <unistd.h>
+#if !defined(__x86_64__)
+#error This disposable diagnostic implements AMD64 conditional jumps only.
+#endif
+struct branch {uintptr_t offset,target,next; unsigned cc,opcode;};
+static const struct branch branches[]={{UINT64_C(0x50e2646),UINT64_C(0x50e265a),UINT64_C(0x50e2648),4,116},
+{UINT64_C(0x50e26f2),UINT64_C(0x50e2706),UINT64_C(0x50e26f4),4,116},
+{UINT64_C(0x50e27b8),UINT64_C(0x50e27cc),UINT64_C(0x50e27ba),4,116},
+{UINT64_C(0x50e28e9),UINT64_C(0x50e28fd),UINT64_C(0x50e28eb),4,116},
+{UINT64_C(0x50e29a5),UINT64_C(0x50e29c8),UINT64_C(0x50e29a7),5,117},
+{UINT64_C(0x50e2b1a),UINT64_C(0x50e2b2e),UINT64_C(0x50e2b1c),4,116},
+{UINT64_C(0x50e2c53),UINT64_C(0x50e2c67),UINT64_C(0x50e2c55),4,116},
+{UINT64_C(0x50e2cce),UINT64_C(0x50e2d27),UINT64_C(0x50e2cd0),4,116},
+{UINT64_C(0x50e2d99),UINT64_C(0x50e2d9d),UINT64_C(0x50e2d9b),5,117},
+{UINT64_C(0x50e2e18),UINT64_C(0x50e2e2c),UINT64_C(0x50e2e1a),4,116},
+{UINT64_C(0x50e2eae),UINT64_C(0x50e2ec2),UINT64_C(0x50e2eb0),4,116},
+{UINT64_C(0x50e2f44),UINT64_C(0x50e2f58),UINT64_C(0x50e2f46),4,116},
+{UINT64_C(0x50e2fc3),UINT64_C(0x50e2fd7),UINT64_C(0x50e2fc5),4,116},
+{UINT64_C(0x50e3032),UINT64_C(0x50e3046),UINT64_C(0x50e3034),4,116},
+{UINT64_C(0x50e3075),UINT64_C(0x50e308f),UINT64_C(0x50e3077),5,117},
+{UINT64_C(0x50e30ac),UINT64_C(0x50e30b0),UINT64_C(0x50e30ae),5,117},
+{UINT64_C(0x50e313d),UINT64_C(0x50e308f),UINT64_C(0x50e3143),5,15},
+{UINT64_C(0x50e318d),UINT64_C(0x50e308f),UINT64_C(0x50e3193),5,15},
+{UINT64_C(0x50e31ba),UINT64_C(0x50e31c1),UINT64_C(0x50e31bc),5,117},
+{UINT64_C(0x50e321e),UINT64_C(0x50e3225),UINT64_C(0x50e3220),5,117},
+{UINT64_C(0x50e3297),UINT64_C(0x50e32ab),UINT64_C(0x50e3299),4,116},
+{UINT64_C(0x50e3314),UINT64_C(0x50e308f),UINT64_C(0x50e331a),5,15},
+{UINT64_C(0x50e3365),UINT64_C(0x50e308f),UINT64_C(0x50e336b),5,15},
+{UINT64_C(0x50e33bb),UINT64_C(0x50e33c2),UINT64_C(0x50e33bd),5,117},
+{UINT64_C(0x50e3472),UINT64_C(0x50e3486),UINT64_C(0x50e3474),4,116},
+{UINT64_C(0x50e3530),UINT64_C(0x50e3544),UINT64_C(0x50e3532),4,116},
+{UINT64_C(0x50e3623),UINT64_C(0x50e3637),UINT64_C(0x50e3625),4,116},
+{UINT64_C(0x50e36e5),UINT64_C(0x50e36f9),UINT64_C(0x50e36e7),4,116},
+{UINT64_C(0x50e37fd),UINT64_C(0x50e382f),UINT64_C(0x50e37ff),5,117},
+{UINT64_C(0x50e392a),UINT64_C(0x50e393e),UINT64_C(0x50e392c),4,116},
+{UINT64_C(0x50e3a46),UINT64_C(0x50e3a5a),UINT64_C(0x50e3a48),4,116},
+{UINT64_C(0x50e3b3b),UINT64_C(0x50e3b4f),UINT64_C(0x50e3b3d),4,116},
+{UINT64_C(0x50e3bbd),UINT64_C(0x50e3bd1),UINT64_C(0x50e3bbf),4,116},};
+static uintptr_t image_base;
+static int base_callback(struct dl_phdr_info *info,size_t size,void *data){
+ (void)size;(void)data;
+ if(!info->dlpi_name || !*info->dlpi_name){image_base=info->dlpi_addr;return 1;}return 0;
+}
+static int condition(unsigned cc,uintptr_t f){
+ int c=(f&1)!=0,p=(f&4)!=0,z=(f&64)!=0,s=(f&128)!=0,o=(f&2048)!=0;
+ switch(cc){case 0:return o;case 1:return !o;case 2:return c;case 3:return !c;
+ case 4:return z;case 5:return !z;case 6:return c||z;case 7:return !c&&!z;
+ case 8:return s;case 9:return !s;case 10:return p;case 11:return !p;
+ case 12:return s!=o;case 13:return s==o;case 14:return z||s!=o;case 15:return !z&&s==o;default:_exit(134);}
+}
+static char *hex(char *p,uintptr_t n){
+ static const char digits[]="0123456789abcdef";*p++='0';*p++='x';
+ for(int i=15;i>=0;--i)*p++=digits[(n>>(i*4))&15];return p;
+}
+static void trap(int sig,siginfo_t *details,void *context){
+ (void)sig;(void)details;int saved=errno;ucontext_t *u=context;
+ uintptr_t at=(uintptr_t)u->uc_mcontext.gregs[REG_RIP]-image_base-1;
+ for(size_t i=0;i<sizeof branches/sizeof branches[0];++i){
+  const struct branch *b=&branches[i];if(b->offset!=at)continue;
+  uintptr_t flags=(uintptr_t)u->uc_mcontext.gregs[REG_EFL];int taken=condition(b->cc,flags);
+  uintptr_t dest=taken?b->target:b->next;char buffer[180];char *p=buffer;
+  const char *tag="HOSTED_BRANCH pc=";while(*tag)*p++=*tag++;p=hex(p,at);
+  tag=" next=";while(*tag)*p++=*tag++;p=hex(p,dest);
+  tag=" flags=";while(*tag)*p++=*tag++;p=hex(p,flags);
+  tag=" rax=";while(*tag)*p++=*tag++;p=hex(p,(uintptr_t)u->uc_mcontext.gregs[REG_RAX]);
+  tag=" taken=";while(*tag)*p++=*tag++;*p++=taken?'1':'0';*p++='\n';
+  (void)write(2,buffer,(size_t)(p-buffer));
+  /* Jcc changes only RIP. The kernel restores every other saved register,
+     arithmetic flag and FP/vector state on return from this signal. */
+  u->uc_mcontext.gregs[REG_RIP]=(greg_t)(image_base+dest);errno=saved;return;
+ }
+ _exit(133);
+}
+__attribute__((constructor)) static void install(void){
+ const char *target=getenv("PERF_HOSTED_BRANCH_TARGET");char self[4096];
+ ssize_t n=readlink("/proc/self/exe",self,sizeof self-1);if(n<0)return;self[n]=0;
+ if(!target || strcmp(target,self)!=0)return;
+ (void)dl_iterate_phdr(base_callback,NULL);
+ struct sigaction action;memset(&action,0,sizeof action);action.sa_sigaction=trap;
+ action.sa_flags=SA_SIGINFO;sigemptyset(&action.sa_mask);if(sigaction(SIGTRAP,&action,NULL)!=0)_exit(130);
+ long pages=sysconf(_SC_PAGEUINT64_C(0x17bb));uintptr_t lo=(image_base+UINT64_C(0x50e25a0))&~((uintptr_t)pages-1);
+ uintptr_t hi=(image_base+UINT64_C(0x50e25a0)+UINT64_C(0x17bb)+(uintptr_t)pages-1)&~((uintptr_t)pages-1);
+ if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_WRITE|PROT_EXEC)!=0)_exit(131);
+ for(size_t i=0;i<sizeof branches/sizeof branches[0];++i){
+  volatile unsigned char *p=(volatile unsigned char *)(image_base+branches[i].offset);
+  if(*p!=branches[i].opcode)_exit(132);*p=0xcc;
+ }
+ if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_EXEC)!=0)_exit(131);
+}

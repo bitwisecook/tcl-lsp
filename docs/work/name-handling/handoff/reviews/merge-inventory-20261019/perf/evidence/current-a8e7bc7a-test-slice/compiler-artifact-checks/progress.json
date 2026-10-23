@@ -1,0 +1,14 @@
+{
+  "report-trace/new": {
+    "exit": 101,
+    "wall_s": 590.1515565640002,
+    "outcomes": {},
+    "listed_count": 16
+  },
+  "report-trace/old": {
+    "exit": 101,
+    "wall_s": 477.9107877380011,
+    "outcomes": {},
+    "listed_count": 16
+  }
+}

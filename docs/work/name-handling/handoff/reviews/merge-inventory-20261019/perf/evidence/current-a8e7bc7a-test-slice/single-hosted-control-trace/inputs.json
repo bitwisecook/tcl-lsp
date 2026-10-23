@@ -1,0 +1,25 @@
+{
+  "scope": "existing unchanged genuine-hosted control trace only, not the complete16-control/corpus acceptance",
+  "source_control_inputs": {
+    "head": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+    "profile": "dev/test opt-level=0 debug=0 incremental=0; debug/overflow assertions unchanged",
+    "rust_diff_sha256": "ab8631e6adc9e46e049622d6cd6820edfdf462a1a03a9983d907e1f3245d23c2",
+    "probe_sha256": "c8fea9f3df182412a134a4b4f07b51307e541733100e37731a6871b5ac84f137",
+    "acceptance": "all three report comparisons Equal; strict runtime equality recorded separately",
+    "started_unix": 1792762217.2712226
+  },
+  "original": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+  "copy": "/tmp/perf-single-hosted-trace-swxagqsm/zz_hosted_trace_perfprobe",
+  "sha256": "f9e1d70c1dabc428d622e83674e2c1ca0b43e943e460cc8aed96141c5fcbaae7",
+  "argv": [
+    "/tmp/perf-single-hosted-trace-swxagqsm/zz_hosted_trace_perfprobe",
+    "analyser::authenticated_report::tests::genuine_hosted_event_report_retains_a_separate_actual_domain",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "cpu_mask": [
+    0,
+    1
+  ]
+}

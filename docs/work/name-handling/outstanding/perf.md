@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 15:13 UTC
+Last updated: 2026-10-23 15:58 UTC
 
 ## Resume
 
@@ -25,8 +25,12 @@ Active commands (build/run/delete executables in one command):
 
 - /tmp/perf-run-a8e7-test-slice.log, session70544, Python21559: current16
   report+actual-diagnostic-realm controls both modes, then Native/hosted smoke,
-  synthetics and complete ordered PackSet. Build still running; no control
-  verdict yet. Receipts: evidence/current-a8e7bc7a-test-slice/.
+  synthetics and complete ordered PackSet. Control build COMPLETE/zero warnings. All16 controls complete BOTH:
+ 15 PASS/1 FAIL each, identical inventory, zero P2F. The sole failure is the
+ unchanged genuine hosted event. Native/Logical alias roles and all adversarial
+ checks plus actual diagnostic-realm control pass. Full corpus remains blocked.
+ Main command now builds/runs Native/hosted/synthetic/PackSet probes before
+ cleanup; no main final source-after receipt yet. Receipts: evidence/current-a8e7bc7a-test-slice/.
 - /tmp/perf-watch-compiler-trace-first.log, session90719, Python26478: waits for
   that exact control binary, SHA-verifies a private copy, runs the existing report trace FIRST, then every original
   compiler filter both modes, and deletes it. The earlier waiting watcher
@@ -53,8 +57,10 @@ Active commands (build/run/delete executables in one command):
   original2 test threads, assertions and budgets apply to both modes.
   /tmp/perf-partition-spec-cpus.log, session39125, records every prior mask
   and restores the exact roots after all4 SpecTcl runs and executable cleanup.
-  cpu-partition.json is the receipt. New eval_loader has27/28 passing so far,
-  no final suite comparison yet.
+  cpu-partition.json is the receipt. New eval_loader COMPLETE:27 PASS/1 FAIL,3336.099s; unchanged interpreted
+ eda_xilinx exhausts its30-minute per-pack wall budget. Old eval_loader is
+ RUNNING on the same cores. No complete old/new comparison yet; preserve
+ this actual failed run even if a later controlled repeat differs.
 
 The quiet server window is COMPLETE. Both original180s cases/modes ran with
 compiler builders/watcher stopped; all8 exact owned processes were resumed
@@ -86,8 +92,16 @@ The current public-API hosted smokes still fail all3 comparison pairs with
 Unavailable(CurrentOwnerUnavailable), for both cookbook_http_collect.irul and
 exact37-byte genuine event source. Strict runtime Eq is separately false.
 Fresh normal-library hashes/fresh:false receipts rule out stale artifact reuse.
-The next cfg(test) trace must locate the successor refusal; do not attribute
-it to the obsolete0322 guard. The a8 upstream repair changed procedure
+The exact cfg(test) hosted trace is COMPLETE/FAILED: named Event body
+ retained, complete current hosted domain, event card owns its procedure,
+ source row retained and no duplicate word, then bodies.event-word=None.
+ Lowering retains original words/event operand and metadata context but has
+ no hosted-event-units trace. The intervening branch/guards are not yet
+ distinguished; do not claim a particular boolean is false. Full raw trace
+ and SHA-identical-copy/cleanup receipts: single-hosted-control-trace-exact/.
+ The earlier single trace used a wrong module selector and ran0 tests; its
+ result is explicitly INVALID, never a pass or acceptance. The corrected
+ selector is verified against the declared inventory and runs exactly1 test. The a8 upstream repair changed procedure
 visitation/hosted event issuance and authentic alias role/purpose/extent
 controls. The current expected16 controls must all pass before full corpus.
 
@@ -190,3 +204,8 @@ If the SpecTcl driver exits early (for example P2F) before all4 summary rows
 finish, interrupt the active perf-partition-spec-cpus.py guard with SIGINT
 (after verifying its argv) to execute finally and restore the CPU masks.
 Do not leave the guard waiting on pending rows after an aborted driver.
+
+Resource maintenance: the16GiB cgroup reached its limit without an OOM kill.
+ Advisory POSIX_FADV_DONTNEED on cold build artifacts reduced file cache by
+ about3GiB (no source/settings/content/mtime edits). All data and limits are
+ cold-build-cache-20261023.json; this is resource management, not latency proof.

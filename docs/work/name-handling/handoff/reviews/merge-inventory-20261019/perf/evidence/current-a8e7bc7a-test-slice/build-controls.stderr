@@ -7,3 +7,4 @@
    Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spec-hooks)
    Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lsp-core)
    Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 117m 55s

@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 15:13 UTC
+Last updated: 2026-10-23 15:58 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -236,3 +236,19 @@ self report comparison remains CurrentOwnerUnavailable. This is the public
 realm query, not the private Lowerer guard or an equality acceptance proof.
 Exact source/library/binary receipts and output are current-a8e7bc7a-test-slice/
 hosted-site-diagnostic/. Its executable and temporary Rust source were deleted.
+
+Complete a8+test-slice controls:16 each,15 PASS/1 FAIL BOTH, identical
+ inventories and zero P2F/zero warnings. Native/Logical role/purpose/extent
+ controls and actual diagnostic-realm control all pass; genuine hosted capture
+ still fails. Exact unchanged single-case trace retains a genuine Event body
+ and current hosted domain, then refuses because the event card has no event
+ word. Lowering original words/event operand/context are Some; intervening
+ branch/guard boolean remains unobserved. The first exact-selector attempt
+ ran0 tests and is explicitly INVALID; corrected trace runs exactly1, fails
+ unchanged assertion and deletes its SHA-identical executable copy.
+
+Current opt1 eval_loader new finishes27/1 in3336.099s: interpreted eda_xilinx
+ hits its unchanged30-minute per-pack wall budget. Old mode is still running;
+ no zero-P2F verdict yet. Preserve this run. Resource maintenance evicted cold
+ clean build-file cache (~3GiB) without altering source/settings/file contents;
+ no OOM kill occurred. The resource receipt is not timing acceptance evidence.

@@ -1,0 +1,7 @@
+{
+  "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+  "sha256": "f9e1d70c1dabc428d622e83674e2c1ca0b43e943e460cc8aed96141c5fcbaae7",
+  "copy": "/tmp/perf-compiler-checks-kpv0nmj1/tcl_compiler-455d0126ba4b4f9f",
+  "source_control_inputs": "/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a-test-slice/inputs.json",
+  "copy_sha256": "f9e1d70c1dabc428d622e83674e2c1ca0b43e943e460cc8aed96141c5fcbaae7"
+}

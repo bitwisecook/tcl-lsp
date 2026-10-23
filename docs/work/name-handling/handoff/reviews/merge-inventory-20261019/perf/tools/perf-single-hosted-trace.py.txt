@@ -1,0 +1,17 @@
+from pathlib import Path
+import hashlib,json,os,shutil,subprocess,tempfile,time
+os.sched_setaffinity(0,{0,1})
+root=Path('/workspace/tcl-lsp-perf-latest');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a-test-slice');out=base/'single-hosted-control-trace';out.mkdir(exist_ok=True)
+r=json.loads((base/'controls-binary.json').read_text());original=Path(r['path'])
+with tempfile.TemporaryDirectory(prefix='perf-single-hosted-trace-') as td:
+ exe=Path(td)/'zz_hosted_trace_perfprobe';shutil.copy2(original,exe)
+ digest=hashlib.sha256(exe.read_bytes()).hexdigest();assert digest==r['sha256']
+ env=os.environ.copy();env.pop('ZZ_OLD_ENV',None);env['TCL_LSP_TRACE_AUTHENTICATED_REPORT']='1';env['CARGO_MANIFEST_DIR']=str(root/'rust/tcl-compiler')
+ argv=[str(exe),'analyser::authenticated_report::tests::genuine_hosted_event_report_retains_a_separate_actual_domain','--exact','--nocapture','--test-threads=1']
+ receipt={'scope':'existing unchanged genuine-hosted control trace only, not the complete16-control/corpus acceptance','source_control_inputs':json.loads((base/'inputs.json').read_text()),'original':str(original),'copy':str(exe),'sha256':digest,'argv':argv,'cpu_mask':[0,1]}
+ (out/'inputs.json').write_text(json.dumps(receipt,indent=2)+'\n');start=time.monotonic()
+ with (out/'trace.out').open('w') as f:
+  try:code=subprocess.run(argv,cwd=root/'rust/tcl-compiler',env=env,stdout=f,stderr=subprocess.STDOUT,timeout=240).returncode
+  except subprocess.TimeoutExpired:code='timeout240'
+ (out/'result.json').write_text(json.dumps({'exit':code,'wall_s':time.monotonic()-start,'copy_removed_on_scope_exit':True},indent=2)+'\n')
+print('Single hosted trace complete; copy deleted',flush=True)

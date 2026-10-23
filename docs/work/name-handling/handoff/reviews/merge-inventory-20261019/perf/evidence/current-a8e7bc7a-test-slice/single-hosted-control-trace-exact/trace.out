@@ -1,0 +1,45 @@
+
+running 1 test
+test analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain ... REPORT_EVENT_SOURCE stage=source-bindings available=true
+REPORT_EVENT_SOURCE stage=deferred-candidates available=true
+REPORT_EVENT_SOURCE stage=event-indices available=true
+REPORT_EVENT_SOURCE stage=event-index available=true
+REPORT_EVENT_SOURCE stage=original-words available=true
+REPORT_EVENT_SOURCE stage=original-event-word available=true
+REPORT_EVENT_SOURCE stage=metadata-context available=true
+REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=true vendor_input_matches=true native_entry=false
+REPORT_BODY_INVENTORY named=1 units=0 hosted_cards=0 events=1 definitions=0 hosted_input=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 1, ordinal: 0 } role=named kind=Event declaration=Span { start: 0, end: 37 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [119, 104, 101, 110, 32, 72, 84, 84, 80, 95, 82, 69, 81, 85, 69, 83, 84, 32, 123, 32, 115, 101, 116, 32, 118, 97, 108, 117, 101, 32, 86, 65, 76, 85, 69, 32, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 2080577543581733403, line_index: Some(LineIndex { line_starts: [0] }) } }), fingerprint: 3304965892823877931, activation_key: 1 }, offset: 0 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 1, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=bodies.event-procedure available=true
+REPORT_CAPTURE stage=bodies.event-procedure-match refuses=false
+REPORT_CAPTURE stage=bodies.event-row available=true
+REPORT_CAPTURE stage=bodies.event-duplicate-word refuses=false
+REPORT_CAPTURE stage=bodies.event-word available=false
+REPORT_CAPTURE stage=capture.bodies available=false
+
+thread 'analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain' (29050) panicked at rust/tcl-compiler/src/analyser/authenticated_report.rs:500:14:
+actual hosted diagnostics CU: CurrentOwnerUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10585 filtered out; finished in 4.55s
+

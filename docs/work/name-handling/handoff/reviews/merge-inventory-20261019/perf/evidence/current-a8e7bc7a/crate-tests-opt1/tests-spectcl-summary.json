@@ -1,10 +1,16 @@
 {
   "spectcl/eval_loader/new": {
-    "status": "running",
+    "returncode": 101,
+    "seconds": 3336.099,
+    "passed": 27,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
     "log": "tests-spectcl-eval_loader-new.out"
   },
   "spectcl/eval_loader/old": {
-    "status": "pending"
+    "status": "running",
+    "log": "tests-spectcl-eval_loader-old.out"
   },
   "spectcl/golden_packs/new": {
     "status": "pending"

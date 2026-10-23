@@ -1,0 +1,12 @@
+{
+  "original": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+  "copy": "/tmp/perf-hosted-branches-xr84dr5w/zz_hosted_branch_perfprobe",
+  "original_binary_sha256": "f9e1d70c1dabc428d622e83674e2c1ca0b43e943e460cc8aed96141c5fcbaae7",
+  "function_start": 84813216,
+  "function_size": 6075,
+  "conditional_count": 33,
+  "scope": "Diagnostic only. Conditional jumps in a disposable process are logged/emulated from the original x86 flags; all assertions remain and run. No source or disk executable bytes are patched. The normal uninstrumented failing control is retained separately.",
+  "instrumentation_source_sha256": "7bcc0e512da1297b1bebdcbb0bd090af97d358a37ad669e68653d49d94d96c37",
+  "build_exit": 1,
+  "temporary_files_removed": true
+}

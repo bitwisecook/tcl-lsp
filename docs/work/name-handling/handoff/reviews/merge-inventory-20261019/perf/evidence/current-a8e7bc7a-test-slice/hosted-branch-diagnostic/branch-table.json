@@ -1,0 +1,270 @@
+{
+  "function": "00000000050e25a0 00000000000017bb t <tcl_compiler::lowering::Lowerer>::original_when_event_word",
+  "branches": [
+    {
+      "offset": 84813382,
+      "target": 84813402,
+      "next": 84813384,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2646:\t74 12                \tje     50e265a <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xba>"
+    },
+    {
+      "offset": 84813554,
+      "target": 84813574,
+      "next": 84813556,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e26f2:\t74 12                \tje     50e2706 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x166>"
+    },
+    {
+      "offset": 84813752,
+      "target": 84813772,
+      "next": 84813754,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e27b8:\t74 12                \tje     50e27cc <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x22c>"
+    },
+    {
+      "offset": 84814057,
+      "target": 84814077,
+      "next": 84814059,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e28e9:\t74 12                \tje     50e28fd <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x35d>"
+    },
+    {
+      "offset": 84814245,
+      "target": 84814280,
+      "next": 84814247,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e29a5:\t75 21                \tjne    50e29c8 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x428>"
+    },
+    {
+      "offset": 84814618,
+      "target": 84814638,
+      "next": 84814620,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2b1a:\t74 12                \tje     50e2b2e <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x58e>"
+    },
+    {
+      "offset": 84814931,
+      "target": 84814951,
+      "next": 84814933,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2c53:\t74 12                \tje     50e2c67 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x6c7>"
+    },
+    {
+      "offset": 84815054,
+      "target": 84815143,
+      "next": 84815056,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2cce:\t74 57                \tje     50e2d27 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x787>"
+    },
+    {
+      "offset": 84815257,
+      "target": 84815261,
+      "next": 84815259,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e2d99:\t75 02                \tjne    50e2d9d <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x7fd>"
+    },
+    {
+      "offset": 84815384,
+      "target": 84815404,
+      "next": 84815386,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2e18:\t74 12                \tje     50e2e2c <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x88c>"
+    },
+    {
+      "offset": 84815534,
+      "target": 84815554,
+      "next": 84815536,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2eae:\t74 12                \tje     50e2ec2 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x922>"
+    },
+    {
+      "offset": 84815684,
+      "target": 84815704,
+      "next": 84815686,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2f44:\t74 12                \tje     50e2f58 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x9b8>"
+    },
+    {
+      "offset": 84815811,
+      "target": 84815831,
+      "next": 84815813,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e2fc3:\t74 12                \tje     50e2fd7 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xa37>"
+    },
+    {
+      "offset": 84815922,
+      "target": 84815942,
+      "next": 84815924,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3032:\t74 12                \tje     50e3046 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaa6>"
+    },
+    {
+      "offset": 84815989,
+      "target": 84816015,
+      "next": 84815991,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e3075:\t75 18                \tjne    50e308f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaef>"
+    },
+    {
+      "offset": 84816044,
+      "target": 84816048,
+      "next": 84816046,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e30ac:\t75 02                \tjne    50e30b0 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xb10>"
+    },
+    {
+      "offset": 84816189,
+      "target": 84816015,
+      "next": 84816195,
+      "cc": 5,
+      "opcode": 15,
+      "assembly": " 50e313d:\t0f 85 4c ff ff ff    \tjne    50e308f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaef>"
+    },
+    {
+      "offset": 84816269,
+      "target": 84816015,
+      "next": 84816275,
+      "cc": 5,
+      "opcode": 15,
+      "assembly": " 50e318d:\t0f 85 fc fe ff ff    \tjne    50e308f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaef>"
+    },
+    {
+      "offset": 84816314,
+      "target": 84816321,
+      "next": 84816316,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e31ba:\t75 05                \tjne    50e31c1 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xc21>"
+    },
+    {
+      "offset": 84816414,
+      "target": 84816421,
+      "next": 84816416,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e321e:\t75 05                \tjne    50e3225 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xc85>"
+    },
+    {
+      "offset": 84816535,
+      "target": 84816555,
+      "next": 84816537,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3297:\t74 12                \tje     50e32ab <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xd0b>"
+    },
+    {
+      "offset": 84816660,
+      "target": 84816015,
+      "next": 84816666,
+      "cc": 5,
+      "opcode": 15,
+      "assembly": " 50e3314:\t0f 85 75 fd ff ff    \tjne    50e308f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaef>"
+    },
+    {
+      "offset": 84816741,
+      "target": 84816015,
+      "next": 84816747,
+      "cc": 5,
+      "opcode": 15,
+      "assembly": " 50e3365:\t0f 85 24 fd ff ff    \tjne    50e308f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xaef>"
+    },
+    {
+      "offset": 84816827,
+      "target": 84816834,
+      "next": 84816829,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e33bb:\t75 05                \tjne    50e33c2 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xe22>"
+    },
+    {
+      "offset": 84817010,
+      "target": 84817030,
+      "next": 84817012,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3472:\t74 12                \tje     50e3486 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xee6>"
+    },
+    {
+      "offset": 84817200,
+      "target": 84817220,
+      "next": 84817202,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3530:\t74 12                \tje     50e3544 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0xfa4>"
+    },
+    {
+      "offset": 84817443,
+      "target": 84817463,
+      "next": 84817445,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3623:\t74 12                \tje     50e3637 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x1097>"
+    },
+    {
+      "offset": 84817637,
+      "target": 84817657,
+      "next": 84817639,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e36e5:\t74 12                \tje     50e36f9 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x1159>"
+    },
+    {
+      "offset": 84817917,
+      "target": 84817967,
+      "next": 84817919,
+      "cc": 5,
+      "opcode": 117,
+      "assembly": " 50e37fd:\t75 30                \tjne    50e382f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x128f>"
+    },
+    {
+      "offset": 84818218,
+      "target": 84818238,
+      "next": 84818220,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e392a:\t74 12                \tje     50e393e <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x139e>"
+    },
+    {
+      "offset": 84818502,
+      "target": 84818522,
+      "next": 84818504,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3a46:\t74 12                \tje     50e3a5a <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x14ba>"
+    },
+    {
+      "offset": 84818747,
+      "target": 84818767,
+      "next": 84818749,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3b3b:\t74 12                \tje     50e3b4f <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x15af>"
+    },
+    {
+      "offset": 84818877,
+      "target": 84818897,
+      "next": 84818879,
+      "cc": 4,
+      "opcode": 116,
+      "assembly": " 50e3bbd:\t74 12                \tje     50e3bd1 <<tcl_compiler::lowering::Lowerer>::original_when_event_word+0x1631>"
+    }
+  ],
+  "scope": "Conditional instruction flags/branches from an isolated test copy; instrumentation is diagnostic only, never test acceptance."
+}
