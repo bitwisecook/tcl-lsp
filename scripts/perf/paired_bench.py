@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 CHECK_IDS = [
     "scan.workspace",
@@ -74,7 +75,7 @@ PINNED_HARNESS_FILES = {
     ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
     "scripts/perf/MANIFEST.toml": "956a8a562484da5356bfe340ec82531f699a18c65a7ea4a9e4efbdd9540b1f58",
 }
-FAILURE_STATE = {"out": None, "meta": None, "phase": "startup"}
+FAILURE_STATE: dict[str, object] = {"out": None, "meta": None, "phase": "startup"}
 
 
 class Invalid(RuntimeError):
@@ -89,7 +90,7 @@ def sha(path: Path) -> str:
     return h.hexdigest()
 
 
-def dump(path: Path, obj) -> None:
+def dump(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, indent=2, sort_keys=True) + "\n")
 
@@ -128,7 +129,9 @@ def compiler_processes() -> list[str]:
     return found
 
 
-def require_group_closed(process: dict, label: str, meta: dict, out: Path) -> bool:
+def require_group_closed(
+    process: dict[str, Any], label: str, meta: dict[str, Any], out: Path
+) -> bool:
     if process.get("group_empty"):
         return True
     meta["invalid_reasons"].append(
@@ -156,18 +159,24 @@ def meaningful_counts(
 
 def preserve_failure(exc: Exception) -> None:
     out = FAILURE_STATE.get("out")
-    meta = FAILURE_STATE.get("meta")
+    meta_value = FAILURE_STATE.get("meta")
     if not isinstance(out, Path):
         return
-    if not isinstance(meta, dict):
-        meta = {
+    if not isinstance(meta_value, dict):
+        meta: dict[str, Any] = {
             "schema": "paired-tcl-corpus-perf-v2",
             "runs": [],
             "builds": [],
             "invalid_reasons": [],
         }
+    else:
+        meta = meta_value
     reason = f"exception during {FAILURE_STATE.get('phase', 'unknown')}: {type(exc).__name__}: {exc}"
-    meta.setdefault("invalid_reasons", []).append(reason)
+    reasons = meta.get("invalid_reasons")
+    if not isinstance(reasons, list):
+        reasons = []
+        meta["invalid_reasons"] = reasons
+    reasons.append(reason)
     meta["failed_phase"] = FAILURE_STATE.get("phase")
     try:
         dump(out / "paired-summary.json", meta)
@@ -349,7 +358,7 @@ def main() -> int:
     ap.add_argument("--build-deadline", type=int, default=2700)
     a = ap.parse_args()
     FAILURE_STATE["out"] = a.out.resolve()
-    meta = {
+    meta: dict[str, Any] = {
         "schema": "paired-tcl-corpus-perf-v2",
         "baseline_sha": a.baseline_sha.lower(),
         "candidate_sha": a.candidate_sha.lower(),
@@ -572,7 +581,7 @@ def main() -> int:
         ("candidate", "baseline"),
         ("baseline", "candidate"),
     ]
-    raw_runs = {}
+    raw_runs: dict[tuple[int, str], dict[str, Any] | None] = {}
     for pair, (first, second) in enumerate(run_order, 1):
         for side in (first, second):
             FAILURE_STATE["phase"] = f"{side} pair {pair} benchmark"
@@ -665,9 +674,9 @@ def main() -> int:
                 meta["invalid_reasons"].append(
                     f"{label}: nonzero exit without failed benchmark checks"
                 )
-    comparisons = []
+    comparisons: list[dict[str, Any]] = []
     for cid in CHECK_IDS:
-        values = []
+        values: list[dict[str, Any]] = []
         for pair in range(1, 4):
             b = raw_runs.get((pair, "baseline"))
             c = raw_runs.get((pair, "candidate"))
