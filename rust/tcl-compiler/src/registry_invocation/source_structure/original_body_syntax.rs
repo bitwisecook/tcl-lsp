@@ -353,7 +353,7 @@ impl OriginalBodySyntaxInventory {
             tokens,
             segment,
             registry,
-            assistance,
+            &assistance,
         )?;
         (matches!(words.source(), OriginalRegistrySource::Selected)
             && words.operands_preserve_source_lookup())
