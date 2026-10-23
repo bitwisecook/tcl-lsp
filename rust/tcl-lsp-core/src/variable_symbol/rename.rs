@@ -67,51 +67,12 @@ pub fn original_variable_rename_edits(
     let mut requests = Vec::<(SignatureSourceNameInput, NameBytes)>::new();
     let mut roots = Vec::new();
     for occurrence in super::occurrences(analysis, symbol) {
-        let input = occurrence.original_name_input();
-        if !crate::original_name_edit::original_input_matches_source(
-            source,
-            analysis,
-            input,
-            occurrence.span(),
-        ) {
-            return Err(refuse(
-                "a variable occurrence has no current original source correspondence",
-            ));
-        }
-        let wanted = occurrence.renamed_input(&tail).ok_or_else(|| {
-            refuse("the variable receiver cannot preserve its selected root and index")
-        })?;
+        let (input, wanted) = variable_rename_wanted_input(source, analysis, occurrence, &tail)?;
         if wanted == input.bytes() {
             continue;
         }
         if let SignatureSourceNameInput::OriginalVariableRoot(root) = input {
-            let name = root
-                .name_span()
-                .ok_or_else(|| refuse("the lexical variable has no original name extent"))?;
-            let raw = image
-                .bytes()
-                .get(name.as_range())
-                .ok_or_else(|| refuse("the lexical variable is outside its original source"))?;
-            let form = if root.is_separate_array_root() {
-                tcl_syntax::naming::NativeVariableInputForm::Separate {
-                    root: root.bytes(),
-                    element: None,
-                }
-            } else {
-                tcl_syntax::naming::NativeVariableInputForm::Combined(root.bytes())
-            };
-            let native_extent = symbol
-                .policy()
-                .recipe()
-                .variable_root_tail_extent(form)
-                .ok_or_else(|| refuse("the lexical variable has no selected original root tail"))?;
-            let extent = tcl_syntax::backslash::native_source_literal_extent(
-                raw,
-                image.channel(),
-                symbol.policy().string_protocol(),
-                native_extent,
-            )
-            .ok_or_else(|| refuse("the variable root tail crosses a source unit boundary"))?;
+            let (raw, extent) = variable_root_tail_extent(&image, root, symbol)?;
             let mut after = std::str::from_utf8(raw)
                 .map_err(|_| refuse("the editor variable source is not Unicode"))?
                 .to_owned();
@@ -134,11 +95,7 @@ pub fn original_variable_rename_edits(
                 })?,
             );
         } else {
-            if input.original_static_list_container().is_none() {
-                return Err(refuse(
-                    "the variable is supplied by a readonly computed value without an editable original container",
-                ));
-            }
+            require_original_variable_container(input)?;
             requests.push((input.clone(), wanted.into()));
         }
     }
@@ -149,14 +106,7 @@ pub fn original_variable_rename_edits(
     edits.extend(roots);
     edits.sort_by_key(|edit| (edit.span().start(), edit.span().end()));
     edits.dedup();
-    if edits
-        .windows(2)
-        .any(|pair| pair[0].span().end() > pair[1].span().start())
-    {
-        return Err(refuse(
-            "variable edits overlap independent original source containers",
-        ));
-    }
+    require_disjoint_variable_edits(&edits)?;
     let edits = if analysis
         .resolved_input
         .as_ref()
@@ -171,33 +121,155 @@ pub fn original_variable_rename_edits(
     let index = LineIndex::new(source);
     Ok(edits
         .into_iter()
-        .map(|edit| {
-            let span = edit.span();
-            // A plain `$name` read is rewritten as the whole `$name` token, so
-            // the edit reads as the substitution it replaces (`$x` -> `$y`).
-            // The resulting text is identical; braced `${name}` and
-            // qualified tails keep their minimal edit.
-            let dollar = span
-                .start()
-                .checked_sub(1)
-                .filter(|start| source.as_bytes().get(*start as usize) == Some(&b'$'))
-                .filter(|_| source.as_bytes().get(span.start() as usize) != Some(&b'{'));
-            match dollar {
-                Some(start) => TextEdit {
-                    range: crate::definition::span_to_range(
-                        source,
-                        &index,
-                        tcl_lexer::Span::new(start, span.end()),
-                    ),
-                    new_text: format!("${}", edit.text()),
-                },
-                None => TextEdit {
-                    range: crate::definition::span_to_range(source, &index, span),
-                    new_text: edit.text().to_owned(),
-                },
-            }
-        })
+        .map(|edit| variable_name_text_edit(source, &index, &edit))
         .collect())
+}
+
+fn require_disjoint_variable_edits(
+    edits: &[crate::original_name_edit::OriginalNameSourceEdit],
+) -> Result<(), RenameRefusal> {
+    let refuse = |reason: &str| RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    if edits
+        .windows(2)
+        .any(|pair| pair[0].span().end() > pair[1].span().start())
+    {
+        return Err(refuse(
+            "variable edits overlap independent original source containers",
+        ));
+    }
+    Ok(())
+}
+
+fn require_original_variable_container(
+    input: &SignatureSourceNameInput,
+) -> Result<(), RenameRefusal> {
+    let refuse = |reason: &str| RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    if input.original_static_list_container().is_none() {
+        return Err(refuse(
+            "the variable is supplied by a readonly computed value without an editable original container",
+        ));
+    }
+    Ok(())
+}
+
+fn variable_rename_wanted_input<'a>(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &'a tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    tail: &[u8],
+) -> Result<(&'a SignatureSourceNameInput, Vec<u8>), RenameRefusal> {
+    let refuse = |reason: &str| RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    let input = occurrence.original_name_input();
+    if !crate::original_name_edit::original_input_matches_source(
+        source,
+        analysis,
+        input,
+        occurrence.span(),
+    ) {
+        return Err(refuse(
+            "a variable occurrence has no current original source correspondence",
+        ));
+    }
+    let wanted = occurrence.renamed_input(tail).ok_or_else(|| {
+        refuse("the variable receiver cannot preserve its selected root and index")
+    })?;
+    Ok((input, wanted))
+}
+
+fn variable_root_tail_extent<'a>(
+    image: &'a SourceImage,
+    root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
+    symbol: &SignatureSourceVariableSymbol,
+) -> Result<(&'a [u8], std::ops::Range<usize>), RenameRefusal> {
+    let refuse = |reason: &str| RenameRefusal {
+        reason: reason.to_owned(),
+        range: None,
+    };
+    let name = root
+        .name_span()
+        .ok_or_else(|| refuse("the lexical variable has no original name extent"))?;
+    let raw = image
+        .bytes()
+        .get(name.as_range())
+        .ok_or_else(|| refuse("the lexical variable is outside its original source"))?;
+    let form = if root.is_separate_array_root() {
+        tcl_syntax::naming::NativeVariableInputForm::Separate {
+            root: root.bytes(),
+            element: None,
+        }
+    } else {
+        tcl_syntax::naming::NativeVariableInputForm::Combined(root.bytes())
+    };
+    let native_extent = symbol
+        .policy()
+        .recipe()
+        .variable_root_tail_extent(form)
+        .ok_or_else(|| refuse("the lexical variable has no selected original root tail"))?;
+    let extent = tcl_syntax::backslash::native_source_literal_extent(
+        raw,
+        image.channel(),
+        symbol.policy().string_protocol(),
+        native_extent,
+    )
+    .ok_or_else(|| refuse("the variable root tail crosses a source unit boundary"))?;
+    Ok((raw, extent))
+}
+
+fn variable_name_text_edit(
+    source: &str,
+    index: &LineIndex,
+    edit: &crate::original_name_edit::OriginalNameSourceEdit,
+) -> TextEdit {
+    let span = edit.span();
+    // A plain `$name` read is rewritten as the whole `$name` token, so
+    // the edit reads as the substitution it replaces (`$x` -> `$y`).
+    // The resulting text is identical; braced `${name}` and
+    // qualified tails keep their minimal edit.
+    let dollar = span
+        .start()
+        .checked_sub(1)
+        .filter(|start| source.as_bytes().get(*start as usize) == Some(&b'$'))
+        .filter(|_| source.as_bytes().get(span.start() as usize) != Some(&b'{'));
+    match dollar {
+        Some(start) => TextEdit {
+            range: crate::definition::span_to_range(
+                source,
+                index,
+                tcl_lexer::Span::new(start, span.end()),
+            ),
+            new_text: format!("${}", edit.text()),
+        },
+        None => TextEdit {
+            range: crate::definition::span_to_range(source, index, span),
+            new_text: edit.text().to_owned(),
+        },
+    }
+}
+
+fn variable_occurrence_changed(
+    original: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    proposed: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    expected: &[u8],
+    edits: &[crate::original_name_edit::OriginalNameSourceEdit],
+) -> bool {
+    proposed.original_name_input().bytes() != expected
+        || original.receiver() != proposed.receiver()
+        || original.is_declaration() != proposed.is_declaration()
+        || original.rename_changes_spelling() != proposed.rename_changes_spelling()
+        || std::mem::discriminant(original.original_name_input())
+            != std::mem::discriminant(proposed.original_name_input())
+        || original.symbol().policy() != proposed.symbol().policy()
+        || !mapped_occurrence(original.span(), proposed.span(), edits)
+        || !same_source_scope(original.symbol(), proposed.symbol(), edits)
 }
 
 /// Intentional source alpha-renaming, not a physical-cell or observer proof.
@@ -253,16 +325,7 @@ impl LogicalVariableSourceRenameIntent {
             } else {
                 original.original_name_input().bytes().to_vec()
             };
-            if proposed.original_name_input().bytes() != expected
-                || original.receiver() != proposed.receiver()
-                || original.is_declaration() != proposed.is_declaration()
-                || original.rename_changes_spelling() != proposed.rename_changes_spelling()
-                || std::mem::discriminant(original.original_name_input())
-                    != std::mem::discriminant(proposed.original_name_input())
-                || original.symbol().policy() != proposed.symbol().policy()
-                || !mapped_occurrence(original.span(), proposed.span(), &edits)
-                || !same_source_scope(original.symbol(), proposed.symbol(), &edits)
-            {
+            if variable_occurrence_changed(original, proposed, &expected, &edits) {
                 return None;
             }
             if groups
