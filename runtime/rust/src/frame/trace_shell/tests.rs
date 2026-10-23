@@ -78,16 +78,12 @@ fn observe(interpreter: &mut Interp) {
     match MODE.with(Cell::get) {
         3 => {
             let value = text(b"CALLBACK REPLACEMENT");
-            interpreter
-                .var_set(
-                    if ROOT.with(Cell::get) {
-                        b"shell"
-                    } else {
-                        b"a(unused)"
-                    },
-                    value.as_ptr(),
-                )
-                .unwrap();
+            if ROOT.with(Cell::get) {
+                interpreter.var_set(b"shell", value.as_ptr())
+            } else {
+                interpreter.var_set_elem(b"a", b"unused", value.as_ptr())
+            }
+            .unwrap();
         }
         4 => {
             let (_, frame) = interpreter
@@ -168,7 +164,9 @@ fn original_trace_member_key_removal_retires_outside_storage_and_checks_the_same
             let mut interpreter = native(profile);
             interpreter.frames.borrow_mut().push(GLOBAL);
             let value = text(b"V");
-            interpreter.var_set(b"a(k)", value.as_ptr()).unwrap();
+            interpreter
+                .var_set_elem(b"a", b"k", value.as_ptr())
+                .unwrap();
             assert_eq!(
                 interpreter.eval_str(b"trace add variable a(unused) unset {}"),
                 Code::Ok

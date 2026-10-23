@@ -32,6 +32,14 @@ pub(super) struct SourceArgumentSlice<'a> {
     pub selected: std::ops::Range<usize>,
 }
 
+struct SourceArgumentEvaluationContext<'a> {
+    source: &'a str,
+    base: u32,
+    words: &'a [crate::ir::WordExpr],
+    context: SourceExecutionContext<'a>,
+    argument_owner: Option<&'a super::SourceVariableEvaluationOwner>,
+}
+
 impl SourceCommandBindings {
     /// Evaluate only the selected unchanged words, retaining their complete original vector.
     #[inline(never)]
@@ -54,6 +62,13 @@ impl SourceCommandBindings {
             segment.span.start(),
             context.variable_read_owner,
         );
+        let evaluation = SourceArgumentEvaluationContext {
+            source,
+            base,
+            words,
+            context,
+            argument_owner: argument_owner.as_ref(),
+        };
         let mut prepared = PreparedSourceArguments::boxed(words.len());
         let mut written_arguments = Vec::with_capacity(words.len());
         for word in &words[selected] {
@@ -71,82 +86,100 @@ impl SourceCommandBindings {
                 written_arguments.push(frozen);
                 continue;
             }
-            let substitutions = self.walk_substitutions(
+            if !self.prepare_substituted_source_argument(
                 word,
-                source,
-                base,
+                &evaluation,
                 state,
-                SourceExecutionContext {
-                    depth: context.depth + 1,
-                    variable_read_owner: argument_owner.as_ref(),
-                    ..context
-                },
-            );
-            prepared.complete_normally &=
-                substitutions.normal_completion.is_some() && substitutions.abrupt.is_empty();
-            for (route, state) in &substitutions.abrupt {
-                prepared.outcomes.add_abrupt(*route, state);
+                &mut prepared,
+                &mut written_arguments,
+            ) {
+                return prepared;
             }
-            let whole_substitution = matches!(
-                word,
-                crate::ir::WordExpr::Variable { .. }
-                    | crate::ir::WordExpr::CommandSubstitution { .. }
-            );
-            let object = whole_substitution
-                .then(|| substitutions.normal_object.clone())
-                .flatten();
-            let result = substitutions.normal_value.clone();
-            let name_value = substitutions.normal_name_value.clone().or_else(|| {
-                super::original_name_value::capture_word(word, state, context.config).map(Arc::new)
-            });
-            let rhs_read = word
-                .sole_command_substitution()
-                .and(substitutions.normal_rhs_read.clone());
-            let prefix = whole_substitution
-                .then(|| substitutions.normal_method_prefix.clone())
-                .flatten();
-            let representation = substitution_representation(
-                substitutions.normal_representation,
-                substitutions.normal.as_deref(),
-                word,
-                words.last().unwrap(),
-            );
-            let Some(continuing) = substitutions.normal else {
-                prepared.outcomes.publish(state);
-                return prepared;
-            };
-            publish_source_branch(state, continuing);
-            let Ok(frozen) = frozen_arguments::freeze_word(
-                word,
-                result.as_deref(),
-                name_value.as_deref(),
-                context.config,
-                state,
-                context.registry,
-            ) else {
-                publish_argument_error(&mut prepared, state);
-                return prepared;
-            };
-            prepared
-                .effective
-                .extend(frozen_arguments::runtime_words(&frozen));
-            written_arguments.push(frozen);
-            prepared.written_values.push(result);
-            prepared.written_name_values.push(name_value);
-            prepared.written_representations.push(stored_representation(
-                representation,
-                word,
-                state,
-            ));
-            prepared.written_objects.push(object);
-            prepared.written_method_prefixes.push(prefix);
-            prepared
-                .written_variable_reads
-                .push(self.prepared_argument_read(word, state, context.registry, rhs_read));
         }
         prepared.written_arguments = written_arguments.into();
         prepared.ready = true;
         prepared
+    }
+
+    fn prepare_substituted_source_argument(
+        &mut self,
+        word: &crate::ir::WordExpr,
+        evaluation: &SourceArgumentEvaluationContext<'_>,
+        state: &mut ModuleCommandBindings,
+        prepared: &mut PreparedSourceArguments,
+        written_arguments: &mut Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    ) -> bool {
+        let substitutions = self.walk_substitutions(
+            word,
+            evaluation.source,
+            evaluation.base,
+            state,
+            SourceExecutionContext {
+                depth: evaluation.context.depth + 1,
+                variable_read_owner: evaluation.argument_owner,
+                ..evaluation.context
+            },
+        );
+        prepared.complete_normally &=
+            substitutions.normal_completion.is_some() && substitutions.abrupt.is_empty();
+        for (route, state) in &substitutions.abrupt {
+            prepared.outcomes.add_abrupt(*route, state);
+        }
+        let whole_substitution = matches!(
+            word,
+            crate::ir::WordExpr::Variable { .. } | crate::ir::WordExpr::CommandSubstitution { .. }
+        );
+        let object = whole_substitution
+            .then(|| substitutions.normal_object.clone())
+            .flatten();
+        let result = substitutions.normal_value.clone();
+        let name_value = substitutions.normal_name_value.clone().or_else(|| {
+            super::original_name_value::capture_word(word, state, evaluation.context.config)
+                .map(Arc::new)
+        });
+        let rhs_read = word
+            .sole_command_substitution()
+            .and(substitutions.normal_rhs_read.clone());
+        let prefix = whole_substitution
+            .then(|| substitutions.normal_method_prefix.clone())
+            .flatten();
+        let representation = substitution_representation(
+            substitutions.normal_representation,
+            substitutions.normal.as_deref(),
+            word,
+            evaluation.words.last().unwrap(),
+        );
+        let Some(continuing) = substitutions.normal else {
+            prepared.outcomes.publish(state);
+            return false;
+        };
+        publish_source_branch(state, continuing);
+        let Ok(frozen) = frozen_arguments::freeze_word(
+            word,
+            result.as_deref(),
+            name_value.as_deref(),
+            evaluation.context.config,
+            state,
+            evaluation.context.registry,
+        ) else {
+            publish_argument_error(prepared, state);
+            return false;
+        };
+        prepared
+            .effective
+            .extend(frozen_arguments::runtime_words(&frozen));
+        written_arguments.push(frozen);
+        prepared.written_values.push(result);
+        prepared.written_name_values.push(name_value);
+        prepared
+            .written_representations
+            .push(stored_representation(representation, word, state));
+        prepared.written_objects.push(object);
+        prepared.written_method_prefixes.push(prefix);
+        prepared
+            .written_variable_reads
+            .push(self.prepared_argument_read(word, state, evaluation.context.registry, rhs_read));
+        true
     }
 
     /// Literal operands leave the source branch unchanged; preserve their

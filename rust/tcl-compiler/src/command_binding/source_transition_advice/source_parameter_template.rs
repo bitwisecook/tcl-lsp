@@ -90,6 +90,37 @@ impl OriginalLogicalParameterSourcePrefix {
     }
 }
 
+struct SourceParameterPrefixAccumulator<'a> {
+    input: &'a ResolvedAnalysisInput,
+    body: &'a OriginalLogicalProcedureBody,
+    result: BTreeMap<u32, OriginalLogicalParameterSourcePrefix>,
+    operations: Vec<Arc<OriginalSourceCommandTransitionAdvice>>,
+    reads: Vec<Arc<ConditionalFormalSourceRead>>,
+}
+
+impl SourceParameterPrefixAccumulator<'_> {
+    fn retain(
+        &mut self,
+        offset: u32,
+        advice: &OriginalSourceCommandTransitionAdvice,
+        current_reads: Vec<ConditionalFormalSourceRead>,
+    ) {
+        self.operations.push(Arc::new(advice.clone()));
+        self.reads.extend(current_reads.into_iter().map(Arc::new));
+        self.result.insert(
+            offset,
+            OriginalLogicalParameterSourcePrefix {
+                input: self.input.clone(),
+                scope: Arc::clone(self.body.scope()),
+                formal: self.body.formal_original().clone(),
+                parameters: self.body.parameters().to_vec(),
+                operations: self.operations.clone(),
+                reads: self.reads.clone(),
+            },
+        );
+    }
+}
+
 /// No new lookup occurs here. Complete own-body vectors must already occur in
 /// the actual Logical walk with the exact scope and selected descriptor advice.
 /// The first unrepresented/unknown operation withdraws later source templates;
@@ -119,9 +150,13 @@ pub(super) fn capture_prefixes(
     if commands.len() > 128 {
         return None;
     }
-    let mut result = BTreeMap::new();
-    let mut operations: Vec<Arc<OriginalSourceCommandTransitionAdvice>> = Vec::new();
-    let mut reads = Vec::new();
+    let mut prefixes = SourceParameterPrefixAccumulator {
+        input,
+        body,
+        result: BTreeMap::new(),
+        operations: Vec::new(),
+        reads: Vec::new(),
+    };
     for command in commands {
         let offset = command.words.first()?.span().start();
         let Some(actual) = tape
@@ -137,20 +172,9 @@ pub(super) fn capture_prefixes(
         let Some(advice) = tape.advice.get(&offset) else {
             break;
         };
-        if tape.blocks_registry_source(offset)
-            || advice.original_words() != command.words.as_slice()
-            || advice.logical_source_input() != Some(input)
-            || advice.logical_scope.as_ref() != Some(body.scope())
-            || advice.declaration.is_some()
-            || !advice.lineage.is_empty()
-            || !advice.matches_source(body.formal_original().image(), input.lexer_config())
-            || !advice.matches_context(context)
-            || advice.roles.is_none()
-            || advice
-                .original_words()
-                .iter()
-                .any(|word| word.group().expand)
-        {
+        if !source_parameter_prefix_advice_is_complete(
+            tape, offset, advice, command, body, input, context,
+        ) {
             break;
         }
         let Some(current_reads) = formal_source_reads(advice.original_words(), body) else {
@@ -161,7 +185,8 @@ pub(super) fn capture_prefixes(
         // than an unowned earlier callback or a missing source operation.
         if advice.uncertain_operations().iter().any(|unknown| {
             unknown.as_ref() != advice.original_words()
-                && !operations
+                && !prefixes
+                    .operations
                     .iter()
                     .any(|earlier| earlier.original_words() == unknown.as_ref())
         }) {
@@ -180,46 +205,7 @@ pub(super) fn capture_prefixes(
         };
         let Some((valid, subsequent)) = words
             .with_source_schema(context, |schema| {
-                // Ordinary execution roles can remain unavailable without an
-                // optional-level policy. This retained Logical prefix consumes
-                // only the shared unanimous source-role question.
-                let (_, source_roles_complete) = schema.authored_logical_source_argument_roles();
-                let valid = source_roles_complete
-                    && schema.facts().arity_accepts_frozen_arguments() == Some(true);
-                let transitions = schema.authored_logical_source_state_transitions()?;
-                // Shared Registry impact owns command-name stability. It is a
-                // conditional source recipe only; observer callbacks stay debt.
-                let subsequent = schema.semantics.state_transitions.is_declared()
-                    && transitions.command_resolution_impact()
-                        == tcl_registry::CommandResolutionImpact::None
-                    && transitions.facts().iter().all(|fact| {
-                        matches!(
-                            fact.transition,
-                            tcl_registry::StateTransition::VariableCellAlias(_)
-                                | tcl_registry::StateTransition::Widen(_)
-                        )
-                    })
-                    && ![
-                        tcl_registry::StateTransitionDomain::VariableTraces,
-                        tcl_registry::StateTransitionDomain::CommandTraces,
-                        tcl_registry::StateTransitionDomain::ExecutionTraces,
-                        tcl_registry::StateTransitionDomain::InterpreterTopology,
-                        tcl_registry::StateTransitionDomain::InterpreterPolicy,
-                        tcl_registry::StateTransitionDomain::Interpreters,
-                        tcl_registry::StateTransitionDomain::ObjectDispatch,
-                    ]
-                    .into_iter()
-                    .any(|domain| transitions.widens(domain))
-                    && !words.roles().unwrap_or_default().iter().any(|(_, role)| {
-                        matches!(
-                            role,
-                            tcl_registry::ArgRole::Body
-                                | tcl_registry::ArgRole::Expr
-                                | tcl_registry::ArgRole::LambdaLiteral
-                                | tcl_registry::ArgRole::CommandPrefix
-                        )
-                    });
-                Some((valid, subsequent))
+                source_parameter_prefix_schema(schema, &words)
             })
             .flatten()
         else {
@@ -228,24 +214,81 @@ pub(super) fn capture_prefixes(
         if !valid {
             break;
         }
-        operations.push(Arc::new(advice.clone()));
-        reads.extend(current_reads.into_iter().map(Arc::new));
-        result.insert(
-            offset,
-            OriginalLogicalParameterSourcePrefix {
-                input: input.clone(),
-                scope: Arc::clone(body.scope()),
-                formal: body.formal_original().clone(),
-                parameters: body.parameters().to_vec(),
-                operations: operations.clone(),
-                reads: reads.clone(),
-            },
-        );
+        prefixes.retain(offset, advice, current_reads);
         if !subsequent {
             break;
         }
     }
-    Some(result)
+    Some(prefixes.result)
+}
+
+fn source_parameter_prefix_advice_is_complete(
+    tape: &OriginalSourceTransitionAdviceTape,
+    offset: u32,
+    advice: &OriginalSourceCommandTransitionAdvice,
+    command: &tcl_lexer::NativeScriptCommandWords,
+    body: &OriginalLogicalProcedureBody,
+    input: &ResolvedAnalysisInput,
+    context: &ContextRegistry,
+) -> bool {
+    !tape.blocks_registry_source(offset)
+        && advice.original_words() == command.words.as_slice()
+        && advice.logical_source_input() == Some(input)
+        && advice.logical_scope.as_ref() == Some(body.scope())
+        && advice.declaration.is_none()
+        && advice.lineage.is_empty()
+        && advice.matches_source(body.formal_original().image(), input.lexer_config())
+        && advice.matches_context(context)
+        && advice.roles.is_some()
+        && !advice
+            .original_words()
+            .iter()
+            .any(|word| word.group().expand)
+}
+
+fn source_parameter_prefix_schema(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+) -> Option<(bool, bool)> {
+    // Ordinary execution roles can remain unavailable without an
+    // optional-level policy. This retained Logical prefix consumes
+    // only the shared unanimous source-role question.
+    let (_, source_roles_complete) = schema.authored_logical_source_argument_roles();
+    let valid =
+        source_roles_complete && schema.facts().arity_accepts_frozen_arguments() == Some(true);
+    let transitions = schema.authored_logical_source_state_transitions()?;
+    // Shared Registry impact owns command-name stability. It is a
+    // conditional source recipe only; observer callbacks stay debt.
+    let subsequent = schema.semantics.state_transitions.is_declared()
+        && transitions.command_resolution_impact() == tcl_registry::CommandResolutionImpact::None
+        && transitions.facts().iter().all(|fact| {
+            matches!(
+                fact.transition,
+                tcl_registry::StateTransition::VariableCellAlias(_)
+                    | tcl_registry::StateTransition::Widen(_)
+            )
+        })
+        && ![
+            tcl_registry::StateTransitionDomain::VariableTraces,
+            tcl_registry::StateTransitionDomain::CommandTraces,
+            tcl_registry::StateTransitionDomain::ExecutionTraces,
+            tcl_registry::StateTransitionDomain::InterpreterTopology,
+            tcl_registry::StateTransitionDomain::InterpreterPolicy,
+            tcl_registry::StateTransitionDomain::Interpreters,
+            tcl_registry::StateTransitionDomain::ObjectDispatch,
+        ]
+        .into_iter()
+        .any(|domain| transitions.widens(domain))
+        && !words.roles().unwrap_or_default().iter().any(|(_, role)| {
+            matches!(
+                role,
+                tcl_registry::ArgRole::Body
+                    | tcl_registry::ArgRole::Expr
+                    | tcl_registry::ArgRole::LambdaLiteral
+                    | tcl_registry::ArgRole::CommandPrefix
+            )
+        });
+    Some((valid, subsequent))
 }
 
 fn formal_source_reads(

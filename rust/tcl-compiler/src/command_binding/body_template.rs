@@ -437,6 +437,57 @@ pub(super) fn normalize_script_source(
 }
 
 impl ModuleCommandBindings {
+    fn collect_template_relocation(
+        &self,
+        template: &mut Script,
+        scope: BodyProofScope<'_>,
+        registry: &CommandRegistry,
+    ) -> Option<crate::var_resolve::VariableProofRelocation> {
+        let mut valid = true;
+        let mut relocation = crate::var_resolve::VariableProofRelocation::default();
+        crate::ir::for_each_script_mut(template, &mut |script| {
+            valid &= script.implicit_math_invocations.is_empty();
+            // Prepared trees retain exact source instances and possibly an
+            // interpreter-owned table; no alpha contract erases those owners.
+            valid &= script.expression_preparations.is_empty();
+            valid &= script.native_compilation_failure.is_none();
+            for statement in &script.statements {
+                if let Some(tokens) = statement.tokens() {
+                    valid &= native_tokens_closed(tokens, scope, &self.baseline, registry);
+                } else {
+                    valid &= script.command_binding_sites.iter().any(|site| {
+                        site.span.start() == statement.span().start()
+                            && site.source_tokens.as_ref().is_some_and(|tokens| {
+                                native_tokens_closed(tokens, scope, &self.baseline, registry)
+                            })
+                    });
+                }
+                collect_body_offset(&mut relocation, scope, statement.span().start());
+            }
+            for site in script.command_binding_sites.iter() {
+                collect_body_offset(&mut relocation, scope, site.span.start());
+                if let Some(context) = &site.variable_context {
+                    collect_body_activation(&mut relocation, context);
+                }
+                if let Some(tokens) = &site.source_tokens {
+                    collect_token_activations(&mut relocation, tokens);
+                }
+            }
+            for statement in &script.statements {
+                if let Some(tokens) = statement.tokens() {
+                    collect_token_activations(&mut relocation, tokens);
+                    for (offset, _) in &tokens.nested_bindings {
+                        collect_body_offset(&mut relocation, scope, *offset);
+                    }
+                }
+            }
+        });
+        if !valid || relocation.activations.len() > 1 || relocation.inverse().is_none() {
+            return None;
+        }
+        Some(relocation)
+    }
+
     /// Prepare a native template only after every executable invocation has a
     /// retained original-token proof and no unmodelled callback or mutation.
     /// Bodies outside this contract retain their complete cache identity.
@@ -500,48 +551,7 @@ impl ModuleCommandBindings {
             return None;
         }
         let mut template = body.clone();
-        let mut valid = true;
-        let mut relocation = crate::var_resolve::VariableProofRelocation::default();
-        crate::ir::for_each_script_mut(&mut template, &mut |script| {
-            valid &= script.implicit_math_invocations.is_empty();
-            // Prepared trees retain exact source instances and possibly an
-            // interpreter-owned table; no alpha contract erases those owners.
-            valid &= script.expression_preparations.is_empty();
-            valid &= script.native_compilation_failure.is_none();
-            for statement in &script.statements {
-                if let Some(tokens) = statement.tokens() {
-                    valid &= native_tokens_closed(tokens, scope, &self.baseline, registry);
-                } else {
-                    valid &= script.command_binding_sites.iter().any(|site| {
-                        site.span.start() == statement.span().start()
-                            && site.source_tokens.as_ref().is_some_and(|tokens| {
-                                native_tokens_closed(tokens, scope, &self.baseline, registry)
-                            })
-                    });
-                }
-                collect_body_offset(&mut relocation, scope, statement.span().start());
-            }
-            for site in script.command_binding_sites.iter() {
-                collect_body_offset(&mut relocation, scope, site.span.start());
-                if let Some(context) = &site.variable_context {
-                    collect_body_activation(&mut relocation, context);
-                }
-                if let Some(tokens) = &site.source_tokens {
-                    collect_token_activations(&mut relocation, tokens);
-                }
-            }
-            for statement in &script.statements {
-                if let Some(tokens) = statement.tokens() {
-                    collect_token_activations(&mut relocation, tokens);
-                    for (offset, _) in &tokens.nested_bindings {
-                        collect_body_offset(&mut relocation, scope, *offset);
-                    }
-                }
-            }
-        });
-        if !valid || relocation.activations.len() > 1 || relocation.inverse().is_none() {
-            return None;
-        }
+        let mut relocation = self.collect_template_relocation(&mut template, scope, registry)?;
         let prefix = usize::try_from(
             scope
                 .executable_body_offset
@@ -555,25 +565,7 @@ impl ModuleCommandBindings {
             Arc::new(SourceOriginId::authored(&Arc::from(scope.source))),
             Arc::clone(&origin),
         );
-        crate::ir::for_each_script_mut(&mut template, &mut |script| {
-            valid &= normalize_script_source(script, scope, &origin).is_some();
-            for site in script.command_binding_sites.iter_mut() {
-                site.variable_frame = site.variable_frame.as_ref().map(|f| relocation.frame(f));
-                site.variable_context = site
-                    .variable_context
-                    .as_ref()
-                    .map(|context| Arc::new(context.relocated(&relocation)));
-                if let Some(tokens) = &mut site.source_tokens {
-                    normalize_native_tokens(tokens, scope, &origin, &relocation);
-                }
-            }
-            for statement in &mut script.statements {
-                if let Some(tokens) = statement.tokens_mut() {
-                    normalize_native_tokens(tokens, scope, &origin, &relocation);
-                }
-            }
-        });
-        if !valid {
+        if !normalize_body_template(&mut template, scope, &origin, &relocation) {
             return None;
         }
         let command_bindings = Self {
@@ -586,6 +578,34 @@ impl ModuleCommandBindings {
             variable_relocation: relocation,
         })
     }
+}
+
+fn normalize_body_template(
+    template: &mut Script,
+    scope: BodyProofScope<'_>,
+    origin: &Arc<SourceOriginId>,
+    relocation: &crate::var_resolve::VariableProofRelocation,
+) -> bool {
+    let mut valid = true;
+    crate::ir::for_each_script_mut(template, &mut |script| {
+        valid &= normalize_script_source(script, scope, origin).is_some();
+        for site in script.command_binding_sites.iter_mut() {
+            site.variable_frame = site.variable_frame.as_ref().map(|f| relocation.frame(f));
+            site.variable_context = site
+                .variable_context
+                .as_ref()
+                .map(|context| Arc::new(context.relocated(relocation)));
+            if let Some(tokens) = &mut site.source_tokens {
+                normalize_native_tokens(tokens, scope, origin, relocation);
+            }
+        }
+        for statement in &mut script.statements {
+            if let Some(tokens) = statement.tokens_mut() {
+                normalize_native_tokens(tokens, scope, origin, relocation);
+            }
+        }
+    });
+    valid
 }
 
 pub(super) fn collect_body_offset(

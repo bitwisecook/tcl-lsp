@@ -569,117 +569,17 @@ impl SourceCommandBindings {
         let [store, returned] = commands.as_slice() else {
             return None;
         };
+        let context = ScalarAlphaRowContext {
+            entry: &entry,
+            topology,
+            symbol,
+            name: simple,
+            image,
+            config,
+            registry,
+        };
         for (ordinal, command) in [store, returned].into_iter().enumerate() {
-            if command.is_partial {
-                return None;
-            }
-            let body_site = CommandAllocationSite {
-                source: site.source.clone(),
-                offset: command.span.start(),
-            };
-            let rows = original_declaration_layouts(self.declaration_layouts.get(&body_site)?)?;
-            for row in rows {
-                if row.entry != entry || row.config != config {
-                    return None;
-                }
-                let state = &row.snapshot.state;
-                let variables = &state.source_variables;
-                if state.has_opaque_domain()
-                    || state.source_step_observed()
-                    || variables.dynamic_bindings
-                    || variables.dynamic_traces
-                    || !variables.globals.is_empty()
-                    || !variables.ns_vars.is_empty()
-                    || !variables.instance_vars.is_empty()
-                    || !variables.alias_bindings.is_empty()
-                    || !variables.upvar_aliases.is_empty()
-                    || !variables.namespace_alias_bindings.is_empty()
-                    || !variables.name_alias_bindings.is_empty()
-                    || !variables.namespace_name_alias_bindings.is_empty()
-                    || !variables.traced.is_empty()
-                    || !variables.untracked_traces.is_empty()
-                    || !variables.trace_registrations.is_empty()
-                    || !variables.trace_registration_receivers.is_empty()
-                    || !variables.possible_trace_registrations.is_empty()
-                {
-                    return None;
-                }
-                let tokens = super::declaration_preview::declaration_tokens(&body_site, row)?;
-                let words = crate::registry_invocation::original_native_compiler_words(
-                    image,
-                    tokens.words(),
-                    body_site.offset,
-                    config,
-                )?;
-                if words.iter().any(|word| word.group().expand) {
-                    return None;
-                }
-                let binding = SourceInvocationBinding {
-                    dispatch_site: Some(body_site.clone()),
-                    declaration_layout_observations: Some(vec![row.clone()].into()),
-                    lookup_state: Some(row.snapshot.clone()),
-                    lookup_namespace_key: row.namespace.clone(),
-                    variable_context: std::sync::Arc::clone(&state.source_variables),
-                    variable_frame: entry.frame().clone(),
-                    ..Default::default()
-                };
-                if !binding.original_operands_preserve_lookup(&tokens, registry, row, 0) {
-                    return None;
-                }
-                let head = crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(words.first()?, tcl_syntax::word_rules::WordValueRules::from_config(&config), symbol.policy())?;
-                let target = binding.original_registry_target_for_name(&head)?;
-                if target.kind != super::BindingKind::Builtin
-                    || !self
-                        .original_completed_root_state
-                        .as_ref()?
-                        .retained_target_is_current(&target)
-                    || state.source_execution_observed(target.identity.as_ref())
-                    || state.runtime_execution_observed(target.identity.as_ref())
-                {
-                    return None;
-                }
-                if ordinal == 0 {
-                    let [_, destination, value] = words.as_slice() else {
-                        return None;
-                    };
-                    let version = symbol.policy().recipe().tcl_version()?;
-                    let operand = tcl_syntax::native_variable_words::native_variable_word(
-                        destination,
-                        version,
-                        symbol.policy().string_protocol(),
-                    )
-                    .ok()?;
-                    let tcl_syntax::native_variable_words::NativeVariableWordOperand::Literal {
-                        name,
-                        index: None,
-                        ..
-                    } = operand
-                    else {
-                        return None;
-                    };
-                    if name.as_slice() != simple.as_bytes()
-                        || name.contains(&0)
-                        || tcl_syntax::word_rules::original_static_word_unicode_value(value)
-                            .is_none()
-                    {
-                        return None;
-                    }
-                    validate_local_store_contract(
-                        &body_site, &tokens, row, &target, config, registry,
-                    )?;
-                } else {
-                    let context = ScalarAlphaRowContext {
-                        entry: &entry,
-                        topology,
-                        symbol,
-                        name: simple,
-                        image,
-                        config,
-                        registry,
-                    };
-                    self.scalar_alpha_row_target(&body_site, row, &context)?;
-                }
-            }
+            self.validate_local_store_alpha_command(site, command, ordinal, &context)?;
         }
         Some(OriginalLocalStoreAlphaRename {
             symbol: symbol.clone(),
@@ -689,6 +589,135 @@ impl SourceCommandBindings {
             registry: registry.snapshot().semantic_key(),
         })
     }
+
+    fn validate_local_store_alpha_command(
+        &self,
+        site: &CommandAllocationSite,
+        command: &crate::segmenter::SegmentedCommand,
+        ordinal: usize,
+        context: &ScalarAlphaRowContext<'_>,
+    ) -> Option<()> {
+        if command.is_partial {
+            return None;
+        }
+        let body_site = CommandAllocationSite {
+            source: site.source.clone(),
+            offset: command.span.start(),
+        };
+        let rows = original_declaration_layouts(self.declaration_layouts.get(&body_site)?)?;
+        for row in rows {
+            if !local_store_alpha_row_is_applicable(row, context) {
+                return None;
+            }
+            let state = &row.snapshot.state;
+            let tokens = super::declaration_preview::declaration_tokens(&body_site, row)?;
+            let words = crate::registry_invocation::original_native_compiler_words(
+                context.image,
+                tokens.words(),
+                body_site.offset,
+                context.config,
+            )?;
+            if words.iter().any(|word| word.group().expand) {
+                return None;
+            }
+            let binding = SourceInvocationBinding {
+                dispatch_site: Some(body_site.clone()),
+                declaration_layout_observations: Some(vec![row.clone()].into()),
+                lookup_state: Some(row.snapshot.clone()),
+                lookup_namespace_key: row.namespace.clone(),
+                variable_context: std::sync::Arc::clone(&state.source_variables),
+                variable_frame: context.entry.frame().clone(),
+                ..Default::default()
+            };
+            if !binding.original_operands_preserve_lookup(&tokens, context.registry, row, 0) {
+                return None;
+            }
+            let head =
+                crate::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                    words.first()?,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
+                    context.symbol.policy(),
+                )?;
+            let target = binding.original_registry_target_for_name(&head)?;
+            if target.kind != super::BindingKind::Builtin
+                || !self
+                    .original_completed_root_state
+                    .as_ref()?
+                    .retained_target_is_current(&target)
+                || state.source_execution_observed(target.identity.as_ref())
+                || state.runtime_execution_observed(target.identity.as_ref())
+            {
+                return None;
+            }
+            if ordinal == 0 {
+                let [_, destination, value] = words.as_slice() else {
+                    return None;
+                };
+                let version = context.symbol.policy().recipe().tcl_version()?;
+                let operand = tcl_syntax::native_variable_words::native_variable_word(
+                    destination,
+                    version,
+                    context.symbol.policy().string_protocol(),
+                )
+                .ok()?;
+                let tcl_syntax::native_variable_words::NativeVariableWordOperand::Literal {
+                    name,
+                    index: None,
+                    ..
+                } = operand
+                else {
+                    return None;
+                };
+                if name.as_slice() != context.name.as_bytes()
+                    || name.contains(&0)
+                    || tcl_syntax::word_rules::original_static_word_unicode_value(value).is_none()
+                {
+                    return None;
+                }
+                validate_local_store_contract(
+                    &body_site,
+                    &tokens,
+                    row,
+                    &target,
+                    context.config,
+                    context.registry,
+                )?;
+            } else {
+                self.scalar_alpha_row_target(&body_site, row, context)?;
+            }
+        }
+        Some(())
+    }
+}
+
+fn local_store_alpha_row_is_applicable(
+    row: &super::declaration_layout::DeclarationLayoutObservation,
+    context: &ScalarAlphaRowContext<'_>,
+) -> bool {
+    row.entry == *context.entry
+        && row.config == context.config
+        && !local_store_alpha_row_has_observed_state(&row.snapshot.state)
+}
+
+fn local_store_alpha_row_has_observed_state(state: &ModuleCommandBindings) -> bool {
+    let variables = &state.source_variables;
+    state.has_opaque_domain()
+        || state.source_step_observed()
+        || variables.dynamic_bindings
+        || variables.dynamic_traces
+        || !variables.globals.is_empty()
+        || !variables.ns_vars.is_empty()
+        || !variables.instance_vars.is_empty()
+        || !variables.alias_bindings.is_empty()
+        || !variables.upvar_aliases.is_empty()
+        || !variables.namespace_alias_bindings.is_empty()
+        || !variables.name_alias_bindings.is_empty()
+        || !variables.namespace_name_alias_bindings.is_empty()
+        || !variables.traced.is_empty()
+        || !variables.untracked_traces.is_empty()
+        || !variables.trace_registrations.is_empty()
+        || !variables.trace_registration_receivers.is_empty()
+        || !variables.possible_trace_registrations.is_empty()
 }
 
 fn validate_local_store_contract(
