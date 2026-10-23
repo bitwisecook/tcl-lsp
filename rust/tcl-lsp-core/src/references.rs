@@ -1096,7 +1096,21 @@ fn references_in_program_unchecked(
         },
     };
 
-    if let Some(out) = variable_references(&ctx) {
+    lexical_references(&ctx)
+}
+
+fn lexical_references(ctx: &RefCtx<'_>) -> Vec<LspRange> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        ..
+    } = *ctx;
+    if let Some(out) = variable_references(ctx) {
         return out;
     }
 
@@ -1112,7 +1126,7 @@ fn references_in_program_unchecked(
         analysis,
         line,
         character,
-        crate::definition::byte_offset_at(&line_index, source, line, character),
+        crate::definition::byte_offset_at(line_index, source, line, character),
     )
     .is_some()
     {
@@ -1125,7 +1139,7 @@ fn references_in_program_unchecked(
     // inside a namespace-name argument, so a class or proc that happens to
     // share the spelling must not claim it.  Namespaces are their own symbol
     // space in Tcl, disjoint from commands and variables.
-    if let Some(out) = namespace_references(&ctx) {
+    if let Some(out) = namespace_references(ctx) {
         return out;
     }
 
@@ -1133,7 +1147,7 @@ fn references_in_program_unchecked(
         return Vec::new();
     };
 
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some(selected) =
         crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
         && selected.method.name == word
@@ -1148,12 +1162,12 @@ fn references_in_program_unchecked(
         );
         let mut out = Vec::new();
         if include_declaration {
-            out.push(span_to_range(source, &line_index, decl));
+            out.push(span_to_range(source, line_index, decl));
         }
         out.extend(
             sites
                 .into_iter()
-                .map(|span| span_to_range(source, &line_index, span)),
+                .map(|span| span_to_range(source, line_index, span)),
         );
         dedup_ranges(&mut out);
         return out;
@@ -1166,7 +1180,7 @@ fn references_in_program_unchecked(
     }
 
     // Class references (checked first, before proc names).
-    if let Some(out) = class_references(&ctx, &word) {
+    if let Some(out) = class_references(ctx, &word) {
         return out;
     }
 
@@ -1177,12 +1191,12 @@ fn references_in_program_unchecked(
     // same-named proc elsewhere in the workspace — which `proc_references`'s
     // namespace-aware call-site resolution could otherwise match — must
     // never win.
-    if let Some(out) = ensemble_subcommand_references(&ctx) {
+    if let Some(out) = ensemble_subcommand_references(ctx) {
         return out;
     }
 
     // Proc references.
-    if let Some(out) = proc_references(&ctx, &word) {
+    if let Some(out) = proc_references(ctx, &word) {
         return out;
     }
 
@@ -1191,18 +1205,18 @@ fn references_in_program_unchecked(
     // namespace-qualified proc call of the same spelling keeps priority:
     // this only ever fires when nothing resolves as a proc and the written
     // word's parent namespace really is an itcl class declaring that member.
-    if let Some(out) = itcl_class_proc_references(&ctx) {
+    if let Some(out) = itcl_class_proc_references(ctx) {
         return out;
     }
 
     // `$obj method` external call site.
-    if let Some(out) = instance_method_references(&ctx) {
+    if let Some(out) = instance_method_references(ctx) {
         return out;
     }
 
     // Bare `ClassName method` external call site — a classmethod's own
     // dispatch shape, tried only once the instance path above has failed.
-    if let Some(out) = classmethod_call_site_references(&ctx) {
+    if let Some(out) = classmethod_call_site_references(ctx) {
         return out;
     }
 
@@ -1218,12 +1232,12 @@ fn references_in_program_unchecked(
     // member instead. This resolver only ever
     // matches when the cursor sits strictly on the keyword's own name span,
     // so trying it first never steals a real member reference.
-    if let Some(out) = constructor_or_destructor_references(&ctx, &word) {
+    if let Some(out) = constructor_or_destructor_references(ctx, &word) {
         return out;
     }
 
     // Class-member references (cursor inside a class body on a member name).
-    if let Some(out) = class_member_references(&ctx, &word) {
+    if let Some(out) = class_member_references(ctx, &word) {
         return out;
     }
 
@@ -2894,8 +2908,6 @@ fn collect_stored_callback_writes(
     use tcl_compiler::registry_invocation::{InvocationWordOrigin, source_structure};
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
-    use tcl_registry::hooks::LoweringHookId;
-    use tcl_registry::{ArgRole, Traits};
 
     if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || end > ctx.source.len() {
         return true;
@@ -2922,43 +2934,7 @@ fn collect_stored_callback_writes(
             has_scope_alias = true;
             continue;
         };
-        let Some((aliases, setter, variables)) = words
-            .with_source_schema(&context, |schema| {
-                let roles = words.roles()?;
-                let variables = roles
-                    .iter()
-                    .filter(|(_, role)| *role == ArgRole::VarWrite)
-                    .map(|&(ordinal, _)| {
-                        (
-                            ordinal,
-                            schema
-                                .words
-                                .arguments()
-                                .get(ordinal)
-                                .and_then(tcl_registry::InvocationWord::literal)
-                                .map(str::to_owned),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                Some((
-                    schema
-                        .semantics
-                        .traits
-                        .contains(Traits::CREATES_SCOPE_ALIAS)
-                        || matches!(
-                            schema.semantics.lowering_hook,
-                            Some(
-                                LoweringHookId::Global
-                                    | LoweringHookId::Variable
-                                    | LoweringHookId::Upvar
-                            )
-                        ),
-                    schema.semantics.lowering_hook == Some(LoweringHookId::Set),
-                    variables,
-                ))
-            })
-            .flatten()
-        else {
+        let Some((aliases, setter, variables)) = stored_callback_schema(&words, &context) else {
             has_scope_alias = true;
             continue;
         };
@@ -3006,6 +2982,52 @@ fn collect_stored_callback_writes(
         }
     }
     has_scope_alias
+}
+
+type StoredCallbackSchema = (bool, bool, Vec<(usize, Option<String>)>);
+
+fn stored_callback_schema(
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<StoredCallbackSchema> {
+    use tcl_registry::hooks::LoweringHookId;
+    use tcl_registry::{ArgRole, Traits};
+    words
+        .with_source_schema(context, |schema| {
+            let roles = words.roles()?;
+            let variables = roles
+                .iter()
+                .filter(|(_, role)| *role == ArgRole::VarWrite)
+                .map(|&(ordinal, _)| {
+                    (
+                        ordinal,
+                        schema
+                            .words
+                            .arguments()
+                            .get(ordinal)
+                            .and_then(tcl_registry::InvocationWord::literal)
+                            .map(str::to_owned),
+                    )
+                })
+                .collect::<Vec<_>>();
+            Some((
+                schema
+                    .semantics
+                    .traits
+                    .contains(Traits::CREATES_SCOPE_ALIAS)
+                    || matches!(
+                        schema.semantics.lowering_hook,
+                        Some(
+                            LoweringHookId::Global
+                                | LoweringHookId::Variable
+                                | LoweringHookId::Upvar
+                        )
+                    ),
+                schema.semantics.lowering_hook == Some(LoweringHookId::Set),
+                variables,
+            ))
+        })
+        .flatten()
 }
 
 /// Scan a brace-delimited body span for `my method` call sites (stripping the
@@ -3356,45 +3378,7 @@ fn command_prefix_targets_from_word(
         return Vec::new();
     };
     if builds {
-        if let Some(prefix) =
-            source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, builder)
-            && prefix.with_source_schema(&context, |schema| {
-                schema
-                    .semantics
-                    .traits
-                    .contains(Traits::TCLOO_SELF_DISPATCH)
-            }) == Some(true)
-            && let Some(span) = prefix
-                .original_argument(0)
-                .and_then(bare_original_prefix_span)
-        {
-            return vec![PrefixTargetAtSpan {
-                kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
-                span,
-            }];
-        }
-        if let (Some(receiver), Some(method)) = (
-            written_prefix_operand(&words, builder, 0),
-            written_prefix_operand(&words, builder, 1),
-        ) && method.kind == TokenType::Esc
-            && !method.in_quote
-            && original_self_receiver_word(ctx, receiver)
-        {
-            return vec![PrefixTargetAtSpan {
-                kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
-                span: method.span,
-            }];
-        }
-        // A literal list head is source syntax only. Its declaration or current
-        // target, if any, is resolved independently by the navigation consumer.
-        return written_prefix_operand(&words, builder, 0)
-            .filter(|token| token.kind == TokenType::Esc && !token.in_quote)
-            .map(|token| PrefixTargetAtSpan {
-                kind: tcl_registry::CommandPrefixTarget::DirectCommandHead,
-                span: token.span,
-            })
-            .into_iter()
-            .collect();
+        return built_command_prefix_targets(ctx, builder, &words, &context);
     }
     if !wraps {
         return Vec::new();
@@ -3415,6 +3399,56 @@ fn command_prefix_targets_from_word(
         .into_iter()
         .filter_map(|ordinal| written_prefix_operand(&words, builder, ordinal))
         .flat_map(|body| command_prefix_targets_from_word(ctx, &body, depth + 1))
+        .collect()
+}
+
+fn built_command_prefix_targets(
+    ctx: MyMethodScan<'_>,
+    builder: &tcl_compiler::segmenter::SegmentedCommand,
+    words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Vec<PrefixTargetAtSpan> {
+    use tcl_compiler::registry_invocation::source_structure;
+    use tcl_lexer::TokenType;
+    use tcl_registry::Traits;
+    if let Some(prefix) =
+        source_structure::source_authored_command_prefix(ctx.source, ctx.analysis, builder)
+        && prefix.with_source_schema(context, |schema| {
+            schema
+                .semantics
+                .traits
+                .contains(Traits::TCLOO_SELF_DISPATCH)
+        }) == Some(true)
+        && let Some(span) = prefix
+            .original_argument(0)
+            .and_then(bare_original_prefix_span)
+    {
+        return vec![PrefixTargetAtSpan {
+            kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+            span,
+        }];
+    }
+    if let (Some(receiver), Some(method)) = (
+        written_prefix_operand(words, builder, 0),
+        written_prefix_operand(words, builder, 1),
+    ) && method.kind == TokenType::Esc
+        && !method.in_quote
+        && original_self_receiver_word(ctx, receiver)
+    {
+        return vec![PrefixTargetAtSpan {
+            kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
+            span: method.span,
+        }];
+    }
+    // A literal list head is source syntax only. Its declaration or current
+    // target, if any, is resolved independently by the navigation consumer.
+    written_prefix_operand(words, builder, 0)
+        .filter(|token| token.kind == TokenType::Esc && !token.in_quote)
+        .map(|token| PrefixTargetAtSpan {
+            kind: tcl_registry::CommandPrefixTarget::DirectCommandHead,
+            span: token.span,
+        })
+        .into_iter()
         .collect()
 }
 
@@ -4773,8 +4807,35 @@ pub fn document_highlights_in_program(
     if !analysis.allows_lexical_declaration_advice() {
         return Vec::new();
     }
+    let ctx = RefCtx {
+        source,
+        dialect,
+        line_index: &line_index,
+        line,
+        character,
+        analysis,
+        include_declaration: true,
+        resolution,
+    };
+    lexical_document_highlights(&ctx, byte_offset)
+}
+
+fn lexical_document_highlights(
+    ctx: &RefCtx<'_>,
+    byte_offset: u32,
+) -> Vec<(LspRange, HighlightKind)> {
+    let RefCtx {
+        source,
+        dialect,
+        line_index,
+        line,
+        character,
+        analysis,
+        resolution,
+        ..
+    } = *ctx;
     if let Some(highlights) =
-        selected_method_highlights(source, dialect, analysis, &line_index, byte_offset)
+        selected_method_highlights(source, dialect, analysis, line_index, byte_offset)
     {
         return highlights;
     }
@@ -4803,12 +4864,12 @@ pub fn document_highlights_in_program(
         };
         let mut out = Vec::with_capacity(1 + references.len());
         out.push((
-            span_to_range(source, &line_index, var_def.definition_span),
+            span_to_range(source, line_index, var_def.definition_span),
             HighlightKind::Write,
         ));
         // Highlight original source relationships without asserting alias execution.
         for r in references {
-            out.push((span_to_range(source, &line_index, r), HighlightKind::Read));
+            out.push((span_to_range(source, line_index, r), HighlightKind::Read));
         }
         return dedup_kinded(out);
     }
@@ -4818,32 +4879,23 @@ pub fn document_highlights_in_program(
     };
 
     if let Some(out) = class_highlights(
-        source,
-        &line_index,
-        analysis,
-        line,
-        character,
-        &word,
-        resolution,
+        source, line_index, analysis, line, character, &word, resolution,
     ) {
         return out;
     }
 
     {
-        let cursor_off = crate::definition::byte_offset_at(&line_index, source, line, character);
+        let cursor_off = crate::definition::byte_offset_at(line_index, source, line, character);
         if let Some((qname, proc_def)) = crate::definition::resolve_proc_target_at(
             analysis, source, cursor_off, &word, resolution,
         ) {
             let mut out = Vec::new();
             out.push((
-                span_to_range(source, &line_index, proc_def.name_span),
+                span_to_range(source, line_index, proc_def.name_span),
                 HighlightKind::Text,
             ));
             for span in proc_reference_spans(analysis, resolution, qname, proc_def, source) {
-                out.push((
-                    span_to_range(source, &line_index, span),
-                    HighlightKind::Text,
-                ));
+                out.push((span_to_range(source, line_index, span), HighlightKind::Text));
             }
             return dedup_kinded(out);
         }
@@ -4852,17 +4904,17 @@ pub fn document_highlights_in_program(
     // Class-member highlights — re-segment sibling method
     // bodies via `find_class_member_references` and mark the
     // declaration as Write, every call site as Text.
-    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if let Some((decl_span, call_spans)) =
         find_class_member_references(source, dialect, &word, analysis, cursor_offset)
     {
         let mut out = Vec::new();
         out.push((
-            span_to_range(source, &line_index, decl_span),
+            span_to_range(source, line_index, decl_span),
             HighlightKind::Text,
         ));
         for s in call_spans {
-            out.push((span_to_range(source, &line_index, s), HighlightKind::Text));
+            out.push((span_to_range(source, line_index, s), HighlightKind::Text));
         }
         return dedup_kinded(out);
     }

@@ -271,12 +271,37 @@ pub fn definition_with(
         return result;
     }
 
+    word_definition(
+        source,
+        &line_index,
+        decl_byte_offset,
+        DefCtx {
+            line,
+            character,
+            analysis,
+            resolution: view,
+        },
+    )
+}
+
+fn word_definition(
+    source: &str,
+    line_index: &LineIndex,
+    decl_byte_offset: u32,
+    ctx: DefCtx<'_>,
+) -> Vec<LspRange> {
+    let DefCtx {
+        line,
+        character,
+        analysis,
+        resolution: view,
+    } = ctx;
     // 2. Bare word — proc, class, class-member, or alias.
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
     if let Some(result) =
-        list_built_self_method_definition(source, &line_index, analysis, &word, decl_byte_offset)
+        list_built_self_method_definition(source, line_index, analysis, &word, decl_byte_offset)
     {
         return result;
     }
@@ -286,7 +311,7 @@ pub fn definition_with(
     // declaration.  Checked before the proc lookup so a method
     // call resolves to the method even when a same-named proc
     // exists.
-    if let Some(result) = instance_method_definition(analysis, source, &line_index, line, character)
+    if let Some(result) = instance_method_definition(analysis, source, line_index, line, character)
     {
         return result;
     }
@@ -315,14 +340,14 @@ pub fn definition_with(
                 view.with_registry(crate::registry_for_analysis(analysis)),
             )
         {
-            return vec![span_to_range(source, &line_index, proc_def.name_span)];
+            return vec![span_to_range(source, line_index, proc_def.name_span)];
         }
     }
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
     if let Some(result) =
-        next_dispatch_definition(analysis, source, &line_index, line, character, &word)
+        next_dispatch_definition(analysis, source, line_index, line, character, &word)
     {
         return result;
     }
@@ -335,7 +360,7 @@ pub fn definition_with(
     // winner's span.
     let cursor_offset = decl_byte_offset;
     if let Some(span) = procedure_name_at_cursor(analysis, cursor_offset) {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
     // An **already-resolved indirect head** the analyser settled — a
     // `${ns}::setdef` whose `$ns` is a constant, a constant `$cmd` dispatch —
@@ -345,9 +370,9 @@ pub fn definition_with(
     if !analysis.allows_retained_logical_declaration_advice()
         && let Some(span) = resolved_indirect_head_target(analysis, cursor_offset)
     {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
-    if let Some(target) = positioned_definition_target(analysis, source, &line_index, cursor_offset)
+    if let Some(target) = positioned_definition_target(analysis, source, line_index, cursor_offset)
     {
         return target;
     }
@@ -377,7 +402,7 @@ pub fn definition_with(
     // resolution below still wins (tclsh: a `hello` before `rename greet
     // hello` is `invalid command name "hello"`).
     if let Some(span) = indirect_definition_target(analysis, view, source, cursor_offset, &word) {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
     // `Factory::make` — [incr Tcl]'s colon-qualified class-proc dispatch
     // Asked **before** the stock proc resolution below, because
@@ -390,7 +415,7 @@ pub fn definition_with(
     // winning candidate really is an itcl class-scoped `proc`, so a genuine
     // `::ns::helper` call still falls through to `resolve_called_proc`.
     if let Some(span) = itcl_class_proc_declaration(analysis, &namespace, &word) {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
     // …and only when the cursor's word really is the enclosing command's
     // head. Without this the pure text scan lets an ordinary *argument*
@@ -402,7 +427,7 @@ pub fn definition_with(
             )
         {
             return call.declaration(analysis).map_or_else(Vec::new, |header| {
-                vec![span_to_range(source, &line_index, header.metadata().name_span)]
+                vec![span_to_range(source, line_index, header.metadata().name_span)]
             });
         }
     } else if offset_is_command_head(analysis, cursor_offset)
@@ -421,10 +446,10 @@ pub fn definition_with(
         let in_effect = analysis
             .proc_def_in_effect_at(&proc_def.qualified_name, cursor_offset)
             .unwrap_or(proc_def);
-        return vec![span_to_range(source, &line_index, in_effect.name_span)];
+        return vec![span_to_range(source, line_index, in_effect.name_span)];
     }
     if let Some(span) = class_declaration_at(source, analysis, view, &word, cursor_offset) {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
     // Class-member lookup — when the cursor sits inside a
     // class body, walk that class's methods / properties /
@@ -432,7 +457,7 @@ pub fn definition_with(
     // `my method` calls inside the body plus bare member
     // references.
     if let Some(span) = lookup_class_member(source, analysis, &word, cursor_offset) {
-        return vec![span_to_range(source, &line_index, span)];
+        return vec![span_to_range(source, line_index, span)];
     }
     Vec::new()
 }
@@ -1015,6 +1040,15 @@ fn object_dispatch_mask_at_command(
         // visibility requires its independent actual method entry above.
         return ExternalObjectDispatchMask::Unavailable;
     }
+    object_dispatch_configuration_mask(analysis, source, current, cursor)
+}
+
+fn object_dispatch_configuration_mask(
+    analysis: &AnalysisResult,
+    source: &str,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+    cursor: u32,
+) -> ExternalObjectDispatchMask {
     let position = LineIndex::new(source).position_at_utf16(cursor, source);
     let Some((receiver, method, _)) = original_instance_method_at_cursor(
         source,
@@ -3664,19 +3698,7 @@ fn slot_events<'a>(
 ) -> Vec<SlotEvent<'a>> {
     let mut events: Vec<SlotEvent<'a>> = Vec::new();
     #[cfg(debug_assertions)]
-    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
-        eprintln!(
-            "ORIGINAL_IMPORT_SOURCE_QUERY ns={importing_ns} word={word} at={call_off} imports={} patterns={} exports={} unknown={}",
-            analysis
-                .namespace_imports
-                .iter()
-                .filter(|imp| imp.ns == importing_ns)
-                .count(),
-            analysis.original_namespace_patterns().count(),
-            analysis.original_namespace_exports().count(),
-            analysis.original_namespace_export_unknowns().len()
-        );
-    }
+    trace_slot_query(analysis, importing_ns, word, call_off);
     for imp in analysis
         .namespace_imports
         .iter()
@@ -3711,23 +3733,7 @@ fn slot_events<'a>(
                 && pattern.purpose()
                     == tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern
         });
-        let input = analysis
-            .command_invocations
-            .iter()
-            .filter(|invocation| {
-                invocation.range.start() == call_off
-                    || invocation
-                        .original_lookup
-                        .as_ref()
-                        .is_some_and(|lookup| lookup.site().offset == call_off)
-            })
-            .filter_map(|invocation| {
-                invocation
-                    .original_lookup
-                    .as_ref()
-                    .map(tcl_compiler::command_binding::OriginalCommandLookup::name_input)
-            })
-            .collect::<Vec<_>>();
+        let input = slot_call_inputs(analysis, call_off);
         let verdict = if let (Some(original), Some(first)) = (original, input.first()) {
             if input.iter().any(|other| *other != *first) {
                 continue;
@@ -3742,14 +3748,7 @@ fn slot_events<'a>(
         } else if let Some(original) = original {
             // Explicit authored query labels associate existing original
             // publication tails; they cannot produce native name bytes.
-            let names = analysis
-                .original_procedure_declarations()
-                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
-                .chain(analysis.original_class_declarations().map(
-                    tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name,
-                ))
-                .filter(|name| name.slot().simple.try_utf8().ok() == Some(word))
-                .collect::<Vec<_>>();
+            let names = slot_named_publications(analysis, word);
             let Some(first) = names.first() else {
                 continue;
             };
@@ -3798,6 +3797,72 @@ fn slot_events<'a>(
             events.push(SlotEvent::Destroy { at, source_ns });
         }
     }
+    append_slot_lifecycle_events(analysis, importing_ns, word, &mut events);
+    events
+}
+
+#[cfg(debug_assertions)]
+fn trace_slot_query(analysis: &AnalysisResult, importing_ns: &str, word: &str, call_off: u32) {
+    if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+        eprintln!(
+            "ORIGINAL_IMPORT_SOURCE_QUERY ns={importing_ns} word={word} at={call_off} imports={} patterns={} exports={} unknown={}",
+            analysis
+                .namespace_imports
+                .iter()
+                .filter(|imp| imp.ns == importing_ns)
+                .count(),
+            analysis.original_namespace_patterns().count(),
+            analysis.original_namespace_exports().count(),
+            analysis.original_namespace_export_unknowns().len()
+        );
+    }
+}
+
+fn slot_call_inputs(
+    analysis: &AnalysisResult,
+    call_off: u32,
+) -> Vec<&tcl_compiler::signature_scan::scope::SignatureSourceNameInput> {
+    analysis
+        .command_invocations
+        .iter()
+        .filter(|invocation| {
+            invocation.range.start() == call_off
+                || invocation
+                    .original_lookup
+                    .as_ref()
+                    .is_some_and(|lookup| lookup.site().offset == call_off)
+        })
+        .filter_map(|invocation| {
+            invocation
+                .original_lookup
+                .as_ref()
+                .map(tcl_compiler::command_binding::OriginalCommandLookup::name_input)
+        })
+        .collect::<Vec<_>>()
+}
+
+fn slot_named_publications<'a>(
+    analysis: &'a AnalysisResult,
+    word: &str,
+) -> Vec<&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand> {
+    analysis
+        .original_procedure_declarations()
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+        .chain(
+            analysis
+                .original_class_declarations()
+                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name),
+        )
+        .filter(|name| name.slot().simple.try_utf8().ok() == Some(word))
+        .collect::<Vec<_>>()
+}
+
+fn append_slot_lifecycle_events<'a>(
+    analysis: &'a AnalysisResult,
+    importing_ns: &str,
+    word: &str,
+    events: &mut Vec<SlotEvent<'a>>,
+) {
     for f in analysis
         .namespace_forgets
         .iter()
@@ -3834,7 +3899,6 @@ fn slot_events<'a>(
         )
     });
     events.dedup_by_key(|ev| (ev.at(), std::mem::discriminant(ev)));
-    events
 }
 
 /// One lazily captured in-document source order per resolution, shared by
