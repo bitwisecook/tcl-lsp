@@ -1,7 +1,7 @@
 {
   "reviewed_utc": "2026-10-23T00:10:53.222182+00:00",
   "reviewer_role": "independent coordination review",
-  "canonical_head": "32433f2e5993578dea297ff6cd8b41492758a0d1",
+  "canonical_head": "ac584008611f8bc86fa0ee15c65d297714d379ca",
   "scope": "static readiness only; no build, test, queue, lock acquisition, provider capture, or source write",
   "ccg": {
     "status": "pinned plan/runner inputs and current canonical test source hashes match",
@@ -663,5 +663,327 @@
       "path": "/tmp/lsp-folder-minify-current20-v2/readiness.json",
       "sha256": "d7c4f58e16299dbb6815012da748ba9167641ed770ff534ea97af357597d8836"
     }
+  },
+  "lsp_finite20_v3_native_protocol_v2": {
+    "reviewed_utc": "2026-10-23T00:18:10.036758+00:00",
+    "status": "static review only; no source mutation/build/queue/selector execution",
+    "finite20_v3": {
+      "readiness_path": "/tmp/lsp-folder-minify-current20-v3/readiness.json",
+      "readiness_sha256": "022665d9285eb18d846d25ea5204f6a2aa6efb4e23e5fe195beb044495dd47e4",
+      "successor_patch_sha256": "4b0135c3323cf0bdc4d2df927bd70b280b690a21a5691cc9ad60ae0371194747",
+      "plan_sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73",
+      "plan_selector_count": 20,
+      "immutable_manifest_checks": [
+        {
+          "file": "check-source-pins.py",
+          "expected_sha256": "5baf26277da1f8b5ad26c4c7259197890b649fd35b4d77a353da13711f44db4d",
+          "actual_sha256": "5baf26277da1f8b5ad26c4c7259197890b649fd35b4d77a353da13711f44db4d",
+          "matches": true
+        },
+        {
+          "file": "run.sh",
+          "expected_sha256": "2cf982440cb963eb363b98c378696198745f1bd620eb843e47d1f21fe94352fb",
+          "actual_sha256": "2cf982440cb963eb363b98c378696198745f1bd620eb843e47d1f21fe94352fb",
+          "matches": true
+        },
+        {
+          "file": "summarize.py",
+          "expected_sha256": "ef556a5b01d48ecd6bcf6d42b60db1a86d78b25bfee00be4f67c2c50ec3c1940",
+          "actual_sha256": "ef556a5b01d48ecd6bcf6d42b60db1a86d78b25bfee00be4f67c2c50ec3c1940",
+          "matches": true
+        },
+        {
+          "file": "run-selector.py",
+          "expected_sha256": "6a1629a9f73b3238baebde8928cc1d55f7c334455da8e7867496f495ffd46c47",
+          "actual_sha256": "6a1629a9f73b3238baebde8928cc1d55f7c334455da8e7867496f495ffd46c47",
+          "matches": true
+        },
+        {
+          "file": "collect-build.py",
+          "expected_sha256": "76c690585d22185516cebe5a7c701deef467b91f9f4bee5b36dccefa6f48ec9a",
+          "actual_sha256": "76c690585d22185516cebe5a7c701deef467b91f9f4bee5b36dccefa6f48ec9a",
+          "matches": true
+        },
+        {
+          "file": "providers.py",
+          "expected_sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+          "actual_sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+          "matches": true
+        },
+        {
+          "file": "plan.json",
+          "expected_sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73",
+          "actual_sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73",
+          "matches": true
+        }
+      ],
+      "source_pin_checks": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "expected_sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+          "actual_sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/original.rs",
+          "expected_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+          "actual_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+          "expected_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc",
+          "actual_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+          "expected_sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b",
+          "actual_sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+          "expected_sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22",
+          "actual_sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "expected_sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+          "actual_sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+          "matches": true
+        }
+      ],
+      "runner_sha256": "6a1629a9f73b3238baebde8928cc1d55f7c334455da8e7867496f495ffd46c47",
+      "synthetic_receipts": {
+        "synthetic-positive.json": {
+          "path": "/tmp/lsp-folder-minify-current20-v3/synthetic-positive.json",
+          "sha256": "aa35ae85619b76f76e145d88436ef47aed7fd81d03076b0e6fa0d66e41d02955",
+          "result": {
+            "selector": "synthetic::case",
+            "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/positive.py",
+            "artifact_before_sha256": "429f3185af6df3da8b5f55e329b7f4495a11700a32c7620d7010e8ac9bc39582",
+            "artifact_after_sha256": "429f3185af6df3da8b5f55e329b7f4495a11700a32c7620d7010e8ac9bc39582",
+            "exit_code": 0,
+            "timed_out": false,
+            "drain_complete": true,
+            "budget_seconds": 180,
+            "seconds": 0.05,
+            "passed": true,
+            "log_sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8",
+            "diagnostic_environment": {
+              "TCL_LSP_TRACE_SOURCE_PHASES": null,
+              "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+            }
+          }
+        },
+        "synthetic-eof-livechild.json": {
+          "path": "/tmp/lsp-folder-minify-current20-v3/synthetic-eof-livechild.json",
+          "sha256": "74ce6d840113921fdc13696a2e408e65a00122c80593e5b3a637a14e45cac462",
+          "result": {
+            "selector": "synthetic::case",
+            "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/eof-livechild.py",
+            "artifact_before_sha256": "8af532804ca93ddd07e590efdecca6a92b2a751ac6d3d8991452b2a08add2c54",
+            "artifact_after_sha256": "8af532804ca93ddd07e590efdecca6a92b2a751ac6d3d8991452b2a08add2c54",
+            "exit_code": -9,
+            "timed_out": true,
+            "drain_complete": false,
+            "budget_seconds": 180,
+            "seconds": 0.3,
+            "passed": false,
+            "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "diagnostic_environment": {
+              "TCL_LSP_TRACE_SOURCE_PHASES": null,
+              "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+            }
+          }
+        },
+        "synthetic-inherited-pipe.json": {
+          "path": "/tmp/lsp-folder-minify-current20-v3/synthetic-inherited-pipe.json",
+          "sha256": "46913cf59a76d8a8ed98c2f0f00f4a22e3db4f67e33ffd3211bda81d8de41023",
+          "result": {
+            "selector": "synthetic::case",
+            "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/inherited-pipe.py",
+            "artifact_before_sha256": "9b7f4b0749bf2dc0ee5dbdb209c7330cd475eaae989706b6da399f238a9f2172",
+            "artifact_after_sha256": "9b7f4b0749bf2dc0ee5dbdb209c7330cd475eaae989706b6da399f238a9f2172",
+            "exit_code": 0,
+            "timed_out": true,
+            "drain_complete": false,
+            "budget_seconds": 180,
+            "seconds": 0.3,
+            "passed": false,
+            "log_sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8",
+            "diagnostic_environment": {
+              "TCL_LSP_TRACE_SOURCE_PHASES": null,
+              "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+            }
+          }
+        }
+      },
+      "review": "waitid WNOWAIT retains direct-child PID/group ownership until EOF+exit or total 180s deadline; nonblocking collector handles stdout; timeout kills owned process group, records incomplete/no-pass, and no unbounded post-child join.",
+      "verdict": "No blocker in bounded drain/deadline correction."
+    },
+    "native_protocol_v2": {
+      "readiness_path": "/tmp/lsp-native-protocol-v2/readiness.json",
+      "readiness_sha256": "441b6bc0bb13882ae57d6d875e50df7b2f2a8d5014154ff257de91b5f3576458",
+      "successor_patch_sha256": null,
+      "plan_sha256": "82d28f6f4d74c935ec608b42036f857ff078040c67257d031eeb8e63850d0501",
+      "plan_selector_count": 15,
+      "immutable_manifest_checks": [
+        {
+          "file": "run.sh",
+          "expected_sha256": "ec885e0b32a16fdc8bf4074637a5aca4cca50612c943397c643d8fb3d24e4bfd",
+          "actual_sha256": "ec885e0b32a16fdc8bf4074637a5aca4cca50612c943397c643d8fb3d24e4bfd",
+          "matches": true
+        },
+        {
+          "file": "run-selector.py",
+          "expected_sha256": "81c5782c0255123faa2fe5a7be2c2ffd298f2cc1438d3931e76986dc61a89ed5",
+          "actual_sha256": "81c5782c0255123faa2fe5a7be2c2ffd298f2cc1438d3931e76986dc61a89ed5",
+          "matches": true
+        },
+        {
+          "file": "collect-build.py",
+          "expected_sha256": "d5dbdfb167607c38b6bafc7645c856fac4672bd3756ed135b653554c75b7d811",
+          "actual_sha256": "d5dbdfb167607c38b6bafc7645c856fac4672bd3756ed135b653554c75b7d811",
+          "matches": true
+        },
+        {
+          "file": "providers.py",
+          "expected_sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+          "actual_sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+          "matches": true
+        },
+        {
+          "file": "summarize.py",
+          "expected_sha256": "7e33c1aa1a3c9f66fa984af57a635410ac767e35406de0bc5665e895f80912d9",
+          "actual_sha256": "7e33c1aa1a3c9f66fa984af57a635410ac767e35406de0bc5665e895f80912d9",
+          "matches": true
+        },
+        {
+          "file": "check-source-pins.py",
+          "expected_sha256": "e5c05d0975405cc9ec50df4b8588eafc9746227bf4d4f14f5e8e0acb1a2731f1",
+          "actual_sha256": "e5c05d0975405cc9ec50df4b8588eafc9746227bf4d4f14f5e8e0acb1a2731f1",
+          "matches": true
+        },
+        {
+          "file": "plan.json",
+          "expected_sha256": "82d28f6f4d74c935ec608b42036f857ff078040c67257d031eeb8e63850d0501",
+          "actual_sha256": "82d28f6f4d74c935ec608b42036f857ff078040c67257d031eeb8e63850d0501",
+          "matches": true
+        }
+      ],
+      "source_pin_checks": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "expected_sha256": "77e4246cbb9e1c88225e48aabf43d0f9133ddfaa321e06a27e7a6d2710f2dcf2",
+          "actual_sha256": "77e4246cbb9e1c88225e48aabf43d0f9133ddfaa321e06a27e7a6d2710f2dcf2",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e.rs",
+          "expected_sha256": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af",
+          "actual_sha256": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/commands.rs",
+          "expected_sha256": "f7f6b1ff8db518c3bf0e9dc252fdc268f50b70537ab06f126408730419ed3ce9",
+          "actual_sha256": "f7f6b1ff8db518c3bf0e9dc252fdc268f50b70537ab06f126408730419ed3ce9",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/helpers.rs",
+          "expected_sha256": "70d8006099e64c7d561468d7825dde0c9638170ac8be2bae2c48c853c4429f6f",
+          "actual_sha256": "70d8006099e64c7d561468d7825dde0c9638170ac8be2bae2c48c853c4429f6f",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+          "expected_sha256": "9c8fb04893e26bc0d114500ca29c8d1d86198e823aad3d42fc40e43bd8bf343e",
+          "actual_sha256": "9c8fb04893e26bc0d114500ca29c8d1d86198e823aad3d42fc40e43bd8bf343e",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/naming_edits.rs",
+          "expected_sha256": "cb717d85f837ea081529db612f0b83aa33ef675f1c63685d33956b9066cfec45",
+          "actual_sha256": "cb717d85f837ea081529db612f0b83aa33ef675f1c63685d33956b9066cfec45",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/naming_lifecycle.rs",
+          "expected_sha256": "92e02d6eb3e696dd37a6392d3d4703741c6823b9453991ec3bef56068e4c0dec",
+          "actual_sha256": "92e02d6eb3e696dd37a6392d3d4703741c6823b9453991ec3bef56068e4c0dec",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/naming_packages.rs",
+          "expected_sha256": "1a7e8189861c1e4c1eee10b09d777a45fcad6913508123d1c62e6f57f807480a",
+          "actual_sha256": "1a7e8189861c1e4c1eee10b09d777a45fcad6913508123d1c62e6f57f807480a",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs",
+          "expected_sha256": "481a96b1c8180f418f1543474a4aba00a3b0d8b6f7e2b4838667255cdf636d7b",
+          "actual_sha256": "481a96b1c8180f418f1543474a4aba00a3b0d8b6f7e2b4838667255cdf636d7b",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+          "expected_sha256": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50",
+          "actual_sha256": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "expected_sha256": "59f325e04af755060579aa9d2f74702bc06f1856f5c84fffb885086e7b99f79a",
+          "actual_sha256": "59f325e04af755060579aa9d2f74702bc06f1856f5c84fffb885086e7b99f79a",
+          "matches": true
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs/environment_lifecycle.rs",
+          "expected_sha256": "7dab70ebe9fe1079db22200795ba41e0216c2c68f1e6deb3ab45def318ac2174",
+          "actual_sha256": "7dab70ebe9fe1079db22200795ba41e0216c2c68f1e6deb3ab45def318ac2174",
+          "matches": true
+        }
+      ],
+      "runner_hashes": {
+        "run.sh": "ec885e0b32a16fdc8bf4074637a5aca4cca50612c943397c643d8fb3d24e4bfd",
+        "run-selector.py": "81c5782c0255123faa2fe5a7be2c2ffd298f2cc1438d3931e76986dc61a89ed5",
+        "collect-build.py": "d5dbdfb167607c38b6bafc7645c856fac4672bd3756ed135b653554c75b7d811",
+        "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+        "summarize.py": "7e33c1aa1a3c9f66fa984af57a635410ac767e35406de0bc5665e895f80912d9",
+        "check-source-pins.py": "e5c05d0975405cc9ec50df4b8588eafc9746227bf4d4f14f5e8e0acb1a2731f1"
+      },
+      "synthetic_collector_receipt": {
+        "path": "/tmp/lsp-native-protocol-v2/synthetic-collector/result.json",
+        "sha256": "212bb8a095a527e6f4633eca6d33b4184128c00356f4be38a1362283221a018c",
+        "result": {
+          "scope": "Synthetic Cargo JSON collector only; no Cargo/test executable executed",
+          "cases": [
+            {
+              "case": "exact-server",
+              "exit": 0,
+              "expected_acceptance": true
+            },
+            {
+              "case": "missing-server",
+              "exit": 1,
+              "expected_acceptance": false
+            },
+            {
+              "case": "duplicate-server",
+              "exit": 1,
+              "expected_acceptance": false
+            }
+          ]
+        }
+      },
+      "review": "E2E test executor and server executable both come from compiler-artifact Cargo JSON emitted by the same e2e build invocation; collector requires one target executor and exactly one server executable, then passes that path through NEXTEST_BIN_EXE_tcl-lsp-server. Each selector hashes both executables before/after; summarizer requires receipts/source/provider equality for all exact15 selectors.",
+      "verdict": "No blocker in the bounded build-to-executor artifact tether.",
+      "limits": "Synthetic collector acceptance/rejection only; no actual Cargo build, protocol test or provider before/after capture."
+    },
+    "overall": "No blockers found in requested runner/artifact contracts; not a GO. Production 180-second limits, all20/all15 outcomes and runtime provider seals remain unverified until authorized slot."
   }
 }

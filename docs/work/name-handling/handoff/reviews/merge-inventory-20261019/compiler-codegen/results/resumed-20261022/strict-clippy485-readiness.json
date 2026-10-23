@@ -1,0 +1,180 @@
+{
+  "utc": "2026-10-23T00:21:52.141213+00:00",
+  "status": "Read-only historical strictClippy shipping-gate inventory; no Clippy invocation/no source edits",
+  "inventory": {
+    "path": "/tmp/naming-registry-clippy-2035/diagnostics.json",
+    "sha256": "4f1d09e856b5da462d62148f797c962c80ecbebc70dce15c14089bf4dc7f3d83",
+    "source": "def9 historical guarded registry-targeted strictClippy",
+    "compiler_unique": 485,
+    "partition": "380 compiler +104 compiler-names +1 compiler-codegen; VM181 separate"
+  },
+  "owned_rows": [
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+      "line": 1768,
+      "column": 5
+    }
+  ],
+  "owned_current": {
+    "3445112": "Existing reviewed Set-load guard extraction reverse-check passes current source. Already applied; do not reapply. Current helper preserves exact original predicate.",
+    "compile_service_const_subst_compiled_preflight": "No located diagnostics in this historical485 run. Historical absence is not current strictClippy success.",
+    "old54_and18": "aeec old54/18patch are older baseline. Whole18 no longer reverse-applies due current cmd_subst development; not a current drop-in patch."
+  },
+  "categories": {
+    "local spelling/borrowing/syntax candidate; exact current expression check required": 69,
+    "control flow/value/drop/ownership or lint-specific review; not blanket mechanical": 178,
+    "structural/API/representation; separate owner review and functional validation": 238
+  },
+  "local_candidate_messages": {
+    "binding's name is too similar to existing binding": 9,
+    "redundant field names in struct initialization": 1,
+    "empty line after doc comment": 2,
+    "unnested or-patterns": 1,
+    "redundant closure": 45,
+    "variables can be used directly in the `format!` string": 1,
+    "it is more concise to loop over references to containers instead of using explicit iteration methods": 1,
+    "item in documentation is missing backticks": 1,
+    "unnecessary semicolon": 1,
+    "iterating on a map's keys": 1,
+    "useless conversion to the same type: `std::string::String`": 1,
+    "derefed type is same as origin": 1,
+    "the following explicit lifetimes could be elided: 'a": 4
+  },
+  "frozen_patch_applicability": [
+    {
+      "path": "/tmp/ccg-ci5205-cmd-subst-lint/proposal.patch",
+      "sha256": "3445112f4e04efa20761d894d8ddd5ee083147ba107814262a9d5c66344db5f4",
+      "files": 1,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/codegen/cmd_subst.rs:1827",
+          "error: rust/tcl-compiler/src/codegen/cmd_subst.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 0,
+        "first_failure": []
+      }
+    },
+    {
+      "path": "/tmp/ccg-lint-post-cleanup.patch",
+      "sha256": "9897a8ab45537c9213723d0a106d1b7000a7606116dab5a6eea6ba31c2815f42",
+      "files": 18,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/codegen/cmd_subst.rs:23",
+          "error: rust/tcl-compiler/src/codegen/cmd_subst.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/codegen/cmd_subst.rs:1882",
+          "error: rust/tcl-compiler/src/codegen/cmd_subst.rs: patch does not apply"
+        ]
+      }
+    },
+    {
+      "path": "/tmp/compiler-clippy-offtree/mechanical.patch",
+      "sha256": "d9d5c83c463426a1bf3ffadad4e3a2cd6b02a499695e8bd8eb79697cc86990ef",
+      "files": 29,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/analyser/diagnostics.rs:735",
+          "error: rust/tcl-compiler/src/analyser/diagnostics.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/tcl_expr_eval.rs:1804",
+          "error: rust/tcl-compiler/src/tcl_expr_eval.rs: patch does not apply"
+        ]
+      }
+    },
+    {
+      "path": "/tmp/compiler-clippy-offtree/copy-clones.patch",
+      "sha256": "da0b89938f7eb94e6dfb2459f7833b9834e4fbce5b81e02990d7ad66f643d97e",
+      "files": 8,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:795",
+          "error: rust/tcl-compiler/src/analyser/diagnostics/var_command.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/var_escape/slot_resolution.rs:449",
+          "error: rust/tcl-compiler/src/var_escape/slot_resolution.rs: patch does not apply"
+        ]
+      }
+    },
+    {
+      "path": "/tmp/compiler-clippy-offtree/method-closures.patch",
+      "sha256": "9193ce129f22dcd0a8aa16fd131c9a511f4d30ac80818e8b6d448dfa0606606a",
+      "files": 21,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1377",
+          "error: rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/ssa.rs:91",
+          "error: rust/tcl-compiler/src/ssa.rs: patch does not apply"
+        ]
+      }
+    },
+    {
+      "path": "/tmp/compiler-clippy-pass1/pass1-formatted.patch",
+      "sha256": "adfd2a4e69385d05e838b0508321c50d28d97fd2528cee228b6737f7597e0fa4",
+      "files": 50,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1377",
+          "error: rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:500",
+          "error: rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs: patch does not apply"
+        ]
+      }
+    },
+    {
+      "path": "/tmp/compiler-clippy-pass2/pass2.patch",
+      "sha256": "d0ea8c81ae68e532da351859182cda55784218d544149c2443a8fb49a017a8d3",
+      "files": 25,
+      "forward_check": {
+        "exit": 1,
+        "first_failure": [
+          "error: patch failed: rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2231",
+          "error: rust/tcl-compiler/src/analyser/diagnostics/validity.rs: patch does not apply"
+        ]
+      },
+      "reverse_check": {
+        "exit": 0,
+        "first_failure": []
+      }
+    }
+  ],
+  "remaining_actions": [
+    "Keep ownership380/104/1; owners compare each frozen proposal exact expression/base and shared consumers before adapting. No broad autoapply.",
+    "Prefer local syntax/spelling candidates first, preserving expression evaluation and current proof/registry APIs. Even redundant closure conversion needs matching method signature.",
+    "Structural Option/enum/key/arg/long-function changes need owner-specific contracts and appropriate functional validation; no new allow or assertion changes. VM original stack3 remains prerequisite for VM structural drafts, not waived by compiler category counts.",
+    "After current scheduled runtime/check work and exact source integration, root schedules current strictClippy. Only actual strictClippy result closes this gate; rustc check warnings0 does not."
+  ],
+  "limits": "No claim any historical485 is still live or resolved. Forward/reverse applicability checks are read-only patch-context checks, not semantic/type/lint acceptance."
+}

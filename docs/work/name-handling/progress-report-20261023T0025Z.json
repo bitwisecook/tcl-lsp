@@ -1,0 +1,81 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T00:25:37.323832+00:00",
+  "scheduled_report_utc": "2026-10-23T00:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T00:55:37+00:00",
+  "change_since_previous_report": [
+    "Primary goal remains clean LSP merge/release readiness from rust, then deferred parity. Work-only normal pushes; no PR/merge/tag/release. All eight section F boxes and audit admissions stay open.",
+    "Previous23:55 UTC cycle published a2ed304930 after fresh depth1 fetch/rebase and zero product diff; due00:25:37 reminder rearmed. Actual baseline remains fcb7927 origin/rust. No unshallow/all-history fetch.",
+    "Ten-component31-file candidate65e99f8f independently validated against canonical before hashes/component hashes and after hashes, applied under free whole build lock with no live Cargo/rustc, git diff check clear. Full WIP source checkpoint32433f2e599; includes hostv12/pathadapter, inherited-source selection69bd, first6 G4 decision-aligned assertions, native/BPF/C84 observers, truthful explorer coverage01a, native protocol controls, CI failed-shard listing metadata. BPF81f semantic fix, unfinished report API and float16a remain excluded.",
+    "First six-package check on32433 closed00:14:22 UTC Cargo101 with exactly2 E0425 missing LSP current_analysis references and0 Rust warnings;6541 source inputs/full provider seals unchanged, no cap/disk abort. Full canonical archive typecheck-six-20261023T001422Z manifest41cc43ce. Currentness fix b67c peer-cleared existing strict CurrentSourceContext::capture; no missing-proof fallback.",
+    "Three-part peer-reviewed7-file successor207d6b84 integrated00:16:14 under free lock, all before/after hashes/root gitdiffcheck verified, full WIP ac584008611. Includes nested909d, AuthoredSimulation888bbe and LSP currentness b67c. AuthoredSimulation declaration_layout merge preserves exact already-integrated G4 first6 delta; both merge orders byte-identical8aa8ee9a, pinnedfmt idempotent. New six-package keep-going all-target metadata check active since2026-10-23T00:16:26.906100+00:00; active as of cycle preparation; no final verdict, no runtime acceptance.",
+    "Remaining33 fully closed00:03:17 UTC:23filters33tests,12PASS21FAIL, exact counts/stable full source/provider/artifact guards, zero warnings. Canonical compiler archive remaining33-20261023T000317Z retains final/watchdog/source/provider proofs. Watchdog sampled22/23 selected executables; quick passing inversion command retains measured duration but no watcher sample. Earlier interrupted35 supplies only2FAIL; no whole-run closure invented.",
+    "Alias diagnostic measures total2/named1/lowering1 with distinct Named/NamespaceScript owners at identical declaration span227..257. Compiler report-only correspondence must capture both actual roles with total unique current proof; global/runtime Eq and cache cutoffs remain strict. Complete90field/12subject comparison unfinished/Unavailable; perf realm/interprocedural patch remains withheld.",
+    "Nested source-point graph missing producer identified in BodyWalk; narrowly peer-cleared909d observer off-tree, actual selected schema/prehandler/arity/currentness and uncertainty retained; no Normal/Native/effect grant. AuthoredSimulation structure888bbe proposal under names peer review; physical closed_lookup unchanged. Runtime controls unrun; immediate namespace/import/allocator still separate.",
+    "Names peer review held initial ILX50e18 first-operand draft for concrete same-frame conditional bypass of unclassified resolver effects. Compiler preparing explicit guarded successor; initialdraft excluded from source. Positive source associations retain explicit debts; strict runtime/Normal/admission unchanged, and user2231 stop-after-opaque applies.",
+    "Compiler prioritises genuine ILX first-operand association and opaque-call withdrawal after bounded AuthoredSimulation proposal, prerequisite for separate BIG-IP original16 navigation tests. User2231 stop-after-opaque policy and2256 authenticated report comparison are recorded; no repeated decision question.",
+    "Finite LSP20 runner explicit successor fixes wrong-filesystem disk guard and queued flock while preserving byte-identical20-selection plan/180s/assertions/sourcepins/log limits. VM fullTommath5-v3 EOF-live-child deadline successor and CCG native1/N17two protocol independently peer reviewed; all readiness remains static, no accepted runtime result.",
+    "Latest CI5205 complete30-job metadata unchanged:7success/19failure/3skip/1running at00:09 UTC; main5 stillrunning, main1/2 completedfailure retain in-progress/pending steps and unavailable named logs. No dispatch/cancel/retry performed. OlderCI main822 exact P2F and missing/unmatched scopes remain blocking until current-source fixes/reruns.",
+    "External BIG-IP18:08/perf21:00/completedtriage19:57:30 owner headers stale, user notified and no duplicate/takeover. Check all owner ages, refresh agent-reported table only, official report, full WIP excludingzzprobes, fresh depth1fetch/FF/rebase normalpush, zero productdiff,diskcheck and rearm00:55:37UTC. No target/executablecleanup.",
+    "Second six-package metadata pass has reached server all-targets: actual4 grouped dead_code warning sites observed (Ready revision field, retag, old standalone rehoming methods, source-view declaration helpers);0errors observed so far. LSP prepares narrow owned cleanup with codegen peer review and live currentness/revision/session caller audit. No new allows/fake uses/semantic test weakening. No final closure at cycle preparation.",
+    "Corrected ILX first-operand v3fac707 now naming peer-clear, frozen in compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z with exact consumer API and review. Root routed off-tree adapter preparation to existing BIG-IP outstanding file; compiler API remains unapplied/untyped/unrun, original16 still required, no runtime target/completeness grant. Compiler resumes report90field/12subject/body-role correspondence; old countguard/global Eq unchanged.",
+    "LSP warning cleanup eeec initial proposal statically codegen-clear on functionality/currentness; small truthful-comment successor requested before final freeze. It remains off-tree/untyped/unrun; no new allows/fake uses or removed live revision/session checks. Native protocol plan requires explicit reviewed pin successor if canonical cleanup later changes lib.rs; no silent source-pin refresh.",
+    "Cycle start fresh depth1 fetch/fast-forward in isolated publisher performed before WIP snapshot. Active product source remains held during metadata; full staged snapshot and rebase/normal push publication preserve exact product equivalence."
+  ],
+  "committed": [
+    "ac584008611f8bc86fa0ee15c65d297714d379ca"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Complete integrated six-package typing without warnings, route any actual compiler errors to owning role, then run bounded current-source native/LSP/SpecTcl diagnostics under reviewed protocols.",
+    "Repair genuine source-point/namespace/import/RBS/ILX producer seams and complete authenticated report correspondence before perf proof reruns.",
+    "Repair exact origin/rust regressions, strict/generated/editor/native/browser/WASI and shipping performance/section F acceptance before a user-requested PR or release."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release/audit admissions. First6check actual2errors/0warnings stable guards; source fixes integratedac584. Second6check still active with4 grouped server dead_code warnings/0errors so far; cannot call green, final status pending. Remaining33 actual12PASS21FAIL/count-exact stable, watcher22/23 sample gap; interruptedprior2FAIL separate. ILXfac707 peer-clear but unintegrated; exact API routed. Full strictClippy and runtime acceptance open.",
+  "disk_free_bytes": 12016861184,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

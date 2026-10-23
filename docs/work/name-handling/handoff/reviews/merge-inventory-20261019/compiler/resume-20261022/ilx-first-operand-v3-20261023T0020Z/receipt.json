@@ -1,0 +1,31 @@
+{
+  "status": "FROZEN OFFTREE v3 bounded review required; no integration/typing/tests/consumer wiring",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "f617ff2c56aaaaa8d1e15ee5a552af3e3148936cfce15715d9495cec4336f661",
+      "after_sha256": "0f4a84ece61458433c5b240ee81e08631588f218ca406b0e9a245551e06fcc6d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "before_sha256": null,
+      "after_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103"
+    }
+  ],
+  "canonical_changed": false,
+  "user_policy": "user-decisions-20261022T2231Z.json: Stop navigation after opaque calls; no repeated conditional handle workaround",
+  "limits": [
+    "No runtime handle/cell/Normal/RPC or quiet-effects grant.",
+    "Existing strict064792 source producer unchanged; new source-only first-operand association retains all constructor/setter/body/observer debts.",
+    "No consumer wiring yet; compiler issuer must be peer reviewed and typed/tested."
+  ],
+  "frozen_utc": "2026-10-23T00:19:14.166989+00:00",
+  "patch_sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085",
+  "scope": "Distinct hosted first-operand source association; genuine whole-analysis owner/full input/Vendor body/setter/original sole constructor RHS/later scalar read; conditional debts only",
+  "withdrawal": "First remote method query may issue source association at its handle operand before later argv/handler. Immediately clear and stop: no association survives any earlier opaque remote operation. Earlier unknown callback/write/observer/frame/flow invalidations stop scan. Intervening variable reads refuse because their observers are unavailable.",
+  "same_frame": "Only literal1 sole conditional body, Plain Current interpreter/no frame effect/SameInvocation, earlier operands literal, exact body path retained; no post-body continuation is inferred.",
+  "controls": "Four real/guard tests unrun; first-site/cross-opaque/owner/refusal, exact Event same-frame + Procedure positives, descriptor-chain source_resolver/Replace/empty override and transition override negatives.",
+  "api": "source_remote_first_operand_associations returns bounded positive set only, never absence/completeness. Existing strict064792 producer and existing runtime target None remain unchanged.",
+  "predecessor_patch_sha256": "50e18c1ec3ec00215a0bcbe989fc78bb02841952c4b576cfe09e3dad28fcfcd9",
+  "v3_delta": "Same-frame selected intrinsic StructuredLowering(If) only, rejects every authored command/sub/form effect or transition override including overridden source resolvers; actual Braced word, no alias/trace/destruction traits. Full body effects are never subtracted or labelled quiet. Adds one direct override guard regression and procedure first-site positive."
+}

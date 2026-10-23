@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T00:12:45Z
+Last updated: 2026-10-23T00:20:07Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**ILX first-operand source issuer peer review:** v2 `50e18c1` is held: selected literal1 same-frame descent bypassed the whole command/sub/form source_resolver refusal and could carry prior association across uncovered resolver effects. Compiler frozen successor `fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085` (exact delta20169894) now has Names bounded static CLEAR (`compiler-names-ilx-first-operand-v3-review.json`): typed intrinsic If only, no authored effect/transition descriptor at any specificity including overwritten/EMPTY, real Braced/literal1/other literal operands, PlainCurrent/no-frame/SameInvocation, trace/alias/destruction and callback-retention guards. No body-effect subtraction or quietness inference. Actual hosted whole owner/input/body/setter/sole constructor RHS/later scalar/family/arity joins remain genuine; constructor exception clears prior associations and retains debts, first remote query clears/stops, no postbody continuity. Four controls, typing, consumer wiring and production original16 remain unrun; no runtime handle/cell/Normal/admission or absence/completeness grant. User2231 stop-after-opaque-call policy retained.
 
 **Current HOLD / next reviewed source seam (00:12Z):** root integrated candidate2323 and owns six-package check; no own source/test/provider writes or Cargo. Remaining33 closed12PASS/21FAIL, exact receipts archived by compiler under `compiler/resume-20261022/remaining33-20261023T000317Z`. Frozen nested-point-observer909d989cc7abf9c464f6617b6eb0b9ecf6043f160ea701519581232bb09b40dc (`n13-nested-point-observer-v1/`) adds the missing SourcePoint query observation after authentic nested BodyWalk schema/arity resolution, matching root pre-handler observation. Compiler and compiler-codegen bounded static CLEAR; no Normal observer or Native/effect grant, exact namespace/schema/uncertainty/duplicate refusal retained. New genuine nested namespace/child positive plus foreign-parent/unknown-writer controls untyped/unrun; root owns next source window.
 

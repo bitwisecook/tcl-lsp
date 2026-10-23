@@ -1,0 +1,159 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs
+@@ -384,7 +384,20 @@
+                     ScriptBodyFlow, script_body_flow_for_invocation,
+                 };
+                 let facts = schema.facts();
+-                if schema.semantics.frame_effect.is_some()
++                if facts.operation
++                    != tcl_registry::SemanticOperationId::StructuredLowering(
++                        tcl_registry::hooks::LoweringHookId::If,
++                    )
++                    || !intrinsic_conditional_has_no_authored_overrides(
++                        schema.semantics.world_effects,
++                        schema.semantics.state_transitions,
++                    )
++                    || facts.traits.intersects(
++                        tcl_registry::Traits::CREATES_SCOPE_ALIAS
++                            | tcl_registry::Traits::DESTROYS_VARIABLE
++                            | tcl_registry::Traits::ESTABLISHES_VARIABLE_TRACE,
++                    )
++                    || schema.semantics.frame_effect.is_some()
+                     || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                     || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+                     || facts.arity_accepts_frozen_arguments() != Some(true)
+@@ -418,9 +431,7 @@
+                     return None;
+                 }
+                 let original = words.original_argument_word(*body)?;
+-                if original.group().expand
+-                    || original.tokens().first()?.kind != tcl_lexer::TokenType::Str
+-                {
++                if original.group().expand || original.group().kind != tcl_lexer::WordKind::Braced {
+                     return None;
+                 }
+                 original.content_span().ok()
+@@ -711,6 +722,20 @@
+     }
+ }
+ 
++// Intrinsic conditional source ordering owns the selected literal condition
++// and body. Authored effect/transition overrides require a separate pre-body
++// contract; the full invocation footprint cannot subtract body effects.
++fn intrinsic_conditional_has_no_authored_overrides(
++    effects: tcl_registry::world_effect::ResolvedWorldEffects,
++    transitions: tcl_registry::state_transition::ResolvedStateTransitions,
++) -> bool {
++    source_effect_chain_has_no_unclassified_override(effects)
++        && effects.command.is_none()
++        && effects.subcommand.is_none()
++        && effects.form.is_none()
++        && !transitions.is_declared()
++}
++
+ fn source_effect_chain_has_no_unclassified_override(
+     effects: tcl_registry::world_effect::ResolvedWorldEffects,
+ ) -> bool {
+@@ -736,6 +761,85 @@
+ 
+     fn analyse(source: &str) -> AnalysisResult {
+         crate::analyser::Analyser::new().analyse(source, "f5-irules")
++    }
++
++    #[test]
++    fn intrinsic_conditional_refuses_source_effect_and_transition_overrides() {
++        use tcl_registry::state_transition::{ResolvedStateTransitions, StateTransitionDescriptor};
++        use tcl_registry::world_effect::{
++            EffectAccess, EffectAccessMode, EffectFootprint, ResolvedWorldEffects,
++            SourceWorldEffectResolver, WorldEffectComposition, WorldEffectDescriptor,
++        };
++        fn source_write(_: tcl_registry::InvocationArguments<'_>) -> EffectFootprint {
++            let mut effects = EffectFootprint::default();
++            effects.add_access(EffectAccess::variable_store_wildcard(
++                EffectAccessMode::Write,
++            ));
++            effects
++        }
++        let descriptor = WorldEffectDescriptor {
++            source_resolver: Some(SourceWorldEffectResolver::Effects(source_write)),
++            ..WorldEffectDescriptor::EMPTY
++        };
++        assert!(
++            !source_write(tcl_registry::InvocationArguments::structured(&[]))
++                .accesses()
++                .is_empty()
++        );
++        assert!(intrinsic_conditional_has_no_authored_overrides(
++            ResolvedWorldEffects::default(),
++            ResolvedStateTransitions::default()
++        ));
++        for effects in [
++            ResolvedWorldEffects {
++                command: Some(descriptor),
++                ..Default::default()
++            },
++            ResolvedWorldEffects {
++                subcommand: Some(descriptor),
++                ..Default::default()
++            },
++            ResolvedWorldEffects {
++                form: Some(descriptor),
++                ..Default::default()
++            },
++            ResolvedWorldEffects {
++                command: Some(descriptor),
++                form: Some(WorldEffectDescriptor {
++                    composition: WorldEffectComposition::Replace,
++                    ..WorldEffectDescriptor::EMPTY
++                }),
++                ..Default::default()
++            },
++            ResolvedWorldEffects {
++                command: Some(WorldEffectDescriptor::EMPTY),
++                ..Default::default()
++            },
++        ] {
++            assert!(!intrinsic_conditional_has_no_authored_overrides(
++                effects,
++                ResolvedStateTransitions::default()
++            ));
++        }
++        for transitions in [
++            ResolvedStateTransitions {
++                command: Some(StateTransitionDescriptor::EMPTY),
++                ..Default::default()
++            },
++            ResolvedStateTransitions {
++                subcommand: Some(StateTransitionDescriptor::EMPTY),
++                ..Default::default()
++            },
++            ResolvedStateTransitions {
++                form: Some(StateTransitionDescriptor::EMPTY),
++                ..Default::default()
++            },
++        ] {
++            assert!(!intrinsic_conditional_has_no_authored_overrides(
++                ResolvedWorldEffects::default(),
++                transitions
++            ));
++        }
+     }
+ 
+     #[test]
+@@ -795,12 +899,15 @@
+         for source in [
+             "when HTTP_REQUEST {set h [ILX::init p e]; if {1} {ILX::call $h m}}",
+             "when HTTP_REQUEST {if {1} {set h [ILX::init p e]; ILX::notify $h m}}",
++            "proc invoke {} {set h [ILX::init p e]; ILX::call $h m}",
+         ] {
+             let analysis = analyse(source);
+             let calls = source_remote_first_operand_associations(source, &analysis).unwrap();
+             assert_eq!(calls.len(), 1);
+             assert!(calls[0].matches_source_analysis(source, &analysis));
+-            assert!(!calls[0].body_path.is_empty());
++            if !source.starts_with("proc ") {
++                assert!(!calls[0].body_path.is_empty());
++            }
+         }
+     }
+ 

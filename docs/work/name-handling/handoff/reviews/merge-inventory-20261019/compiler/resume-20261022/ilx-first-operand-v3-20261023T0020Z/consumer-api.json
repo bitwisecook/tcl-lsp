@@ -1,0 +1,33 @@
+{
+  "import": "tcl_compiler::registry_invocation::{source_remote_first_operand_associations, OriginalSourceRemoteFirstOperandAssociation, RemoteResultSourceObligation}",
+  "signature": "pub fn source_remote_first_operand_associations(source: &str, analysis: &AnalysisResult) -> Option<Vec<OriginalSourceRemoteFirstOperandAssociation>>",
+  "call_methods": {
+    "matches_source_analysis": "(&self, source: &str, analysis: &AnalysisResult) -> bool",
+    "invocation": "(&self) -> &OriginalRegistryWords",
+    "layout": "(&self) -> RemoteCallSpec",
+    "handle_operand": "(&self) -> &NativeWord",
+    "handle_binding": "(&self) -> &OriginalSourceRemoteResultAssociation",
+    "obligations": "(&self) -> &'static [RemoteResultSourceObligation]"
+  },
+  "binding_methods": [
+    "source_analysis_input",
+    "matches_source_analysis",
+    "source_body",
+    "variable",
+    "setter",
+    "setter_layout",
+    "original_operand",
+    "constructor",
+    "constructor_layout"
+  ],
+  "consumer_contract": [
+    "Must use supplied authentic current analysis and exact original invocation card, then retain/revalidate compiler association at query.",
+    "Constructor labels only from original literal bytes at selected constructor_layout.scope_arg and extension_arg. No fixed ordinal guesses or source assignment walker.",
+    "Retain all source obligations. Runtime target stays None; source candidates do not prove actual RPC delivery/current handle/cell/Normal.",
+    "Some(vec) is bounded positives only, not absence or complete catalogue. No standalone or stale recapture fallback.",
+    "First remote operand before later argv/handler can associate; no later source read can cross opaque earlier remote call.",
+    "Original external16, four compiler controls, strict typing/lints and consumer integration remain unrun."
+  ],
+  "policy_record": "user-decisions-20261022T2231Z.json",
+  "status": "Frozen source proposal+bounded static peer clearance only; source not applied during current check"
+}

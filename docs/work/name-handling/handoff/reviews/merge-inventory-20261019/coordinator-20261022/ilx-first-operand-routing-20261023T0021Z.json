@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T00:22:08.061732+00:00",
+  "from": "coordinator",
+  "to": "bigip-lsp existing separate session",
+  "decision": "user-decisions-20261022T2231Z.json: Stop navigation after opaque calls",
+  "compiler_proposal": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/proposal.patch",
+  "proposal_sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085",
+  "consumer_api": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/consumer-api.json",
+  "review": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/compiler-names-review.json",
+  "status": "Peer-cleared frozen compiler source API only; not applied, typed, runtime tested or accepted",
+  "action": "Prepare off-tree consumer adapter against exact proposed API. Consume authenticated same-analysis invocation cards only; retain conditional debts. Revalidate source+analysis ownership; no standalone/stale recapture, consumer-local walker, runtime target or completeness inference. Original16 tests still required after coherent source integration.",
+  "policy": "First remote operand may use a prior genuine constructor/setter/read association; opaque calls end navigation afterwards. No conditional navigation survives earlier opaque call.",
+  "takeover": false
+}

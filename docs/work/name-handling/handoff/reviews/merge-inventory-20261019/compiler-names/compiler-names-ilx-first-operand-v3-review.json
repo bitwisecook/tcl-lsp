@@ -1,0 +1,22 @@
+{
+  "reviewer": "compiler-names",
+  "patch_sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085",
+  "v2_delta_sha256": "20169894a3ad6a098d37b3a084687796b690de900ebc2a4429143a199f9b251e",
+  "status": "BOUNDED STATIC CLEAR; untyped/unrun; no consumer/original16 acceptance",
+  "concrete_blockers": [],
+  "closed_v2_blocker": "conditional branch now refuses all command/sub/form authored effect descriptors (including source_resolver, overridden source resolver and EMPTY) and any authored state-transition descriptor before preserving an association into the owned body",
+  "examined": [
+    "typed intrinsic StructuredLowering(If), literal1 sole body, real NativeWord Braced, literal other operands, Plain Current/no-frame and SameInvocation",
+    "alias/destruction/trace trait and callback-retention guards",
+    "no full-footprint body-effect subtraction or quietness inference",
+    "default if spec has no explicit world-effect/state-transition descriptors; static positive not vacuous at that gate",
+    "whole hosted original analysis owner/full input/config/body/setter/sole constructor RHS/later scalar read joins unchanged from reviewedv2",
+    "remote call clears and stops; no postbody continuity; constructor exemption clears prior association and preserves all source debts",
+    "no Native/runtime handle/cell/Normal/admission receipt"
+  ],
+  "limits": [
+    "Four controls unrun",
+    "Exact production first16 tests and consumer wiring remain required",
+    "Source association offers positive candidates only, no completeness or absence proof"
+  ]
+}

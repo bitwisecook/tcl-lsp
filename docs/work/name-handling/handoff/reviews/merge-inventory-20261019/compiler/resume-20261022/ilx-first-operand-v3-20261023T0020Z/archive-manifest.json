@@ -1,0 +1,27 @@
+{
+  "archived_utc": "2026-10-23T00:21:16.463296+00:00",
+  "files": [
+    {
+      "source": "/tmp/compiler-ilx-first-operand-v3/proposal.patch",
+      "archive": "proposal.patch",
+      "sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085"
+    },
+    {
+      "source": "/tmp/compiler-ilx-first-operand-v3/v2-delta.patch",
+      "archive": "v2-delta.patch",
+      "sha256": "20169894a3ad6a098d37b3a084687796b690de900ebc2a4429143a199f9b251e"
+    },
+    {
+      "source": "/tmp/compiler-ilx-first-operand-v3/receipt.json",
+      "archive": "receipt.json",
+      "sha256": "2519e47249af864b47169fbe93ead9d4079141f373499eaef2901f5d07dea4a9"
+    },
+    {
+      "source": "/tmp/compiler-names-ilx-first-operand-v3-review.json",
+      "archive": "compiler-names-review.json",
+      "sha256": "8ad89c56c40108ca9adecc3cea141da1340f8656e96393aa3f7c3bf54cebe133"
+    }
+  ],
+  "no_rs_or_c_sources_archived": true,
+  "canonical_product_changed": false
+}

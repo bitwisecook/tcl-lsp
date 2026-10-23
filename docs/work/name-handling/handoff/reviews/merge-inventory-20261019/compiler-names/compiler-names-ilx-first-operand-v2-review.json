@@ -1,0 +1,29 @@
+{
+  "reviewer": "compiler-names",
+  "patch_sha256": "50e18c1ec3ec00215a0bcbe989fc78bb02841952c4b576cfe09e3dad28fcfcd9",
+  "status": "HOLD concrete source conditional continuity blocker; untyped/unrun",
+  "blockers": [
+    {
+      "path": "registry_invocation/source_remote_first_operand.rs::selected_true_same_frame_body",
+      "issue": "conditional branch descends before summary-preservation refusal and omits source_effect_chain_has_no_unclassified_override, allowing a source_resolver chain that summary admits_source_setter properly rejects to preserve earlier association into body",
+      "required": "same command/sub/form source_resolver rejection and audit direct pre-body observer/world mutation hazards independently of declared body effects"
+    }
+  ],
+  "examined_clear": [
+    "whole current hosted source/input and pointer-equal original analysis owner",
+    "actual source body metadata and unique selected setter variable occurrence",
+    "sole complete RHS single constructor command/exactargc/static labels/current registry",
+    "later sole scalar handle operand, literal earlier arguments, same family and arity",
+    "remote invocation clears and stops; no postbody continuity",
+    "new constructor exception clears prior bindings and retains explicit effects/cell/handler/body/result debts",
+    "no Native/runtime handle/cell/Normal/admission issuer"
+  ],
+  "hardening": [
+    "TokenType::Str also includes nameless dollar; prefer actual Braced group or static source body owner for same-frame descent"
+  ],
+  "limits": [
+    "No typecheck/runtime/consumer validation",
+    "No repeated opaque-call navigation policy",
+    "No after-constructor quietness or actual cell persistence inferred"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T00:25:02.923870+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded static peer CLEAR; no type/test/zero-warning acceptance",
+  "patch_sha256": "3dd82aa913c053823ec6820d6f32f5b205a78a4b49cf8aa3647d044407feff1e",
+  "base_checks": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "current": "77e4246cbb9e1c88225e48aabf43d0f9133ddfaa321e06a27e7a6d2710f2dcf2",
+      "matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "current": "73f64882ffc5ee33234f38d758ac40e688d554ea5617ef23c3c16a32d392be2a",
+      "matches": true
+    }
+  ],
+  "caller_inventory": "Independently rg-searched server/repository Rust identifiers: deleted standalone refresh has no callers; seed/is_standalone/publisher exclusive to dead group; removed declaration wrappers only definitions. Read-retag real testcallers retained cfgtest.",
+  "findings": [
+    "Ready removes only separately discarded Optionu64. Both live consumers already ignored it. Pending/Missing, published source selection and stored DocumentState remain. Actual root/child capture_readonly_source_document independently captures open revision/config/physical publication and fresh producer; active live leases unchanged.",
+    "Active refresh_source_rehoming -> rehomed_index_guard -> refresh_original_source_view_graph + indexed settlement remains. Dead standalone publisher group carries no enabled functionality.",
+    "Actual native wire issue/resolve functions remain under original current source-view/publication/source/analysis guards. Registry/session ownership and paths untouched; removed wrappers unreferenced even by tests.",
+    "Production read guard Deref/Drop and tracking intact. cfg(test) retag retains genuine existing reader tests; no bogus uses or allows.",
+    "v2 corrects v1 stale seed-workqueue/O1/four-round documentation; additional deltas comment/documentation/blankline only. Test bodies/selectors/assertions remain unchanged."
+  ],
+  "limits": "Read-only static review and git apply --check only; original warning groups require actual current cargo check, strictClippy separately. No source edits/builds or claim of enabled feature acceptance."
+}
