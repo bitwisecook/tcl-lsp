@@ -280,11 +280,22 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
         .ir_module
         .procedures
         .iter()
-        .filter(|(_, body)| body.qualified_name == "::p");
+        .chain(unit.ir_module.body_lowerings())
+        .filter(|(id, body)| {
+            body.qualified_name == "::p"
+                && matches!(
+                    body.body_kind,
+                    tcl_compiler::ir::ProcedureBodyKind::Named
+                        | tcl_compiler::ir::ProcedureBodyKind::OriginalDeclaration
+                )
+                && unit
+                    .original_procedure_for_body(**id)
+                    .is_some_and(|original| std::ptr::eq(original, *body))
+        });
     let (id, _) = candidates.next()?;
     assert!(candidates.next().is_none(), "ambiguous original fixture p");
     assert!(unit.ir_module.procedure_ids.owns(*id));
-    let function = unit.procedures.get(id)?;
+    let function = unit.function_for_body(Some(*id))?;
     assert_eq!(function.body_id, Some(*id));
     let symbol = function.ssa.var_symbol("known")?;
     match function.sccp.values.get(&(symbol, 1)) {

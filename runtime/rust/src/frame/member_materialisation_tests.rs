@@ -105,7 +105,7 @@ extern "C" fn retire(original: *mut TclObj) {
         BIRTH.with(|birth| birth.set(Some(member)));
     }
     assert_eq!(
-        interpreter.var_get(b"a(k)").map(obj::bytes_of),
+        interpreter.var_get_elem(b"a", b"k").map(obj::bytes_of),
         Some(b"V".to_vec())
     );
     match MODE.with(Counter::get) {
