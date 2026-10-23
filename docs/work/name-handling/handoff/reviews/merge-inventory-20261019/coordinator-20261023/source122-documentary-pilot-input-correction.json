@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T09:36:43.500636+00:00",
+  "reason": "Identity verifier correctly refused3 accidental documentary collector inputs; preserve exact pilot copies with .txt suffix. /tmp actualpilotinputs unchanged.",
+  "actual_product_commit": "c25672d7368f024da73c2c02694677a73f6979c4",
+  "refused_identity_dir": "/tmp/naming-reviewed-product-actual-identity-v9",
+  "rows": [
+    {
+      "old": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/Cargo.lock",
+      "new": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/Cargo.lock.txt",
+      "sha256": "a4f72b2e824e2674f5700faa5c16c91062dca4db6f6feef892cbe8a5f80e1ab2",
+      "exact_bytes_preserved": true
+    },
+    {
+      "old": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/Cargo.toml",
+      "new": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/Cargo.toml.txt",
+      "sha256": "669f5618de8876d8df8f7bd368e2eca5f9db4a5fb1414ee210ea549e4142d45d",
+      "exact_bytes_preserved": true
+    },
+    {
+      "old": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/src/lib.rs",
+      "new": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/nextest-real-pilot-v1/fixture/src/lib.rs.txt",
+      "sha256": "eb9c2e3525d36b20d6d13e0f8ad715f2335a264c0eb7ec4f180eb38be4450956",
+      "exact_bytes_preserved": true
+    }
+  ]
+}
