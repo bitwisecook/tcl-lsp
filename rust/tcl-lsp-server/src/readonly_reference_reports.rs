@@ -634,20 +634,20 @@ impl Backend {
             return Ok(None);
         };
         trace_coarse_source_check("capture.fresh_analysis", true);
-        if let WorkspaceSymbolAnalysisKind::Fresh(document) = &analysis.kind {
-            if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
-                eprintln!(
-                    "COARSE_SOURCE captured uri={} version={:?} revision={} publication={:?} input_epoch={} seed_epoch={} factory={} seed_factory={}",
-                    uri.as_str(),
-                    snapshot.version,
-                    snapshot.revision,
-                    snapshot.publication,
-                    inputs_epoch,
-                    document.seed.analyser_inputs_epoch,
-                    factory_generation,
-                    document.seed.class_factory_generation
-                );
-            }
+        if let WorkspaceSymbolAnalysisKind::Fresh(document) = &analysis.kind
+            && std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")
+        {
+            eprintln!(
+                "COARSE_SOURCE captured uri={} version={:?} revision={} publication={:?} input_epoch={} seed_epoch={} factory={} seed_factory={}",
+                uri.as_str(),
+                snapshot.version,
+                snapshot.revision,
+                snapshot.publication,
+                inputs_epoch,
+                document.seed.analyser_inputs_epoch,
+                factory_generation,
+                document.seed.class_factory_generation
+            );
         }
         Ok(Some(CoarseSemanticTokenSource {
             analysis,
@@ -911,24 +911,10 @@ impl Backend {
                     {
                         continue;
                     }
-                    let advanced = match state.open.get(uri) {
-                        Some(live) if live.backing_file_deleted => continue,
-                        // The buffer moved on after capture; its index entry
-                        // may follow it. The captured revision still answers.
-                        Some(live) if open_document_advanced(snapshot, live) => true,
-                        Some(live) => {
-                            if live.revision != snapshot.revision
-                                || live.version != snapshot.version
-                                || live.raw() != snapshot.raw()
-                                || live.dialect != snapshot.dialect
-                                || live.path_admission != snapshot.path_admission
-                            {
-                                continue;
-                            }
-                            false
-                        }
-                        None if snapshot.version.is_some() => continue,
-                        None => false,
+                    let Some(advanced) =
+                        workspace_symbol_snapshot_advanced(snapshot, state.open.get(uri))
+                    else {
+                        continue;
                     };
                     // An unchanged or closed document revision must still be
                     // the one its captured index view describes.
@@ -2038,6 +2024,31 @@ fn open_document_advanced(captured: &super::DocumentState, live: &super::Documen
     ) && live.revision >= captured.revision
 }
 
+fn workspace_symbol_snapshot_advanced(
+    snapshot: &super::DocumentState,
+    live: Option<&super::DocumentState>,
+) -> Option<bool> {
+    Some(match live {
+        Some(live) if live.backing_file_deleted => return None,
+        // The buffer moved on after capture; its index entry
+        // may follow it. The captured revision still answers.
+        Some(live) if open_document_advanced(snapshot, live) => true,
+        Some(live) => {
+            if live.revision != snapshot.revision
+                || live.version != snapshot.version
+                || live.raw() != snapshot.raw()
+                || live.dialect != snapshot.dialect
+                || live.path_admission != snapshot.path_admission
+            {
+                return None;
+            }
+            false
+        }
+        None if snapshot.version.is_some() => return None,
+        None => false,
+    })
+}
+
 fn code_action_document_matches(
     expected: &super::DocumentState,
     current: &super::DocumentState,
@@ -2407,12 +2418,12 @@ mod tests {
         );
         assert_eq!(report.locations.len(), 2);
         assert!(report.locations.iter().all(|location| location.uri == uri));
-        assert!(
+        assert_eq!(
             backend
                 .original_declaration_reference_locations(&identity, &uri, false)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         let lenses = backend
             .code_lens(CodeLensParams {
@@ -2609,7 +2620,7 @@ mod tests {
                 Position::new(0, 0),
             );
             assert_eq!(command.title, "References unavailable");
-            assert!(command.command.is_empty());
+            assert_eq!(command.command, "");
             assert!(command.arguments.is_none());
         }
         let report = OriginalReadonlyReferenceReport {
@@ -2691,32 +2702,32 @@ mod logical_hierarchy_tests {
         assert_eq!(children[0].uri, child);
         let mut unissued = item.clone();
         unissued.data = None;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(unissued, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
         let mut foreign = item.clone();
         foreign.uri = base.clone();
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(foreign, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
         register(&backend, &child, &format!("{child_source}\n# changed")).await;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(item, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
     }
 
@@ -2775,12 +2786,12 @@ mod logical_hierarchy_tests {
                 .into_items();
         assert_eq!(items.len(), 1);
         register(&backend, &child, "oo::class create Child {}").await;
-        assert!(
+        assert_eq!(
             backend
                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
     }
 }
@@ -2851,12 +2862,12 @@ mod conditional_navigation_publication_tests {
             "oo::class create Base {}; oo::class create Child {}",
         )
         .await;
-        assert!(
+        assert_eq!(
             backend
                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
     }
 
@@ -4483,7 +4494,7 @@ mod coarse_semantic_source_tests {
                     |state| complete
                         .matches_current_state(state, inputs_epoch, factory_generation)
                         .then_some(()),
-                    |_, _| Some(()),
+                    |_, ()| Some(()),
                 )
                 .await
                 .unwrap()
@@ -4514,7 +4525,7 @@ mod coarse_semantic_source_tests {
                     |state| complete
                         .matches_current_state(state, inputs_epoch, factory_generation)
                         .then_some(()),
-                    |_, _| Some(()),
+                    |_, ()| Some(()),
                 )
                 .await
                 .unwrap()
@@ -4565,7 +4576,7 @@ mod coarse_semantic_source_tests {
                         .matches_current_state(state, inputs_epoch, factory_generation)
                         .then_some(())
                 },
-                |_, _| Some(()),
+                |_, ()| Some(()),
             )
             .await
             .unwrap()

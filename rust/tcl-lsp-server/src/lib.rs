@@ -11051,6 +11051,32 @@ struct WorkspaceSourcePlanToken {
     inventory_revision: u64,
 }
 
+struct BackendInitialState {
+    db: tcl_lsp_db::TclDatabase,
+    db_config: tcl_lsp_db::AnalyserConfig,
+    diagnostic_publisher: Arc<DiagnosticPublisher>,
+    environment_notice: Arc<environment_notice::EnvironmentNotice>,
+}
+
+impl BackendInitialState {
+    fn new(client: &Client, store: &dyn vfs::SourceStore) -> Self {
+        let db = tcl_lsp_db::TclDatabase::default();
+        let db_config = default_analyser_config(&db);
+        let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
+        // What the user asked not to be told again is read once, here.
+        let environment_notice = Arc::new(environment_notice::EnvironmentNotice::load(
+            store,
+            core_tcl_install::user_notices_dir(),
+        ));
+        Self {
+            db,
+            db_config,
+            diagnostic_publisher,
+            environment_notice,
+        }
+    }
+}
+
 impl Backend {
     /// Build a fresh backend wrapping the given client.
     ///
@@ -11076,17 +11102,10 @@ impl Backend {
     /// for what that does and does not cover.
     #[must_use]
     pub fn with_store(client: Client, store: Arc<dyn vfs::SourceStore>) -> Self {
-        let db = tcl_lsp_db::TclDatabase::default();
-        let db_config = default_analyser_config(&db);
-        let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
-        // What the user asked not to be told again is read once, here.
-        let environment_notice = Arc::new(environment_notice::EnvironmentNotice::load(
-            store.as_ref(),
-            core_tcl_install::user_notices_dir(),
-        ));
+        let initial = BackendInitialState::new(&client, store.as_ref());
         Self {
             client,
-            diagnostic_publisher,
+            diagnostic_publisher: initial.diagnostic_publisher,
             document_transforms: std::sync::Mutex::new(
                 document_transform::TransformLedger::default(),
             ),
@@ -11119,7 +11138,9 @@ impl Backend {
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             original_source_view_build_gate: Arc::new(tokio::sync::Mutex::new(())),
-            original_source_views: Arc::new(std::sync::Mutex::new(Default::default())),
+            original_source_views: Arc::new(std::sync::Mutex::new(
+                readonly_reference_reports::source_views::OriginalSourceViewTable::default(),
+            )),
             discovered_tcl: Arc::new(std::sync::OnceLock::new()),
             editor_library_paths: Mutex::new(Vec::new()),
             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
@@ -11148,19 +11169,19 @@ impl Backend {
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             line_length: Mutex::new(80),
             style_line_length: Mutex::new(120),
-            db: Arc::new(TrackedMutex::new("db", db)),
+            db: Arc::new(TrackedMutex::new("db", initial.db)),
             db_files: Arc::new(TrackedMutex::new("db_files", HashMap::new())),
             source_path_admissions: Arc::new(std::sync::Mutex::new(HashMap::new())),
             db_tombstones: Arc::new(Mutex::new(HashMap::new())),
             db_project_members: Arc::new(Mutex::new(HashSet::new())),
             db_project: Arc::new(Mutex::new(None)),
-            db_config: Arc::new(Mutex::new(db_config)),
+            db_config: Arc::new(Mutex::new(initial.db_config)),
             pull_diag_cache: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_gen: Arc::new(Mutex::new(HashMap::new())),
             closed_diag_order: Arc::new(Mutex::new(VecDeque::new())),
             client_supports_pull_diagnostics: std::sync::atomic::AtomicBool::new(false),
             client_supports_relative_watch_patterns: std::sync::atomic::AtomicBool::new(false),
-            environment_notice,
+            environment_notice: initial.environment_notice,
             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
@@ -12051,7 +12072,7 @@ impl Backend {
     #[cfg(test)]
     async fn publish_disk_results_while_rehoming_locked<'a>(
         &'a self,
-        _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+        disk_publication: &tokio::sync::MutexGuard<'_, ()>,
         rehoming_guard: tokio::sync::MutexGuard<'a, ()>,
         replacements: &[(Uri, String, String, AnalysisResult)],
         removals: &[Uri],
@@ -12071,7 +12092,7 @@ impl Backend {
             .map(|uri| DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new))
             .collect::<DocumentSourceResult<Vec<_>>>()?;
         self.publish_admitted_disk_results_while_rehoming_locked(
-            _disk_publication,
+            disk_publication,
             rehoming_guard,
             DiskPublicationInputs {
                 replacements,
@@ -28889,10 +28910,7 @@ impl Backend {
             return Err(DocumentSourceUnavailable::ConditionalAdvice { uri });
         };
         let guard = self.rehoming_gate.lock().await;
-        if !self
-            .original_source_view_settlement_is_indexed(&settlement)
-            .await
-        {
+        if !self.original_source_view_settlement_is_indexed(&settlement) {
             let uri = self
                 .workspace_index
                 .read()
@@ -38022,27 +38040,8 @@ fn compute_source_inheritance(
             .or_default()
             .push(required.original_advice(default));
     }
-    let original_ambient = if entry_points.is_empty() {
-        let edges = workspace_source_edges(index)
-            .into_iter()
-            .map(|edge| (edge.parent, edge.child))
-            .collect::<Vec<_>>();
-        tcl_lsp_core::source_graph::ancestor_requirements(uri.as_str(), &edges, &advice)
-    } else {
-        let mut roots = Vec::new();
-        for entry in entry_points {
-            if let Some(uri) = entry_point_uri(entry, folder_root)
-                && let Some(keys) = advice.get(&uri)
-            {
-                for key in keys {
-                    if !roots.contains(key) {
-                        roots.push(key.clone());
-                    }
-                }
-            }
-        }
-        roots
-    };
+    let original_ambient =
+        original_ambient_requirements(index, uri, entry_points, folder_root, &advice);
     // This document's *own* `source` statements come from the analysis in
     // hand, not from the index: the index is refreshed at the end of a
     // publish, so on a document's first (or freshly-edited) run its own
@@ -38118,6 +38117,36 @@ fn compute_source_inheritance(
         ambient,
         placed: tcl_lsp_core::source_graph::descendant_requires(uri_str, &edges, &requires),
         unresolvable_source,
+    }
+}
+
+fn original_ambient_requirements(
+    index: &core_workspace_index::WorkspaceIndex,
+    uri: &Uri,
+    entry_points: &[String],
+    folder_root: Option<&Path>,
+    advice: &HashMap<String, Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice>>,
+) -> Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice> {
+    if entry_points.is_empty() {
+        let edges = workspace_source_edges(index)
+            .into_iter()
+            .map(|edge| (edge.parent, edge.child))
+            .collect::<Vec<_>>();
+        tcl_lsp_core::source_graph::ancestor_requirements(uri.as_str(), &edges, advice)
+    } else {
+        let mut roots = Vec::new();
+        for entry in entry_points {
+            if let Some(uri) = entry_point_uri(entry, folder_root)
+                && let Some(keys) = advice.get(&uri)
+            {
+                for key in keys {
+                    if !roots.contains(key) {
+                        roots.push(key.clone());
+                    }
+                }
+            }
+        }
+        roots
     }
 }
 
@@ -38963,50 +38992,7 @@ fn build_server_capabilities(
         // Every workspace command an editor may invoke. A command absent
         // here is not offered by conforming clients, so this list and the
         // `execute_command` dispatch move together.
-        execute_command_provider: Some(ExecuteCommandOptions {
-            commands: vec![
-                "tcl-lsp.minifyDocument".to_owned(),
-                "tcl-lsp.captureDocumentSourceContext".to_owned(),
-                "tcl-lsp.validateDocumentSourceContext".to_owned(),
-                "tcl-lsp.validateDocumentTransform".to_owned(),
-                "tcl-lsp.optimiseDocument".to_owned(),
-                "tcl-lsp.unminifyError".to_owned(),
-                "tcl-lsp.describeIruleEvent".to_owned(),
-                "tcl-lsp.describeIruleCommand".to_owned(),
-                "tcl-lsp.listIruleEvents".to_owned(),
-                "tcl-lsp.diagramData".to_owned(),
-                "tcl-lsp.xcTranslate".to_owned(),
-                "tcl-lsp.xcTranslateDocument".to_owned(),
-                "tcl-lsp.listRules".to_owned(),
-                "tcl-lsp.extractRule".to_owned(),
-                "tcl-lsp.writeRuleBack".to_owned(),
-                "tcl-lsp.extractLinkedObjects".to_owned(),
-                "tcl-lsp.bigipCleanup".to_owned(),
-                "tcl-lsp.minimizeDiagnostic".to_owned(),
-                "tcl-lsp.renamePartition".to_owned(),
-                "tcl-lsp.currentDiagnostics".to_owned(),
-                "tcl-lsp.validateDiagnosticPublication".to_owned(),
-                "tcl-lsp.proposalDiagnostics".to_owned(),
-                "tcl-lsp.getEffectiveConfig".to_owned(),
-                "tcl-lsp.fixAllSafeIssues".to_owned(),
-                "tcl-lsp.listSubcommands".to_owned(),
-                "tcl-lsp.insertPackageRequire".to_owned(),
-                "tcl-lsp.listKnownPackages".to_owned(),
-                "tcl-lsp.suggestPackagesForSymbol".to_owned(),
-                "tcl-lsp.exportConfig".to_owned(),
-                "tcl-lsp.listTclInstallations".to_owned(),
-                "tcl-lsp.listDialects".to_owned(),
-                "tcl-lsp.setDialect".to_owned(),
-                "tcl-lsp.setSessionDialectOverride".to_owned(),
-                "tcl-lsp.setDocumentDialectOverride".to_owned(),
-                "tcl-lsp.studioSource".to_owned(),
-                "tcl-lsp.compilerExplorer".to_owned(),
-                "tcl-lsp.compilerExplorerView".to_owned(),
-                "tcl-lsp.tkPreview".to_owned(),
-                "tcl-lsp.ilxReferences".to_owned(),
-            ],
-            work_done_progress_options: WorkDoneProgressOptions::default(),
-        }),
+        execute_command_provider: Some(server_execute_command_options()),
         // Advertise willRename /
         // didRename so the editor consults us before/after a `.tcl`
         // rename — the willRename handler rewrites dependents' `source`
@@ -39027,6 +39013,53 @@ fn build_server_capabilities(
             }),
         }),
         ..ServerCapabilities::default()
+    }
+}
+
+fn server_execute_command_options() -> ExecuteCommandOptions {
+    ExecuteCommandOptions {
+        commands: vec![
+            "tcl-lsp.minifyDocument".to_owned(),
+            "tcl-lsp.captureDocumentSourceContext".to_owned(),
+            "tcl-lsp.validateDocumentSourceContext".to_owned(),
+            "tcl-lsp.validateDocumentTransform".to_owned(),
+            "tcl-lsp.optimiseDocument".to_owned(),
+            "tcl-lsp.unminifyError".to_owned(),
+            "tcl-lsp.describeIruleEvent".to_owned(),
+            "tcl-lsp.describeIruleCommand".to_owned(),
+            "tcl-lsp.listIruleEvents".to_owned(),
+            "tcl-lsp.diagramData".to_owned(),
+            "tcl-lsp.xcTranslate".to_owned(),
+            "tcl-lsp.xcTranslateDocument".to_owned(),
+            "tcl-lsp.listRules".to_owned(),
+            "tcl-lsp.extractRule".to_owned(),
+            "tcl-lsp.writeRuleBack".to_owned(),
+            "tcl-lsp.extractLinkedObjects".to_owned(),
+            "tcl-lsp.bigipCleanup".to_owned(),
+            "tcl-lsp.minimizeDiagnostic".to_owned(),
+            "tcl-lsp.renamePartition".to_owned(),
+            "tcl-lsp.currentDiagnostics".to_owned(),
+            "tcl-lsp.validateDiagnosticPublication".to_owned(),
+            "tcl-lsp.proposalDiagnostics".to_owned(),
+            "tcl-lsp.getEffectiveConfig".to_owned(),
+            "tcl-lsp.fixAllSafeIssues".to_owned(),
+            "tcl-lsp.listSubcommands".to_owned(),
+            "tcl-lsp.insertPackageRequire".to_owned(),
+            "tcl-lsp.listKnownPackages".to_owned(),
+            "tcl-lsp.suggestPackagesForSymbol".to_owned(),
+            "tcl-lsp.exportConfig".to_owned(),
+            "tcl-lsp.listTclInstallations".to_owned(),
+            "tcl-lsp.listDialects".to_owned(),
+            "tcl-lsp.setDialect".to_owned(),
+            "tcl-lsp.setSessionDialectOverride".to_owned(),
+            "tcl-lsp.setDocumentDialectOverride".to_owned(),
+            "tcl-lsp.studioSource".to_owned(),
+            "tcl-lsp.compilerExplorer".to_owned(),
+            "tcl-lsp.compilerExplorerView".to_owned(),
+            "tcl-lsp.tkPreview".to_owned(),
+            "tcl-lsp.ilxReferences".to_owned(),
+        ],
+        work_done_progress_options: WorkDoneProgressOptions::default(),
     }
 }
 
@@ -39515,12 +39548,13 @@ mod tests {
                 DocumentState::new(source.to_owned(), "unknown-tcl-policy".to_owned())
                     .with_language_id("tcl".to_owned()),
             );
-        assert!(
-            backend
-                .original_declaration_documents(&base)
-                .await
-                .unwrap()
-                .is_empty()
+        assert_eq!(
+            backend.original_declaration_documents(&base).await.unwrap(),
+            [] as [(
+                std::string::String,
+                std::sync::Arc<str>,
+                std::sync::Arc<tcl_compiler::analyser::AnalysisResult>
+            ); 0]
         );
         for dialect in ["tcl8.6", "tcl9.1", "jimtcl", "f5-irules"] {
             let document = DocumentState::new(source.to_owned(), dialect.to_owned())
@@ -39691,11 +39725,11 @@ mod tests {
 
         let duplicate = Uri::from_str("file:///original-reference-duplicate.tcl").unwrap();
         register(&backend, &duplicate, source).await;
-        assert!(
+        assert_eq!(
             Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
     }
 
@@ -39729,25 +39763,25 @@ mod tests {
             line: 0,
             character: 2,
         };
-        assert!(
+        assert_eq!(
             Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
-        assert!(
+        assert_eq!(
             backend
                 .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [std::string::String; 0]
         );
-        assert!(
+        assert_eq!(
             backend
                 .cross_document_definition(&consumer, &document.text, position, &analysis)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert!(
             backend
@@ -39804,32 +39838,32 @@ mod tests {
         assert!(parents[0].data.is_some());
         let mut unissued = item.clone();
         unissued.data = None;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(unissued, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
         let mut foreign = item.clone();
         foreign.uri = base.clone();
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(foreign, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
         register(&backend, &child, &format!("# changed\n{child_source}")).await;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(item, false)
                 .await
                 .unwrap()
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::TypeHierarchyItem; 0]
         );
     }
 
@@ -40205,12 +40239,12 @@ info exists ::N::v\uD800";
             .unwrap();
         assert_eq!(references.len(), 1);
         assert_eq!(references[0].uri, first);
-        assert!(
+        assert_eq!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert!(
             backend
@@ -40226,12 +40260,12 @@ info exists ::N::v\uD800";
             .unwrap();
         assert!(hover.value.contains("1 `namespace eval` block"));
         assert!(hover.value.contains("1 other reference(s)"));
-        assert!(
+        assert_eq!(
             backend
                 .resolve_original_indexed_locations(vec![retained.clone()])
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
 
         // Equal source geometry does not make another selected dialect current.
@@ -40239,19 +40273,19 @@ info exists ::N::v\uD800";
             second.clone(),
             DocumentState::new(source.to_owned(), "tcl9.0".to_owned()),
         );
-        assert!(
+        assert_eq!(
             backend
                 .resolve_original_indexed_locations(vec![retained])
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
-        assert!(
+        assert_eq!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert_eq!(
             backend
@@ -40473,11 +40507,11 @@ namespace exists n\uD800";
                 .unwrap(),
             std::ops::ControlFlow::Break(None)
         ));
-        assert!(
+        assert_eq!(
             Box::pin(backend.compute_definition(&consumer, position))
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert!(matches!(
             Box::pin(backend.original_method_hover_at(
@@ -40761,12 +40795,12 @@ info exists ::N::v\uD800";
                 assert_eq!(names[0].slot().simple.as_bytes(), expected, "{source}");
             }
         }
-        assert!(
+        assert_eq!(
             defined_original_commands(
                 "oo::class create Old {}",
                 tcl_lsp_core::profile_for_dialect("tcl8.4"),
-            )
-            .is_empty()
+            ),
+            [] as [tcl_compiler::signature_scan::scope::SignatureSourceCommand; 0]
         );
     }
 
@@ -41558,7 +41592,10 @@ info exists ::N::v\uD800";
         let inherited = compute_inherited_requires(&index, &util, &[], None);
         assert_eq!(inherited, vec!["Tk".to_owned()]);
         // The entry file itself inherits nothing.
-        assert!(compute_inherited_requires(&index, &app, &[], None).is_empty());
+        assert_eq!(
+            compute_inherited_requires(&index, &app, &[], None),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -41571,7 +41608,10 @@ info exists ::N::v\uD800";
         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
         let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
-        assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
+        assert_eq!(
+            compute_inherited_requires(&index, &other, &[], Some(&root)),
+            [] as [std::string::String; 0]
+        );
         // Explicit entry point: other.tcl inherits main.tcl's Tk.
         let entries = vec!["main.tcl".to_owned()];
         let inherited = compute_inherited_requires(&index, &other, &entries, Some(&root));
@@ -41730,7 +41770,10 @@ info exists ::N::v\uD800";
             &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
         );
         assert_eq!(settled.resolved.len(), 1, "still resolves: {settled:?}");
-        assert!(arity_codes(&analysis, &settled).is_empty());
+        assert_eq!(
+            arity_codes(&analysis, &settled),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -41829,7 +41872,10 @@ info exists ::N::v\uD800";
             "`buried` at global scope reaches `::buried`, which nothing \
              defines — tclsh: `invalid command name \"buried\"`: {settled:?}",
         );
-        assert!(arity_codes(&analysis, &settled).is_empty());
+        assert_eq!(
+            arity_codes(&analysis, &settled),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// **FN guard.** A command nothing in the workspace defines still does not
@@ -41941,7 +41987,10 @@ info exists ::N::v\uD800";
             "`namespace unknown` must widen to dynamic providers",
         );
         assert!(settled.resolved.is_empty(), "{settled:?}");
-        assert!(arity_codes(&analysis, &settled).is_empty());
+        assert_eq!(
+            arity_codes(&analysis, &settled),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// **TN — a `{*}`-expanded call.** The true argument count is a runtime
@@ -42406,7 +42455,10 @@ info exists ::N::v\uD800";
             None,
             tcl_lsp_core::package_resolver::PackagePrefer::default(),
         );
-        assert!(got.placed.is_empty());
+        assert_eq!(
+            got.placed,
+            [] as [tcl_lsp_core::source_graph::PlacedRequirement<std::string::String>; 0]
+        );
         assert!(!got.unresolvable_source);
         assert!(got.is_empty());
     }
@@ -42667,7 +42719,10 @@ info exists ::N::v\uD800";
         assert_eq!(data["kind"], "analysisContextUnavailable");
         assert_eq!(data["environment"], "tcl9.0");
         assert_eq!(data["overlay"], u64::MAX);
-        assert!(lift_report("", &core_policy::apply(Vec::new(), &open_policy())).is_empty());
+        assert_eq!(
+            lift_report("", &core_policy::apply(Vec::new(), &open_policy())),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
     }
 
     fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
@@ -45431,11 +45486,11 @@ info exists ::N::v\uD800";
             .await
             .unwrap();
         set_callback_project_advice(&backend, false).await;
-        assert!(
+        assert_eq!(
             callback_pull_report(&backend, &caller, source)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         set_callback_project_advice(&backend, true).await;
         assert_eq!(
@@ -45465,11 +45520,11 @@ info exists ::N::v\uD800";
         register_callback_source(&backend, &caller, current_source)
             .await
             .unwrap();
-        assert!(
+        assert_eq!(
             callback_pull_report(&backend, &caller, current_source)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         let stale = backend
             .project_callback_diagnostics_if(true, current_source, &old_analysis, &HashSet::new())
@@ -45514,12 +45569,12 @@ info exists ::N::v\uD800";
             let cache = backend.pull_diag_cache.lock().await;
             callback_source_wire_diagnostics(&cache.get(&caller).unwrap().diagnostics)
         };
-        assert!(pushed.is_empty());
-        assert!(
+        assert_eq!(pushed, [] as [tower_lsp_server::ls_types::Diagnostic; 0]);
+        assert_eq!(
             callback_pull_report(&backend, &caller, source)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         let analysis = backend
             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
@@ -46504,7 +46559,10 @@ info exists ::N::v\uD800";
         let source = "proc file {args} {}; lappend auto_path [file join /ROOT leaf]";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         assert_ne!(analysis.auto_path_entries.len(), 0);
-        assert!(document_auto_path_dirs(&uri, &analysis).is_empty());
+        assert_eq!(
+            document_auto_path_dirs(&uri, &analysis),
+            [] as [std::path::PathBuf; 0]
+        );
     }
 
     /// A *relative* `auto_path` entry
@@ -47584,7 +47642,9 @@ info exists ::N::v\uD800";
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
             original_source_view_build_gate: Arc::new(tokio::sync::Mutex::new(())),
-            original_source_views: Arc::new(std::sync::Mutex::new(Default::default())),
+            original_source_views: Arc::new(std::sync::Mutex::new(
+                readonly_reference_reports::source_views::OriginalSourceViewTable::default(),
+            )),
             // The test harness never surveys the machine's own Tcl
             // installation: what is installed varies by host and its index
             // survey dominated server test time (user decision
@@ -53149,7 +53209,10 @@ proc p {} {
         backend.scan_workspace_folders().await.unwrap();
 
         let index = backend.workspace_index.read().await;
-        assert!(index.classes_named("::IconList").is_empty());
+        assert_eq!(
+            index.classes_named("::IconList"),
+            [] as [&tcl_lsp_core::workspace_index::WorkspaceClass; 0]
+        );
         assert_eq!(index.classes_named("::Kept").len(), 1);
         drop(index);
         std::fs::remove_dir_all(&root).ok();
@@ -58592,21 +58655,21 @@ proc p {} {
             .unwrap()
             .expect("current original library declaration hover");
         assert!(hover.value.contains("Rbc_ActiveLegend"), "{hover:?}");
-        assert!(
+        assert_eq!(
             backend
                 .autoload_definition(&app, &format!("{source} "), position, &analysis)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         let mut missing = analysis.as_ref().clone();
         missing.resolved_input = None;
-        assert!(
+        assert_eq!(
             backend
                 .autoload_definition(&app, source, position, &missing)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
         assert!(
             backend
@@ -58615,12 +58678,12 @@ proc p {} {
                 .unwrap()
                 .is_none()
         );
-        assert!(
+        assert_eq!(
             backend
                 .autoload_definition(&app, source, Position::new(0, 17), &analysis)
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
     }
 
@@ -62743,7 +62806,10 @@ proc p {} {
             .await
             .unwrap();
         assert_eq!(candidates.fallback_hits.len(), 1);
-        assert!(candidates.indexed_hits.is_empty());
+        assert_eq!(
+            candidates.indexed_hits,
+            [] as [tcl_lsp_core::workspace_symbols::IndexedWorkspaceSymbol; 0]
+        );
         assert_eq!(
             store.reads.load(Ordering::SeqCst),
             0,
@@ -67406,17 +67472,17 @@ mod retained_class_family_receiver_tests {
             core_workspace_index::WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
         let itcl_classes = itcl_index.classes_named("::C");
         let other_classes = other_index.classes_named("::C");
-        assert!(
-            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal)
-                .is_empty()
+        assert_eq!(
+            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal),
+            [] as [std::string::String; 0]
         );
         assert_eq!(
             Backend::classmethod_dispatch_names(&other_classes, &[], "make", true, nominal),
             vec!["::C".to_owned()]
         );
-        assert!(
-            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal)
-                .is_empty()
+        assert_eq!(
+            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal),
+            [] as [std::string::String; 0]
         );
         let mut missing = other;
         missing.resolved_input = None;
@@ -67426,8 +67492,9 @@ mod retained_class_family_receiver_tests {
         )]);
         let unknown = unknown_index.classes_named("::C");
         assert_eq!(unknown[0].definer_family(), None);
-        assert!(
-            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).is_empty()
+        assert_eq!(
+            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal),
+            [] as [std::string::String; 0]
         );
     }
 }
@@ -67681,7 +67748,10 @@ mod pack_configuration_publication_tests {
             },
             "speclib requested 1.0 {\ncommand requested::call {\narity 0\n}\n}\n".to_owned(),
         )]));
-        assert!(packs.load_errors.is_empty());
+        assert_eq!(
+            packs.load_errors,
+            [] as [(std::path::PathBuf, tcl_spectcl::LoadError); 0]
+        );
         let mut publication = PackConfigurationPublication {
             options,
             configured_sources: vec![vec![source_path]],
@@ -67843,89 +67913,79 @@ mod pack_configuration_input_gate_tests {
             ),
             std::slice::from_ref(&diagnostic)
         );
-        assert!(
-            backend
-                .diagnostic_publisher
-                .with_pack_notices(
-                    PackNoticeContext {
-                        uri: &uri,
-                        source: "speclib changed 1.0 {}\n",
-                        pack_seq: 7,
-                        packs: &packs,
-                        registry: &registry,
-                        store: backend.store.as_ref()
-                    },
-                    Vec::new()
-                )
-                .is_empty()
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: &uri,
+                    source: "speclib changed 1.0 {}\n",
+                    pack_seq: 7,
+                    packs: &packs,
+                    registry: &registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
-        assert!(
-            backend
-                .diagnostic_publisher
-                .with_pack_notices(
-                    PackNoticeContext {
-                        uri: &uri,
-                        source,
-                        pack_seq: 8,
-                        packs: &packs,
-                        registry: &registry,
-                        store: backend.store.as_ref()
-                    },
-                    Vec::new()
-                )
-                .is_empty()
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: &uri,
+                    source,
+                    pack_seq: 8,
+                    packs: &packs,
+                    registry: &registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         let replacement = Arc::new(tcl_spectcl::PackSet::default());
-        assert!(
-            backend
-                .diagnostic_publisher
-                .with_pack_notices(
-                    PackNoticeContext {
-                        uri: &uri,
-                        source,
-                        pack_seq: 7,
-                        packs: &replacement,
-                        registry: &registry,
-                        store: backend.store.as_ref()
-                    },
-                    Vec::new()
-                )
-                .is_empty()
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: &uri,
+                    source,
+                    pack_seq: 7,
+                    packs: &replacement,
+                    registry: &registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         let other_registry = backend.registry_for_dialect("tcl9.0").await;
-        assert!(
-            backend
-                .diagnostic_publisher
-                .with_pack_notices(
-                    PackNoticeContext {
-                        uri: &uri,
-                        source,
-                        pack_seq: 7,
-                        packs: &packs,
-                        registry: &other_registry,
-                        store: backend.store.as_ref()
-                    },
-                    Vec::new()
-                )
-                .is_empty()
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: &uri,
+                    source,
+                    pack_seq: 7,
+                    packs: &packs,
+                    registry: &other_registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         std::fs::write(&path, "speclib changed 1.0 {}\n")
             .expect("change the actual provider source");
-        assert!(
-            backend
-                .diagnostic_publisher
-                .with_pack_notices(
-                    PackNoticeContext {
-                        uri: &uri,
-                        source,
-                        pack_seq: 7,
-                        packs: &packs,
-                        registry: &registry,
-                        store: backend.store.as_ref()
-                    },
-                    Vec::new()
-                )
-                .is_empty()
+        assert_eq!(
+            backend.diagnostic_publisher.with_pack_notices(
+                PackNoticeContext {
+                    uri: &uri,
+                    source,
+                    pack_seq: 7,
+                    packs: &packs,
+                    registry: &registry,
+                    store: backend.store.as_ref()
+                },
+                Vec::new()
+            ),
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
         );
         std::fs::remove_file(path).expect("remove the temporary pack source");
     }
@@ -68035,7 +68095,7 @@ mod native_cross_document_snapshot_tests {
             assert_eq!(current.text, document.text);
             assert_eq!(current.version, document.version);
         }
-        assert!(
+        assert_eq!(
             backend
                 .original_definition_locations_for_snapshot(
                     (caller, document, generation),
@@ -68044,8 +68104,8 @@ mod native_cross_document_snapshot_tests {
                     epoch,
                 )
                 .await
-                .unwrap()
-                .is_empty()
+                .unwrap(),
+            [] as [tower_lsp_server::ls_types::Location; 0]
         );
     }
 }
@@ -68225,6 +68285,6 @@ mod original_method_final_source_batch_tests {
             .resolve_current_declaration_locations(caller, vec![target], epoch)
             .await
             .unwrap();
-        assert!(stale.is_empty());
+        assert_eq!(stale, [] as [tower_lsp_server::ls_types::Location; 0]);
     }
 }

@@ -192,7 +192,10 @@ fn original_workspace_diagnostics_keep_current_source_advice_after_foreign_repor
     assert!(!identity.is_current("file:///caller.tcl", source, &changed));
     assert!(!identity.is_current("file:///caller.tcl", "proc retained {} {}", &analysis));
     // Missing current source ownership cannot enable reporting compatibility.
-    assert!(cross_file_arity_diagnostics(&changed, &reporting, |_| false).is_empty());
+    assert_eq!(
+        cross_file_arity_diagnostics(&changed, &reporting, |_| false),
+        [] as [tcl_compiler::analyser::Diagnostic; 0]
+    );
     assert_eq!(
         refine_workspace_index_w123(
             vec![original.clone()],
@@ -240,8 +243,9 @@ fn explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour()
         "Logical source candidate is unavailable",
         tcl_compiler::analyser::Severity::Hint,
     );
-    assert!(
-        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).is_empty()
+    assert_eq!(
+        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false),
+        [] as [tcl_compiler::analyser::Diagnostic; 0]
     );
 }
 
