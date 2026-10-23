@@ -199,7 +199,7 @@ impl CompilationUnit {
     }
     pub(super) fn retain_enriched_original_optimiser_owner(
         &mut self,
-        original: OriginalOptimiserPreparedUnit,
+        original: &OriginalOptimiserPreparedUnit,
     ) {
         self.optimiser_source_owner = Some(original.after_internal_enrichment(self));
     }

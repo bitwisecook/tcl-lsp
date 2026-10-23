@@ -1087,19 +1087,18 @@ fn call_sites<'a>(
                 &function.cfg.command_binding_sites,
                 statement,
             );
-            let (command, args) = match statement {
-                Statement::Call { command, args, .. } => (command.clone(), args.clone()),
-                _ => {
-                    let Some(tokens) = original.filter(|tokens| {
-                        tokens.synthetic.is_none() && tokens.words_align_with_argv_text()
-                    }) else {
-                        continue;
-                    };
-                    let Some((head, arguments)) = tokens.argv_texts.split_first() else {
-                        continue;
-                    };
-                    (head.clone(), arguments.to_vec())
-                }
+            let (command, args) = if let Statement::Call { command, args, .. } = statement {
+                (command.clone(), args.clone())
+            } else {
+                let Some(tokens) = original.filter(|tokens| {
+                    tokens.synthetic.is_none() && tokens.words_align_with_argv_text()
+                }) else {
+                    continue;
+                };
+                let Some((head, arguments)) = tokens.argv_texts.split_first() else {
+                    continue;
+                };
+                (head.clone(), arguments.to_vec())
             };
             let statement_index = u32::try_from(index).unwrap_or(u32::MAX);
             out.push(CallCandidate {

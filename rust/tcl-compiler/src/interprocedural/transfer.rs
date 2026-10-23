@@ -490,9 +490,9 @@ impl<'a> ModuleProcedures<'a> {
         stands.then_some(*id)
     }
 
-    pub(crate) fn body_for_cfg(&self, cfg: &CfgFunction) -> Option<Option<crate::ir::ProcedureId>> {
+    pub(crate) fn body_for_cfg(&self, cfg: &CfgFunction) -> Option<crate::sccp::AnalysisBody> {
         if std::ptr::eq(cfg, std::ptr::from_ref(&self.cfg.top_level)) {
-            return Some(None);
+            return Some(crate::sccp::AnalysisBody::TopLevel);
         }
         let mut candidates = self
             .cfg
@@ -508,7 +508,9 @@ impl<'a> ModuleProcedures<'a> {
                     .map(|(id, _)| *id),
             );
         let first = candidates.next()?;
-        candidates.all(|id| id == first).then_some(Some(first))
+        candidates
+            .all(|id| id == first)
+            .then_some(crate::sccp::AnalysisBody::Procedure(first))
     }
 
     /// A procedure summary call requires the same retained source point,
@@ -918,7 +920,7 @@ impl<'a> ModuleProcedures<'a> {
             },
             folds: Some(callee_folds),
             module: ModuleRun {
-                analysis_body: Some(Some(*callee)),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(*callee)),
                 procedures: Some(self),
                 owned: Some(&owned),
                 level: ModuleLevel::Results,
@@ -1303,7 +1305,7 @@ impl<'a> ModuleProcedures<'a> {
                     None | Some(LinkedLocal::Caller) => continue,
                     Some(LinkedLocal::Unnameable) => return None,
                     Some(LinkedLocal::Outer(place, link)) => (
-                        vec![place.clone()],
+                        vec![place.as_ref().clone()],
                         call.site.is_some_and(|(block, index)| {
                             link.is_some_and(|link| link.0 == block && link.1 < index)
                         }),
@@ -1358,7 +1360,7 @@ impl<'a> ModuleProcedures<'a> {
         let mut settled = !recursive;
         if recursive {
             for qname in component {
-                self.provisional.borrow_mut().insert((*qname).clone(), None);
+                self.provisional.borrow_mut().insert(*qname, None);
             }
             for round in 1.. {
                 if rounds.exceeded(round) {
@@ -1371,9 +1373,7 @@ impl<'a> ModuleProcedures<'a> {
                 let changed = next != roles;
                 roles = next;
                 for (qname, roles) in component.iter().zip(&roles) {
-                    self.provisional
-                        .borrow_mut()
-                        .insert((*qname).clone(), roles.clone());
+                    self.provisional.borrow_mut().insert(*qname, roles.clone());
                 }
                 if !changed {
                     settled = true;
@@ -1437,9 +1437,7 @@ impl<'a> ModuleProcedures<'a> {
                 evidence: self.evidence_of(qname, calls),
                 links: links_of(qname, declared, &self.frame_facts),
             };
-            self.summaries
-                .borrow_mut()
-                .insert((*qname).clone(), summary);
+            self.summaries.borrow_mut().insert(*qname, summary);
         }
     }
 
@@ -1731,7 +1729,7 @@ impl<'a> ModuleProcedures<'a> {
                 proven_pure_parameters: false,
             }),
             module: ModuleRun {
-                analysis_body: Some(Some(*qname)),
+                analysis_body: Some(crate::sccp::AnalysisBody::Procedure(*qname)),
                 procedures: Some(self),
                 owned: Some(owned),
                 level: ModuleLevel::Outcomes,
@@ -1797,7 +1795,7 @@ struct OuterCall<'c> {
 enum LinkedLocal {
     /// A namespace's variable, by qualified name, linked by the statement at
     /// `(block, index)`.
-    Outer(OuterSourcePlace, Option<(crate::cfg::BlockId, usize)>),
+    Outer(Box<OuterSourcePlace>, Option<(crate::cfg::BlockId, usize)>),
     /// The place one frame up a `Name` parameter names, which the
     /// parameter's role states.
     Caller,
@@ -1847,7 +1845,7 @@ fn linked_locals(
                         (Some(FrameLevel::Absolute(0)), Some(_)) => source
                             .alias_source_place(&tokens, &alias)
                             .map_or(LinkedLocal::Unnameable, |place| {
-                                LinkedLocal::Outer(place, at)
+                                LinkedLocal::Outer(Box::new(place), at)
                             }),
                         _ => LinkedLocal::Unnameable,
                     }
@@ -1855,7 +1853,7 @@ fn linked_locals(
                 _ => source
                     .alias_source_place(&tokens, &alias)
                     .map_or(LinkedLocal::Unnameable, |place| {
-                        LinkedLocal::Outer(place, at)
+                        LinkedLocal::Outer(Box::new(place), at)
                     }),
             };
             let same = linked.get(&local).is_some_and(|held| match (held, &place) {

@@ -200,13 +200,10 @@ impl OriginalSourceCommandProjection {
             trace_original_projection("source_vector", offset, false, words.len());
             return None;
         }
-        let text = match image.try_text() {
-            Ok(text) => text,
-            Err(_) => {
-                #[cfg(test)]
-                trace_original_projection("unicode", offset, false, words.len());
-                return None;
-            }
+        let Ok(text) = image.try_text() else {
+            #[cfg(test)]
+            trace_original_projection("unicode", offset, false, words.len());
+            return None;
         };
         let spans: Vec<_> = words
             .iter()
@@ -316,17 +313,14 @@ impl OriginalSourceCommandProjection {
         // cannot borrow the compiler capabilities of the source it replaced.
         let original =
             SourceImage::from_bytes(image.bytes().get(region.as_range())?, image.channel());
-        let segments = match crate::segmenter::segment_commands_image_with_offset_and_config(
+        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
             &original,
             offset,
             config.nested(),
-        ) {
-            Some(segments) => segments,
-            None => {
-                #[cfg(test)]
-                trace_original_projection("cst_parse", offset, false, words.len());
-                return None;
-            }
+        ) else {
+            #[cfg(test)]
+            trace_original_projection("cst_parse", offset, false, words.len());
+            return None;
         };
         let [segment] = segments.as_slice() else {
             #[cfg(test)]

@@ -1761,6 +1761,44 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
     }
 }
 
+fn normal_store_type_def<S: std::hash::BuildHasher>(
+    stmt: &Statement,
+    ctx: &WordTypingCtx<'_, S>,
+) -> Option<DefTyping> {
+    if let Some(tokens) = stmt.tokens()
+        && let Some(binding) = tokens.source_binding.as_ref()
+        && let Some(normal) =
+            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
+                ctx.registry,
+                ctx.context,
+                tokens,
+            )
+    {
+        if let Some((value, word)) =
+            normal.stored_value_operand(&binding.variable_context, ctx.registry)
+        {
+            return Some(DefTyping::Uniform(value_word_type(ctx, value, Some(word))));
+        }
+        if let Some(write) = normal.container_element_write(&binding.variable_context, ctx.registry)
+        {
+            let args = write
+                .arguments
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            return Some(DefTyping::Uniform(var_elements_effect_lattice(
+                ctx,
+                write.effect,
+                &write.target,
+                &args,
+                write.argument_offset,
+                Some(write.words),
+            )));
+        }
+    }
+    None
+}
+
 fn evaluate_call_type_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
     ctx: &WordTypingCtx<'_, S>,
@@ -1787,36 +1825,8 @@ fn evaluate_call_type_def<S: std::hash::BuildHasher>(
         let arguments = args.iter().map(String::as_str).collect::<Vec<_>>();
         return elements_of_def_typing(ctx, &arguments, defs, foreach_groups.as_deref(), 0);
     }
-    if let Some(tokens) = stmt.tokens()
-        && let Some(binding) = tokens.source_binding.as_ref()
-        && let Some(normal) =
-            crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
-                ctx.registry,
-                ctx.context,
-                tokens,
-            )
-    {
-        if let Some((value, word)) =
-            normal.stored_value_operand(&binding.variable_context, ctx.registry)
-        {
-            return DefTyping::Uniform(value_word_type(ctx, value, Some(word)));
-        }
-        if let Some(write) = normal.container_element_write(&binding.variable_context, ctx.registry)
-        {
-            let args = write
-                .arguments
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>();
-            return DefTyping::Uniform(var_elements_effect_lattice(
-                ctx,
-                write.effect,
-                &write.target,
-                &args,
-                write.argument_offset,
-                Some(write.words),
-            ));
-        }
+    if let Some(typing) = normal_store_type_def(stmt, ctx) {
+        return typing;
     }
     // Resolve the source spelling through the lowerer's
     // `canonical_command` snapshot (an `interp alias` / `rename`
@@ -2261,6 +2271,29 @@ impl<'a> TypePropagationMetadata<'a> {
     }
 }
 
+fn seed_clobbered_types<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+    metadata: TypePropagationMetadata<'_>,
+    known_classes: &HashSet<String, S>,
+) -> HashMap<ValueKey, TypeLattice> {
+    let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
+    let caller_safe_factories = has_only_caller_safe_factories(cfg, metadata, known_classes);
+    for (block, markers) in &ssa.value_clobbers {
+        if sccp.executable_blocks.contains(block) {
+            for versions in markers.values() {
+                for (&symbol, &(_, fresh)) in versions {
+                    if !caller_safe_factories {
+                        types.insert((symbol, fresh), TypeLattice::overdefined());
+                    }
+                }
+            }
+        }
+    }
+    types
+}
+
 /// Infer source values under retained metadata without recreating availability.
 #[must_use]
 pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
@@ -2313,19 +2346,7 @@ pub fn propagate_types_with_metadata_context<S: std::hash::BuildHasher>(
         numbers: metadata.numbers,
     };
 
-    let mut types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-    let caller_safe_factories = has_only_caller_safe_factories(cfg, metadata, known_classes);
-    for (block, markers) in &ssa.value_clobbers {
-        if sccp.executable_blocks.contains(block) {
-            for versions in markers.values() {
-                for (&symbol, &(_, fresh)) in versions {
-                    if !caller_safe_factories {
-                        types.insert((symbol, fresh), TypeLattice::overdefined());
-                    }
-                }
-            }
-        }
-    }
+    let mut types = seed_clobbered_types(cfg, ssa, sccp, metadata, known_classes);
     let mut changed = true;
     while changed {
         changed = false;

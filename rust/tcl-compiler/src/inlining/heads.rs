@@ -100,7 +100,7 @@ fn expression_substitutes(expr: &ExprNode, config: LexerConfig, depth: u32) -> b
     let next = depth + 1;
     match expr {
         ExprNode::Command { .. } => true,
-        ExprNode::Raw { text } => substitutes(text, config),
+        ExprNode::Raw { text } | ExprNode::Var { text, .. } => substitutes(text, config),
         ExprNode::String { text, .. } => text.starts_with('"') && substitutes(text, config),
         ExprNode::Binary { left, right, .. } => {
             expression_substitutes(left, config, next)
@@ -119,7 +119,6 @@ fn expression_substitutes(expr: &ExprNode, config: LexerConfig, depth: u32) -> b
         ExprNode::Call { args, .. } => args
             .iter()
             .any(|arg| expression_substitutes(arg, config, next)),
-        ExprNode::Var { text, .. } => substitutes(text, config),
         ExprNode::Literal { .. } | ExprNode::CompiledWord { .. } => false,
     }
 }

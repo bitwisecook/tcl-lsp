@@ -310,39 +310,7 @@ pub fn build_def_use_chains(
     cfg: Option<&CfgFunction>,
     config: tcl_lexer::LexerConfig,
 ) -> DefUseFacts {
-    let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
-
-    // Pass 1: definitions
-    for block in ssa.blocks.values() {
-        // Phi definitions.
-        for phi in &block.phis {
-            let key = (phi.name, phi.version);
-            chains.entry(key).or_insert_with(|| DefUseChain {
-                key,
-                definition: DefSite {
-                    block: block.name.clone(),
-                    kind: DefKind::Phi,
-                    statement_index: -1,
-                },
-                uses: Vec::new(),
-            });
-        }
-        // Statement definitions.
-        for (idx, stmt) in block.statements.iter().enumerate() {
-            for (sym, ver) in &stmt.defs {
-                let key = (*sym, *ver);
-                chains.entry(key).or_insert_with(|| DefUseChain {
-                    key,
-                    definition: DefSite {
-                        block: block.name.clone(),
-                        kind: DefKind::Statement,
-                        statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
-                    },
-                    uses: Vec::new(),
-                });
-            }
-        }
-    }
+    let mut chains = definition_chains(ssa);
 
     // Pass 2: uses
     let entry_name = ssa.block_name(ssa.entry);
@@ -425,6 +393,44 @@ pub fn build_def_use_chains(
                 .collect(),
         ),
     }
+}
+
+fn definition_chains(ssa: &SsaFunction) -> HashMap<SsaValueKey, DefUseChain> {
+    let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
+
+    // Pass 1: definitions
+    for block in ssa.blocks.values() {
+        // Phi definitions.
+        for phi in &block.phis {
+            let key = (phi.name, phi.version);
+            chains.entry(key).or_insert_with(|| DefUseChain {
+                key,
+                definition: DefSite {
+                    block: block.name.clone(),
+                    kind: DefKind::Phi,
+                    statement_index: -1,
+                },
+                uses: Vec::new(),
+            });
+        }
+        // Statement definitions.
+        for (idx, stmt) in block.statements.iter().enumerate() {
+            for (sym, ver) in &stmt.defs {
+                let key = (*sym, *ver);
+                chains.entry(key).or_insert_with(|| DefUseChain {
+                    key,
+                    definition: DefSite {
+                        block: block.name.clone(),
+                        kind: DefKind::Statement,
+                        statement_index: i32::try_from(idx).unwrap_or(i32::MAX),
+                    },
+                    uses: Vec::new(),
+                });
+            }
+        }
+    }
+
+    chains
 }
 
 /// Variable names a terminator reads, with each name's [`UseClass`]: a
@@ -535,23 +541,7 @@ fn add_terminator_uses(
     let Some(block_id) = ssa.block_id(&block.name) else {
         return;
     };
-    for (&symbol, &version) in &block.exit_versions {
-        if version != 0 && ssa.source_variable_symbol(symbol).is_some() {
-            add_use(
-                chains,
-                entry_name,
-                (symbol, version),
-                UseSite {
-                    block: block.name.clone(),
-                    kind: UseKind::Terminator,
-                    statement_index: -1,
-                    variable: symbol,
-                    phi_version: 0,
-                    class: UseClass::Quoted,
-                },
-            );
-        }
-    }
+    add_source_exit_uses(chains, entry_name, ssa, block);
     let view = crate::ssa::SsaSourceView::at_terminator(ssa, block_id);
     let mut covered = std::collections::HashSet::new();
     if let Some(tokens) = view.source_tokens() {
@@ -634,6 +624,31 @@ fn add_terminator_uses(
                     variable: symbol,
                     phi_version: 0,
                     class,
+                },
+            );
+        }
+    }
+}
+
+fn add_source_exit_uses(
+    chains: &mut HashMap<SsaValueKey, DefUseChain>,
+    entry_name: &str,
+    ssa: &SsaFunction,
+    block: &crate::ssa::SsaBlock,
+) {
+    for (&symbol, &version) in &block.exit_versions {
+        if version != 0 && ssa.source_variable_symbol(symbol).is_some() {
+            add_use(
+                chains,
+                entry_name,
+                (symbol, version),
+                UseSite {
+                    block: block.name.clone(),
+                    kind: UseKind::Terminator,
+                    statement_index: -1,
+                    variable: symbol,
+                    phi_version: 0,
+                    class: UseClass::Quoted,
                 },
             );
         }

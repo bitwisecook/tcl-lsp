@@ -1517,7 +1517,7 @@ fn collect_word(
                     WordPart::Variable { spelling, source } => {
                         collect_variable_index(spelling, source, config, surface, depth, out);
                     }
-                    _ => {}
+                    WordPart::Text { .. } => {}
                 }
             }
         }

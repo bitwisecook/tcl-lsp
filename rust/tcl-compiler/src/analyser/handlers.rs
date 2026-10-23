@@ -312,6 +312,7 @@ struct InjectedMember {
 /// contributes on top of the written body.
 ///
 /// See [`Analyser::manufacturer_layout`].
+#[derive(Clone, Copy)]
 struct SelectedObjdefineBodyLayout {
     grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
     body_argument: Option<usize>,
@@ -4229,25 +4230,22 @@ impl Analyser {
     /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`],
     /// with the transitions the call states over its source words.
     pub fn handle_interp_create_command(&mut self, transitions: &tcl_registry::StateTransitions) {
-        match created_interpreter(transitions) {
-            Some((Some(subject), safe)) => {
-                let path = subject.literal().or_else(|| {
-                    subject
-                        .native_bytes()
-                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                });
-                let Some(path) = path else {
-                    self.dynamic_interp_ops = true;
-                    return;
-                };
-                let state = super::state::InterpState {
-                    safe,
-                    ..Default::default()
-                };
-                let key = self.qualified_interp_key(path);
-                self.interpreters.insert(key, state);
-            }
-            Some((None, _)) | None => {}
+        if let Some((Some(subject), safe)) = created_interpreter(transitions) {
+            let path = subject.literal().or_else(|| {
+                subject
+                    .native_bytes()
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            });
+            let Some(path) = path else {
+                self.dynamic_interp_ops = true;
+                return;
+            };
+            let state = super::state::InterpState {
+                safe,
+                ..Default::default()
+            };
+            let key = self.qualified_interp_key(path);
+            self.interpreters.insert(key, state);
         }
     }
 

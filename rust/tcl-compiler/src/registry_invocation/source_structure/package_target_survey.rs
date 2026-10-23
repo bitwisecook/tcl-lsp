@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Fixed source-advertisement survey: hypothetical target release, not runtime facts.
-use super::*;
+use super::{
+    CommandRegistry, OriginalRegistrySource, OriginalRegistryWords, OriginalSourceRegistryContext,
+    logical_source_registry_words_in_original_image, original_single_source_command_substitution,
+};
 use tcl_registry::ArgRole;
 use tcl_syntax::expr::{ExprNode, UnaryOp};
 
@@ -399,7 +402,7 @@ impl OriginalPackageIndexSourceSurvey {
     ) -> Option<OriginalPackageIndexTargetGuard> {
         use tcl_registry::source_navigation::SourcePackageQuery;
         let words = self.command_words(parent)?;
-        let context = self.source.input.context_registry();
+        let registry_context = self.source.input.context_registry();
         let expression = words.original_argument_word(argument)?;
         if expression.group().expand
             || expression.group().kind != tcl_lexer::WordKind::Braced
@@ -480,7 +483,7 @@ impl OriginalPackageIndexSourceSurvey {
         };
         let outer_words = self.command_words(outer)?;
         let (outer_query, release_arity) =
-            outer_words.with_source_schema(&context, |schema| {
+            outer_words.with_source_schema(&registry_context, |schema| {
                 let decided = tcl_dialect::TclVersion::ALL
                     .into_iter()
                     .filter_map(|release| {
@@ -501,7 +504,7 @@ impl OriginalPackageIndexSourceSurvey {
         let inner = original_single_source_command_substitution(subject_word)?;
         let inner_words = self.command_words(inner.command())?;
         let inner_query = inner_words.with_source_schema(
-            &context,
+            &registry_context,
             crate::registry_invocation::source_schema_queries::package_query,
         )??;
         if inner_query.query != SourcePackageQuery::ProvidedVersion {

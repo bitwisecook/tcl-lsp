@@ -516,7 +516,7 @@ impl RemoteBodyScan<'_> {
                         tcl_registry::hooks::LoweringHookId::If,
                     )
                     || !intrinsic_conditional_has_no_authored_overrides(
-                        schema.semantics.world_effects,
+                        &schema.semantics.world_effects,
                         schema.semantics.state_transitions,
                     )
                     || facts.traits.intersects(
@@ -849,7 +849,7 @@ impl RemoteBodyScan<'_> {
             });
             let admits_source_setter = schema.semantics.world_effects.is_declared()
                 && source_domains_supported
-                && source_effect_chain_has_no_unclassified_override(schema.semantics.world_effects)
+                && source_effect_chain_has_no_unclassified_override(&schema.semantics.world_effects)
                 && !schema.semantics.world_effects.has_uncovered_variable_role_writes(
                     schema.words.arguments(), !writes.literal_names.is_empty() || writes.opaque_variable_frame)
                 && schema.authored_source_invocation_completion()
@@ -891,7 +891,7 @@ impl RemoteBodyScan<'_> {
 // and body. Authored effect/transition overrides require a separate pre-body
 // contract; the full invocation footprint cannot subtract body effects.
 fn intrinsic_conditional_has_no_authored_overrides(
-    effects: tcl_registry::world_effect::ResolvedWorldEffects,
+    effects: &tcl_registry::world_effect::ResolvedWorldEffects,
     transitions: tcl_registry::state_transition::ResolvedStateTransitions,
 ) -> bool {
     source_effect_chain_has_no_unclassified_override(effects)
@@ -902,7 +902,7 @@ fn intrinsic_conditional_has_no_authored_overrides(
 }
 
 fn source_effect_chain_has_no_unclassified_override(
-    effects: tcl_registry::world_effect::ResolvedWorldEffects,
+    effects: &tcl_registry::world_effect::ResolvedWorldEffects,
 ) -> bool {
     // The ordinary uncovered-role projection does not inspect source_resolver.
     // Until its owner supplies source-specific coverage, refuse these chains,
@@ -986,7 +986,7 @@ mod tests {
                 .is_empty()
         );
         assert!(intrinsic_conditional_has_no_authored_overrides(
-            ResolvedWorldEffects::default(),
+            &ResolvedWorldEffects::default(),
             ResolvedStateTransitions::default()
         ));
         for effects in [
@@ -1016,7 +1016,7 @@ mod tests {
             },
         ] {
             assert!(!intrinsic_conditional_has_no_authored_overrides(
-                effects,
+                &effects,
                 ResolvedStateTransitions::default()
             ));
         }
@@ -1035,7 +1035,7 @@ mod tests {
             },
         ] {
             assert!(!intrinsic_conditional_has_no_authored_overrides(
-                ResolvedWorldEffects::default(),
+                &ResolvedWorldEffects::default(),
                 transitions
             ));
         }

@@ -155,9 +155,10 @@ impl OriginalLogicalLambdaBody {
     )> {
         let advice = self.current_advice(input)?;
         let context = input.context_registry();
-        let call = self
-            .words
-            .with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+        let call = self.words.with_source_schema(
+            &context,
+            crate::registry_invocation::source_schema_queries::lambda_call,
+        )??;
         let formals = self.formals.as_deref()?;
         if call.count.indeterminate {
             return None;

@@ -3246,10 +3246,10 @@ impl OriginalSourceTransitionSeed {
             return None;
         }
         if purpose == OriginalSourceCataloguePurpose::ConditionalRegion
-            && !baseline
+            && baseline
                 .source_point_entry
                 .as_ref()
-                .is_some_and(|entry| entry.conditional_region().is_some())
+                .is_none_or(|entry| entry.conditional_region().is_none())
         {
             return None;
         }

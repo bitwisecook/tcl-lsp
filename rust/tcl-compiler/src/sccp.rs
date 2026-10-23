@@ -934,12 +934,28 @@ pub fn sccp_with_builtin_folds(
     drive(|round| solve(&inputs, round))
 }
 
+/// A known analysis body; an outer `None` retains unavailable body identity.
+#[derive(Clone, Copy)]
+pub(crate) enum AnalysisBody {
+    TopLevel,
+    Procedure(crate::ir::ProcedureId),
+}
+
+impl AnalysisBody {
+    pub(crate) const fn procedure_id(self) -> Option<crate::ir::ProcedureId> {
+        match self {
+            Self::TopLevel => None,
+            Self::Procedure(id) => Some(id),
+        }
+    }
+}
+
 /// What a run reads of the module beyond one function: its procedures,
 /// which a call to one of them reaches, and the names the run owns although
 /// the function aliases them.
 #[derive(Clone, Copy)]
 pub(crate) struct ModuleRun<'a> {
-    pub(crate) analysis_body: Option<Option<crate::ir::ProcedureId>>,
+    pub(crate) analysis_body: Option<crate::sccp::AnalysisBody>,
     /// The module's procedures, where the caller holds them.
     pub(crate) procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
     /// Names the function links to a caller's place which the run treats as

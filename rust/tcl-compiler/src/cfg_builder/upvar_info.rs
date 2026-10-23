@@ -860,8 +860,8 @@ fn walk_stmt(
                 registry, metadata, tokens,
             )
         });
-        match (tokens, selected) {
-            (Some(tokens), Some(selected)) => record_logical_frame_invocation(
+        if let (Some(tokens), Some(selected)) = (tokens, selected) {
+            record_logical_frame_invocation(
                 &selected,
                 LogicalFrameScan {
                     tokens,
@@ -873,11 +873,10 @@ fn walk_stmt(
                     depth: 0,
                 },
                 info,
-            ),
-            _ => {
-                info.caller_frame_opaque_writes = true;
-                info.caller_frame_opaque_reads = true;
-            }
+            );
+        } else {
+            info.caller_frame_opaque_writes = true;
+            info.caller_frame_opaque_reads = true;
         }
         return;
     }

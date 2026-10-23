@@ -1580,13 +1580,7 @@ fn scan_method_body_facts(
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         }
     } else if !body_def.instance_vars.is_empty() {
-        collect_instance_var_writes(
-            &body_def.body,
-            &body_def.instance_vars,
-            registry,
-            written_ivars,
-            0,
-        );
+        collect_instance_var_writes(&body_def.body, &body_def.instance_vars, written_ivars, 0);
         collect_possible_instance_var_writes(
             &body_def.body,
             &body_def.instance_vars,
@@ -1738,7 +1732,6 @@ fn collect_possible_instance_var_writes(
 fn collect_instance_var_writes(
     script: &crate::ir::Script,
     ivars: &HashSet<String>,
-    registry: &tcl_registry::CommandRegistry,
     out: &mut HashSet<String>,
     depth: u32,
 ) {
@@ -1773,18 +1766,18 @@ fn collect_instance_var_writes(
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    collect_instance_var_writes(&clause.body, ivars, registry, out, depth + 1);
+                    collect_instance_var_writes(&clause.body, ivars, out, depth + 1);
                 }
                 if let Some(eb) = else_body {
-                    collect_instance_var_writes(eb, ivars, registry, out, depth + 1);
+                    collect_instance_var_writes(eb, ivars, out, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                collect_instance_var_writes(init, ivars, registry, out, depth + 1);
-                collect_instance_var_writes(next, ivars, registry, out, depth + 1);
-                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(init, ivars, out, depth + 1);
+                collect_instance_var_writes(next, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             Statement::Foreach {
                 iterators, body, ..
@@ -1794,7 +1787,7 @@ fn collect_instance_var_writes(
                         check_ivar_write(v, ivars, out);
                     }
                 }
-                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             Statement::Catch {
                 body,
@@ -1802,7 +1795,7 @@ fn collect_instance_var_writes(
                 options_var,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
                 if let Some(rv) = result_var {
                     check_ivar_write(rv, ivars, out);
                 }
@@ -1816,7 +1809,7 @@ fn collect_instance_var_writes(
                 finally_body,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
                 for h in handlers {
                     if let Some(v) = &h.var_name {
                         check_ivar_write(v, ivars, out);
@@ -1824,10 +1817,10 @@ fn collect_instance_var_writes(
                     if let Some(ov) = &h.options_var {
                         check_ivar_write(ov, ivars, out);
                     }
-                    collect_instance_var_writes(&h.body, ivars, registry, out, depth + 1);
+                    collect_instance_var_writes(&h.body, ivars, out, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    collect_instance_var_writes(fb, ivars, registry, out, depth + 1);
+                    collect_instance_var_writes(fb, ivars, out, depth + 1);
                 }
             }
             Statement::Switch {
@@ -1835,17 +1828,17 @@ fn collect_instance_var_writes(
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        collect_instance_var_writes(b, ivars, registry, out, depth + 1);
+                        collect_instance_var_writes(b, ivars, out, depth + 1);
                     }
                 }
                 if let Some(db) = default_body {
-                    collect_instance_var_writes(db, ivars, registry, out, depth + 1);
+                    collect_instance_var_writes(db, ivars, out, depth + 1);
                 }
             }
             Statement::While { body, .. }
             | Statement::Block { body, .. }
             | Statement::UpFrame { body, .. } => {
-                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(body, ivars, out, depth + 1);
             }
             _ => {}
         }
@@ -4212,8 +4205,8 @@ fn global_alias_names(
             | VariableAliasTarget::Namespace { .. } => true,
             VariableAliasTarget::CallerSelectedFrame { frame, .. } => match frame {
                 CallerFrameSelection::DefaultCaller => false,
-                CallerFrameSelection::Explicit(level) => match level.literal() {
-                    Some(level) => {
+                CallerFrameSelection::Explicit(level) => {
+                    if let Some(level) = level.literal() {
                         let level = schema.words.arguments().dialect().map_or_else(
                             || tcl_registry::frame_effect::FrameLevel::parse(level),
                             |dialect| {
@@ -4232,12 +4225,11 @@ fn global_alias_names(
                             }
                             Some(_) => false,
                         }
-                    }
-                    None => {
+                    } else {
                         coverage.unknown = true;
                         true
                     }
-                },
+                }
             },
         };
         if !visible {
@@ -5088,7 +5080,7 @@ fn seedless_returns(
                 },
                 folds: Some(reading.folds),
                 module: crate::sccp::ModuleRun {
-                    analysis_body: Some(Some(*qname)),
+                    analysis_body: Some(crate::sccp::AnalysisBody::Procedure(*qname)),
                     reads_exits: true,
                     ..crate::sccp::ModuleRun::reading(Some(&module))
                 },
@@ -8069,7 +8061,6 @@ mod tests {
             )
         );
         assert!(!writes.contains("field"));
-        let registry = tcl_registry::CommandRegistry::build_default();
         let dynamic = crate::ir::Script::from_statements(vec![crate::ir::Statement::AssignConst {
             span: tcl_lexer::Span::new(0, 0),
             name: "$target".into(),
@@ -8077,7 +8068,7 @@ mod tests {
             value: "1".into(),
             value_span: None,
         }]);
-        collect_instance_var_writes(&dynamic, &ivars, &registry, &mut writes, 0);
+        collect_instance_var_writes(&dynamic, &ivars, &mut writes, 0);
         assert_eq!(writes, ivars);
     }
 

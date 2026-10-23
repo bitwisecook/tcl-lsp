@@ -228,7 +228,8 @@ pub(super) fn conditional_namespace_completed(
     };
     let delegation = &receipt.delegation.delegation;
     context.body_entry == super::SourceBodyEntryPurpose::Conditional
-        && context.compilation == Default::default()
+        && context.compilation
+            == tcl_registry::native_compilation::NativeCompilationContext::default()
         && normal.baseline.source_point_entry.is_some()
         && quiet(normal)
         && delegation.site.offset == native.segment.span.start()

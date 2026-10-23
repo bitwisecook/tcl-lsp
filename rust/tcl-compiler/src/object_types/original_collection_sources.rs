@@ -16,8 +16,10 @@ use tcl_lexer::{ExecutablePart, NativeScriptCommandWords, NativeWord, SourceImag
 enum CollectionSourcePlace {
     Variable(SignatureSourceVariableSymbol),
     DeclaredField {
-        class: crate::signature_scan::original_name::SourceDeclarationMetadata<
-            crate::analyser::ClassDef,
+        class: Box<
+            crate::signature_scan::original_name::SourceDeclarationMetadata<
+                crate::analyser::ClassDef,
+            >,
         >,
         side: MemberSide,
         declaration: NativeWord,
@@ -225,19 +227,15 @@ impl OriginalObjectCollectionSources {
                 if let Some(child) = words
                     .original_argument_word(argument)
                     .and_then(source_structure::original_single_source_command_substitution)
-                {
-                    if let Some(offset) = child
+                    && let Some(offset) = child
                         .command()
                         .words
                         .first()
                         .map(|word| word.span().start())
-                    {
-                        if let Some(selected) =
-                            source_structure::source_registry_words_at(source, analysis, offset)
-                        {
-                            nested.push((offset, selected));
-                        }
-                    }
+                    && let Some(selected) =
+                        source_structure::source_registry_words_at(source, analysis, offset)
+                {
+                    nested.push((offset, selected));
                 }
             }
         }
@@ -304,58 +302,48 @@ impl OriginalObjectCollectionSources {
                     Some((base, values, effect))
                 })
                 .flatten()
-            {
-                if let Some(variable) = words
+                && let Some(variable) = words
                     .original_argument_word(target)
                     .and_then(|word| operand_occurrence(analysis, word))
-                {
-                    if let Some(place) = result.place_for(&variable) {
-                        for value in values {
-                            let Some(value) = words.original_argument_word(value) else {
-                                continue;
-                            };
-                            let Some(child) =
-                                source_structure::original_single_source_command_substitution(
-                                    value,
-                                )
-                            else {
-                                continue;
-                            };
-                            result.writes.push(CollectionWrite {
-                                place: place.clone(),
-                                element: OriginalCollectionElementSource {
-                                    writer: words.clone(),
-                                    variable: variable.clone(),
-                                    value: value.clone(),
-                                    construction: child.command().clone(),
-                                    effect,
-                                },
-                            });
-                        }
-                    }
+                && let Some(place) = result.place_for(&variable)
+            {
+                for value in values {
+                    let Some(value) = words.original_argument_word(value) else {
+                        continue;
+                    };
+                    let Some(child) =
+                        source_structure::original_single_source_command_substitution(value)
+                    else {
+                        continue;
+                    };
+                    result.writes.push(CollectionWrite {
+                        place: place.clone(),
+                        element: OriginalCollectionElementSource {
+                            writer: words.clone(),
+                            variable: variable.clone(),
+                            value: value.clone(),
+                            construction: child.command().clone(),
+                            effect,
+                        },
+                    });
                 }
             }
             if let Some(setter) =
                 source_structure::source_handle_construction_at(source, analysis, *offset)
-            {
-                if let Some(variable) =
+                && let Some(variable) =
                     operand_occurrence(analysis, setter.original_variable_word())
-                {
-                    if let Some(place) = result.place_for(&variable) {
-                        if let Some(extraction) = setter
-                            .construction()
-                            .words
-                            .first()
-                            .map(|word| word.span().start())
-                        {
-                            result.handles.push(CollectionHandle {
-                                place,
-                                extraction,
-                                setter,
-                            });
-                        }
-                    }
-                }
+                && let Some(place) = result.place_for(&variable)
+                && let Some(extraction) = setter
+                    .construction()
+                    .words
+                    .first()
+                    .map(|word| word.span().start())
+            {
+                result.handles.push(CollectionHandle {
+                    place,
+                    extraction,
+                    setter,
+                });
             }
             let Some(roles) = words.roles() else {
                 continue;
@@ -565,7 +553,6 @@ fn collection_lookup_is_available(words: &OriginalRegistryWords) -> bool {
     use source_structure::OriginalRegistrySource;
     match words.source() {
         OriginalRegistrySource::Selected | OriginalRegistrySource::Scoped(_) => true,
-        OriginalRegistrySource::DefinitionMember(_) => false,
         OriginalRegistrySource::SourceTransitions(advice) => {
             advice.uncertain_operations().is_empty()
                 && !advice.obligations().contains(&T::UnknownEarlierMutation)
@@ -582,7 +569,8 @@ fn collection_lookup_is_available(words: &OriginalRegistryWords) -> bool {
                 )
             })
         }
-        OriginalRegistrySource::ProducedPrefix(_)
+        OriginalRegistrySource::DefinitionMember(_)
+        | OriginalRegistrySource::ProducedPrefix(_)
         | OriginalRegistrySource::ConditionalNativeSource(_)
         | OriginalRegistrySource::Vendor(_) => false,
     }
@@ -778,7 +766,7 @@ fn collection_place(
                     };
                     if matches {
                         return Some(CollectionSourcePlace::DeclaredField {
-                            class: class.clone(),
+                            class: Box::new(class.clone()),
                             side,
                             declaration: declaration.clone(),
                         });

@@ -1311,7 +1311,7 @@ fn oo_method_constants(
             proven_pure_parameters: false,
         }),
         module: crate::sccp::ModuleRun {
-            analysis_body: Some(Some(*body_id)),
+            analysis_body: Some(crate::sccp::AnalysisBody::Procedure(*body_id)),
             ..crate::sccp::ModuleRun::NONE
         },
     });
@@ -2086,7 +2086,7 @@ fn evaluate_proc_with_constants(
         // with (#2164).
         folds: Some(folds),
         module: crate::sccp::ModuleRun {
-            analysis_body: callee.body_id.map(Some),
+            analysis_body: callee.body_id.map(crate::sccp::AnalysisBody::Procedure),
             procedures: Some(&module),
             owned: None,
             level: crate::sccp::ModuleLevel::Results,

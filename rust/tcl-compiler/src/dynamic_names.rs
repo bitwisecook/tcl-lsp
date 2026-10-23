@@ -855,23 +855,7 @@ fn scan_call(
         if let Some(invocation) = &invocation {
             scan_retained_name_effects(invocation, barrier);
         }
-        if !commands.standalone {
-            if invocation.as_ref().is_some_and(|invocation| {
-                invocation
-                    .facts
-                    .traits
-                    .contains(Traits::PERFORMS_SUBSTITUTION)
-            }) {
-                scan_materialized_names(tokens, commands, barrier);
-            }
-            if invocation.is_none()
-                && names.as_ref().is_none_or(
-                    crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
-                )
-            {
-                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-            }
-        } else {
+        if commands.standalone {
             // The template plan is source advice, independent of strict
             // reached handler facts. Only explicit standalone scans reparse it.
             let braced: Vec<bool> = (0..args.len())
@@ -891,6 +875,22 @@ fn scan_call(
                     barrier,
                     (0, config),
                 );
+            }
+        } else {
+            if invocation.as_ref().is_some_and(|invocation| {
+                invocation
+                    .facts
+                    .traits
+                    .contains(Traits::PERFORMS_SUBSTITUTION)
+            }) {
+                scan_materialized_names(tokens, commands, barrier);
+            }
+            if invocation.is_none()
+                && names.as_ref().is_none_or(
+                    crate::registry_invocation::PossibleVariableNameOperands::unknown_residual,
+                )
+            {
+                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
             }
         }
         scan_original_substitutions(tokens, commands, barrier, config);
@@ -1145,7 +1145,7 @@ fn scan_original_expression(
                 pending.push((condition, depth + 1));
             }
             ExprNode::Call { args, .. } => pending.extend(args.iter().map(|arg| (arg, depth + 1))),
-            ExprNode::Raw { text } => {
+            ExprNode::Raw { text } | ExprNode::Var { text, .. } => {
                 if !crate::var_refs::command_subst_texts_with_config(text, config).is_empty() {
                     *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
                 }
@@ -1161,11 +1161,6 @@ fn scan_original_expression(
                 if !*braced
                     && !crate::var_refs::command_subst_texts_with_config(text, config).is_empty()
                 {
-                    *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                }
-            }
-            ExprNode::Var { text, .. } => {
-                if !crate::var_refs::command_subst_texts_with_config(text, config).is_empty() {
                     *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
                 }
             }

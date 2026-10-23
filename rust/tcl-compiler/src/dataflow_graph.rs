@@ -405,6 +405,33 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
         }
     }
 
+    let aliases = memory_alias_info(mem);
+
+    let dead_defs = u32::try_from(nodes.iter().filter(|n| n.is_dead).count()).unwrap_or(u32::MAX);
+    let total_defs = u32::try_from(nodes.len()).unwrap_or(u32::MAX);
+    let total_uses = nodes.iter().map(|n| n.use_count).sum::<u32>();
+    let mut aliased_names: BTreeSet<String> = BTreeSet::new();
+    for a in &aliases {
+        aliased_names.insert(a.local_name.clone());
+        aliased_names.insert(a.target_name.clone());
+    }
+    let aliased_vars = u32::try_from(aliased_names.len()).unwrap_or(u32::MAX);
+
+    FunctionDataFlowGraph {
+        function_name: name.to_owned(),
+        body_id: None,
+        is_top_level: false,
+        nodes,
+        edges,
+        aliases,
+        total_defs,
+        total_uses,
+        dead_defs,
+        aliased_vars,
+    }
+}
+
+fn memory_alias_info(mem: Option<&MemorySsaFunction>) -> Vec<AliasInfo> {
     // Alias info from memory-SSA.
     let mut aliases: Vec<AliasInfo> = Vec::new();
     if let Some(m) = mem {
@@ -429,28 +456,7 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
         }
     }
 
-    let dead_defs = u32::try_from(nodes.iter().filter(|n| n.is_dead).count()).unwrap_or(u32::MAX);
-    let total_defs = u32::try_from(nodes.len()).unwrap_or(u32::MAX);
-    let total_uses = nodes.iter().map(|n| n.use_count).sum::<u32>();
-    let mut aliased_names: BTreeSet<String> = BTreeSet::new();
-    for a in &aliases {
-        aliased_names.insert(a.local_name.clone());
-        aliased_names.insert(a.target_name.clone());
-    }
-    let aliased_vars = u32::try_from(aliased_names.len()).unwrap_or(u32::MAX);
-
-    FunctionDataFlowGraph {
-        function_name: name.to_owned(),
-        body_id: None,
-        is_top_level: false,
-        nodes,
-        edges,
-        aliases,
-        total_defs,
-        total_uses,
-        dead_defs,
-        aliased_vars,
-    }
+    aliases
 }
 
 /// Per-function inputs to the module-level aggregator.

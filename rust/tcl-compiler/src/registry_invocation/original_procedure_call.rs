@@ -457,7 +457,7 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
     let retained = module.retained_source_bindings.as_ref()?;
     let positioned = retained.positioned_for_module(module, registry)?;
     let binding = tokens.source_binding.as_ref()?;
-    let mut held = false;
+    let mut is_retained = false;
     let mut pending = Vec::new();
     for (id, procedure) in module.original_source_procedure_bodies() {
         if retained.matches_original_procedure_summary(*id, procedure) {
@@ -470,7 +470,7 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
             let Some(parent) = script.retained_source_tokens_for_statement(statement) else {
                 continue;
             };
-            held |= parent == tokens
+            is_retained |= parent == tokens
                 || parent.nested_bindings.iter().any(|(offset, original)| {
                     tokens
                         .words()
@@ -480,7 +480,7 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
                 });
         }
     }
-    held.then_some(())?;
+    is_retained.then_some(())?;
     let offset = tokens.words().first()?.source().span.start();
     let original = super::original_native_compiler_words(
         &module.source,
