@@ -671,7 +671,7 @@ pub(crate) struct OriginalLambdaDefinition {
 }
 
 struct PreparedLambdaDeclaration {
-    parts: Vec<Value>,
+    parts: crate::NativeListItems,
     parameter_grammar: tcl_dialect::ParameterGrammar,
     body: Value,
     parameters: Vec<Param>,
