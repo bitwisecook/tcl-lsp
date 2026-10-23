@@ -3436,7 +3436,7 @@ fn collect_script(
                 .is_none_or(|words| original::original_logical_head(ctx, words).is_none());
         let static_head_extent = member_head.map_or(head_tok.span, |(word, _)| word.word_span());
         if !computed_head {
-            emit_selected_command_head(ctx, &seg, &original, member_head, entries);
+            emit_selected_command_head(ctx, &seg, original.as_ref(), member_head, entries);
         }
 
         // The command's argument words (head excluded), borrowed once as
@@ -3450,7 +3450,8 @@ fn collect_script(
         let original_bodies = original
             .as_ref()
             .map_or_else(Vec::new, |words| words.source_script_bodies(ctx.generation));
-        let mut overrides = command_role_overrides(ctx, &seg, &original, &member_bodies);
+        let mut overrides =
+            command_role_overrides(ctx, &seg, original.as_ref(), member_bodies.as_deref());
         let member_parameter_operands = original::definition_member_parameter_operands(ctx, &seg);
         let declared = ctx.analysis.and_then(|analysis| {
             tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
@@ -3483,9 +3484,10 @@ fn collect_script(
             mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
         }
 
-        let body_ctx = command_body_context(ctx, &seg, &original, head_text, &arg_texts);
+        let body_ctx = command_body_context(ctx, &seg, original.as_ref(), head_text, &arg_texts);
 
-        let deferred_role_starts = command_deferred_role_starts(&original, &declared);
+        let deferred_role_starts =
+            command_deferred_role_starts(original.as_ref(), declared.as_ref());
 
         let mut expanded_roles = original
             .as_ref()
@@ -3495,7 +3497,7 @@ fn collect_script(
             ctx,
             body_ctx,
             &seg,
-            CommandTokenSources {
+            &CommandTokenSources {
                 original: &original,
                 produced: &produced,
                 declared: &declared,
@@ -3533,7 +3535,7 @@ struct CommandTokenSources<'a> {
 fn emit_selected_command_head(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
     member_head: Option<(&tcl_lexer::NativeWord, Span)>,
     entries: &mut Vec<Entry>,
 ) {
@@ -3576,15 +3578,15 @@ fn emit_selected_command_head(
 fn command_role_overrides(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    original: &Option<crate::original_invocation::OriginalRegistryWords>,
-    member_bodies: &Option<
-        Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
+    member_bodies: Option<
+        &[tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody],
     >,
 ) -> FxHashMap<u32, ArgOverride> {
-    let mut overrides = original.as_ref().map_or_else(FxHashMap::default, |words| {
+    let mut overrides = original.map_or_else(FxHashMap::default, |words| {
         original::registry_overrides(ctx, seg, words)
     });
-    for body in member_bodies.iter().flatten() {
+    for body in member_bodies.unwrap_or_default() {
         if let [token] = body.original_container().tokens() {
             overrides.insert(token.span.start(), ArgOverride::BodyScript);
         }
@@ -3622,14 +3624,14 @@ fn deferred_produced_command_words(
 fn command_body_context<'a>(
     ctx: ScriptCtx<'a>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
     head_text: &str,
     arg_texts: &[&str],
 ) -> ScriptCtx<'a> {
     let full_source = ctx.full_source;
     // Receiver advice keeps its independent grammar. Member vocabulary
     // travels in the original body receipts below.
-    let outer_grammar = original.as_ref().and_then(|words| {
+    let outer_grammar = original.and_then(|words| {
         words
             .with_source_schema(ctx.generation, |schema| {
                 schema.authored_source_definition_body_grammar()
@@ -3649,7 +3651,6 @@ fn command_body_context<'a>(
     // resolve against that class.
     let next_class = if ctx.lexical {
         original
-            .as_ref()
             .and_then(|words| original::definition_class_name(ctx, seg, words))
             .or(ctx.enclosing_class)
     } else {
@@ -3680,10 +3681,10 @@ fn command_body_context<'a>(
 }
 
 fn command_deferred_role_starts(
-    original: &Option<crate::original_invocation::OriginalRegistryWords>,
-    declared: &Option<tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
+    original: Option<&crate::original_invocation::OriginalRegistryWords>,
+    declared: Option<&tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
 ) -> FxHashSet<u32> {
-    let mut deferred_role_starts = deferred_role_arg_starts(original.as_ref());
+    let mut deferred_role_starts = deferred_role_arg_starts(original);
     if let Some(declared) = declared {
         deferred_role_starts.extend(
             declared
@@ -3715,7 +3716,7 @@ fn collect_command_tokens(
     ctx: ScriptCtx<'_>,
     body_ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    sources: CommandTokenSources<'_>,
+    sources: &CommandTokenSources<'_>,
     entries: &mut Vec<Entry>,
     depth: u32,
 ) {
@@ -3731,7 +3732,7 @@ fn collect_command_tokens(
         expanded_roles,
         computed_head,
         static_head_extent,
-    } = sources;
+    } = *sources;
     for tok in &seg.all_tokens {
         if original::emit_expanded_role_extents(ctx, *tok, expanded_roles, entries) {
             continue;
