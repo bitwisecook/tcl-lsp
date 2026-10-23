@@ -1,0 +1,93 @@
+{
+  "updated_utc": "2026-10-23T20:44:12.243996+00:00",
+  "status": "ACTUAL_FRESH_HOSTED_BUILD_FAILED_BEFORE_SERVER_RUNTIME",
+  "run_id": 40018124401,
+  "job_id": 120635385720,
+  "artifact_id": 12529608033,
+  "head_sha": "f10f5da99aac2acd44e8cda22df34619a8c2625a",
+  "zip_bytes": 10039748,
+  "zip_sha256": "145eafc5d71c00c6a2205a5313f6aed2927b3b087d77b0a170adde018141c0e1",
+  "zip_metadata_size_digest_crc_paths_all_members_verified": true,
+  "large_JSON_inspection": "ZIP-only; extracted files all <=1MB",
+  "raw_build_stderr_sha256": "e5877037908ff79a0c25d6b1349d68ea5260d5054b34e80bbef38d2b9ebce5ca",
+  "first_observed_build_cause": {
+    "file": "rust/tcl-lsp-db/src/lib.rs",
+    "diagnostic": "cannot find value context in this scope",
+    "lines": [
+      2876,
+      2877
+    ],
+    "compiler_E_codes": [
+      "E0425"
+    ],
+    "relation": "Same raw actual blocker already repaired off this f10 source; no fresh resolution claim until successor run."
+  },
+  "cargo_json_compiler_message_records": 0,
+  "server_binary_events": 0,
+  "processes": [
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 2.402341445,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 76075917312
+    },
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 101,
+      "seconds": 540.114029825,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 75016671232
+    }
+  ],
+  "independently_recompared_seals": {
+    "source": {
+      "exact": true,
+      "files": 125032
+    },
+    "providers": {
+      "exact": true,
+      "files": 2256
+    },
+    "dependencies": {
+      "exact": true,
+      "files": 21500
+    },
+    "tools": {
+      "exact": true,
+      "files": 7
+    }
+  },
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "cases": [],
+  "runtime_reached": false,
+  "selected_server_compilation_0w": false,
+  "scope_limits": "No current server binary/startup/Context workers, no source runtimecause, no timeout/diskfloor cause. No typing/strictLSPClippy/all136future/performance/gate admission. Failed original evidence preserved; no rerun by LSP."
+}

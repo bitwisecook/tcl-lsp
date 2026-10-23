@@ -1,0 +1,45 @@
+{
+  "updated_utc": "2026-10-23T20:37:19.887545+00:00",
+  "status": "CURRENT_EXTERNAL_FUNCTIONAL_REPORT_CARRIER_BLOCKER_PENDING_ACTUAL_PRIVATE_FIRST_REFUSAL",
+  "perf_proof_base": "b6ea6dc5ebaa9589f6e1c1747875127fecdbb573",
+  "evidence_publication_head": "9e1db358cc90e121838262496a7075cf78b35d6a",
+  "actual_inputs": {
+    "last_equal": {
+      "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-capture-prefix/last-equal-prefix.tcl",
+      "bytes": 1510,
+      "sha256": "14738268715a7c687921927be2c81c0abe0c7585c9f91f1021a78f9bd5049251"
+    },
+    "first_refused": {
+      "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5-capture-prefix/first-refusal-prefix.tcl",
+      "bytes": 1525,
+      "sha256": "70eac2dcb456fadea93cdcebf5766a18c0fc6e0c4e6e3515159edabb5d084829"
+    },
+    "fixture": {
+      "path": "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl",
+      "bytes": 2431,
+      "sha256": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8"
+    }
+  },
+  "actual_observations": [
+    "Perf reports all3 immediate fullfixture captures unavailable before any later analyser could invalidate them; all3 comparisons Unavailable(CurrentOwnerUnavailable), not accepted.",
+    "Canonical first16 declarations prefix is current-capture/self-Equal; adding exactly the next unchanged puts [fib 20] command makes current capture unavailable. 11 fixed variants Equal. Exact original prefix inputs authenticated here as complete byte prefixes of unchanged fixture.",
+    "No private capture guard has yet been measured. Current test-only trace exposes original capture input/realm/module/origin/prepared/body and currentness predicates without mutation. The existing normal-library examples have cfg(test)=false, so that flag cannot reveal them."
+  ],
+  "next_owner_action": [
+    "Compiler has frozen additive original-fixture first16/17/full unit controls in off-tree proposal, independent LSP peer requested. Root alone integrates/runs current guarded diagnostic; original compiler58 remains separate.",
+    "Run exact supplemental3 with TCL_LSP_TRACE_AUTHENTICATED_REPORT=1 on current WORK, fresh compiler lib test artifact and all existing source/provider/process/budget seals. Return full uncapped-within-original-cap stderr + first refusing stage.",
+    "After actual gate attribution, repair authentic producer/carrier narrowly and retain every current input/source/owner/registry/body/refusal/correspondence guard. No Debug equality, source normalisation, fixture skipping or owner substitution."
+  ],
+  "supplemental_selectors": [
+    "analyser::authenticated_report::capture_controls::native_dispatch_first_16_declarations_keep_actual_report_owners",
+    "analyser::authenticated_report::capture_controls::native_dispatch_first_call_keeps_actual_report_owners",
+    "analyser::authenticated_report::capture_controls::native_dispatch_complete_fixture_keeps_actual_report_owners"
+  ],
+  "perf_coordination": [
+    "Do not mutate/restart/repin current frozen b6 workers or proofs for this investigation. Existing failed resource/report evidence remains unchanged; no performance patch accepted or forwarded.",
+    "Original1000-level deeply_nested_if_survives_interprocedural_scan and64MiB stack assertion remain unchanged. Both NEW/OLD reached only228/229 with142PASS86FAIL, same missingcase after resource failure; no229complete/zeroP2Facceptance."
+  ],
+  "limits": [
+    "Source joins and frozen reproducer only. No new Cargo,rustc,tests,GO,product/Git changes by compiler role; no actual current private first-refusal, functional fix or green gate claimed."
+  ]
+}

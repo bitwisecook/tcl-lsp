@@ -1,0 +1,186 @@
+{
+  "created_utc": "2026-10-23T20:33:07.918490+00:00",
+  "run_id": 40018134089,
+  "job_id": 120635417820,
+  "source": "f10f5da99aac2acd44e8cda22df34619a8c2625a",
+  "artifact_id": 12530351061,
+  "archive_bytes": 26973618,
+  "archive_sha256": "53e2a38c58421c0583f83230387d31ddb42f6bf594cfc32da9c3f2ed47dfbc85",
+  "diagnostic_status": "COMPLETE GUARDED FAILURE:3selected/3closed/3failed/0unknown; not semantic acceptance",
+  "source_guard": {
+    "status": "PASS",
+    "manifest_sha256": "da30f8681cf96b8e1f0d0759d5a962b581482f6759a0ac06607131cbfd8e8ed5",
+    "source_commit": "f10f5da99aac2acd44e8cda22df34619a8c2625a",
+    "expected_source_commit": "f10f5da99aac2acd44e8cda22df34619a8c2625a",
+    "expected_file_count": 125032,
+    "current_tracked_file_count": 125032,
+    "checked_file_count": 125032,
+    "matched_file_count": 125032,
+    "stable_membership_during_verification": true,
+    "missing_tracked_paths": [],
+    "extra_tracked_paths": [],
+    "checksum_mismatches": [],
+    "read_errors": []
+  },
+  "inventory_sha256": "0313a2c8655fcb21eb2e4a70a5f7fe6cbb7e9ace8cf2f05fc0db0176376fdfe4",
+  "full_failure_rows_sha256": "0796588b1616beb8695a5a41d135cacb89e8588f57347b47a9d0f84f46659ff2",
+  "append_progress": {
+    "marker_count": 3445,
+    "completed_row_indexes": "0..860",
+    "completed_rows": 861,
+    "remaining_original_rows_including_started_row": 174,
+    "completed_rows_by_profile": {
+      "tcl8.4": 189,
+      "tcl8.5": 189,
+      "tcl8.6": 189,
+      "tcl9.0": 189,
+      "tcl9.1": 105
+    },
+    "last_marker": {
+      "row_index": 861,
+      "profile": "tcl9.1",
+      "phase": "construct"
+    },
+    "limitation": "Last marker precedes Interp::new. No later pin marker; timeout is between this marker and the next. Does not prove exact internal constructor hotspot or performance equivalence with diagnostics removed."
+  },
+  "actual_outcomes": [
+    "Active-command observer ordinary assertion failure101,2.807230492s, active_calls1 expected0. No signal in this run.",
+    "Jim numeric original failure101,11.957957405s; before+after actual errno34/range_errortrue, exact incrLLMAX script overflow; no host refusal.",
+    "Native append original timeout180.009976669s;861rows reachretire and next row861tcl9.1 reachesconstruct."
+  ],
+  "all_member_hashes": {
+    "backend-output.txt": {
+      "bytes": 1161,
+      "sha256": "056eed025c405abbc7a32c3140a81ac48d04ffde44e801a36b23b36a68efdce0"
+    },
+    "build-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-capture-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build.stderr": {
+      "bytes": 3392,
+      "sha256": "b3cbfa49514e5b8a4dbf8ae2b2c296cae7f9edb780699628ee4ee55e45673a20"
+    },
+    "capture-deadline-epoch.txt": {
+      "bytes": 11,
+      "sha256": "d476243cf23db378a1113ade1c5e261e409f809d578a31f1315d4cedc29453dc"
+    },
+    "capture-deadline-seconds.txt": {
+      "bytes": 5,
+      "sha256": "2a27177d589962e5fcdcb9b9e648a99ea6525d403cc1feca74a4dd2f1f22e2a2"
+    },
+    "capture-exit.txt": {
+      "bytes": 4,
+      "sha256": "eea8254c7500ba3de996aa8ad6af399183f04e17d4a8102fde539dbc93a90012"
+    },
+    "cargo-version.txt": {
+      "bytes": 36,
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    "coverage.txt": {
+      "bytes": 169,
+      "sha256": "8f058102e985b7b6fd20bb3e5a0f32626974b31833d7a663ad4dbd75341464ac"
+    },
+    "diagnostic-completeness.json": {
+      "bytes": 42,
+      "sha256": "c2065f30943127d08f6e1e345ee7b92ab8cff69213efddf59d5e764e30ea14ac"
+    },
+    "focus-selected-verified.json": {
+      "bytes": 517,
+      "sha256": "245ef3b6d969036a9405094e4bd80caaae1aca415539c30d258b1a968858afbc"
+    },
+    "git-after.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "git-before.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "job.txt": {
+      "bytes": 24,
+      "sha256": "29d3f2504ce12fbc3a512f885509ee4efbbc98ad170b4494deabb7c844755ef4"
+    },
+    "nextest-version.txt": {
+      "bytes": 171,
+      "sha256": "86790eada5534e2c6ac244cc3712ba21b7fcbb07b734511d47813532c7e246e5"
+    },
+    "nextest-filter.txt": {
+      "bytes": 333,
+      "sha256": "f08470aef631b951b6020cc8f450c6a3fd9f35b854ca5cc2f10ad81a4ca65840"
+    },
+    "nextest.toml": {
+      "bytes": 232,
+      "sha256": "ce5c4b5057b5f366560c91d82d128642557b3e2f167285dec553a0de337c8c03"
+    },
+    "process-outcomes.json": {
+      "bytes": 4779,
+      "sha256": "d56f8c750a54d88c49b9e0c2901eaa0b50ea11f2a4ad690e3eb7c99bcc658d40"
+    },
+    "process-outcomes.xml": {
+      "bytes": 5017,
+      "sha256": "27aada85cf81740f1a1c964701e64aed598c7ce0b1310f23e98ded4bde27a0de"
+    },
+    "python-version.txt": {
+      "bytes": 14,
+      "sha256": "63990b3ee50c49ab28d70e29c0f967f0c71330e39243ffeb4d3a8d5878c8a978"
+    },
+    "raw-capture-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "rustc-version.txt": {
+      "bytes": 196,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    "selected.json": {
+      "bytes": 451193,
+      "sha256": "50c02c83b5e24285a96e1dc46064dc00993fb1d948ce02638d5b5e9f126bc0ff"
+    },
+    "source-after.json": {
+      "bytes": 543,
+      "sha256": "ad5f7cdfb6956f920a34ed833997bfd2991c6ef7aede0569b0fc015b535e1d9b"
+    },
+    "source-commit.txt": {
+      "bytes": 41,
+      "sha256": "e5264bc3a1e171151d2707997a5d77cc6ecbd48a7b66834133c8ac0355a4b1c8"
+    },
+    "terminal/reporter.raw.jsonl": {
+      "bytes": 4260,
+      "sha256": "82636fc2dff95d55410a0dfa2572d7ca4737f191dd685ef7f580ad84bac242df"
+    },
+    "terminal/summary.json": {
+      "bytes": 777,
+      "sha256": "a106c1e709c62747e369954c04dd2627b649405bfde00522568352d1ea6744a5"
+    },
+    "terminal/terminal.jsonl": {
+      "bytes": 1350,
+      "sha256": "5d13f2aa4d609c2f100e90148ef4d7d312bf94a1c699725648a580ce78b65c5f"
+    },
+    "terminal/nextest-stderr.txt": {
+      "bytes": 206677,
+      "sha256": "655cf8638c829ccbea1687ed9262ec6a61095ea5708631f0f982971d06662d25"
+    },
+    "tommath-after.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tommath-before.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tracked-source-before.json": {
+      "bytes": 26236008,
+      "sha256": "da30f8681cf96b8e1f0d0759d5a962b581482f6759a0ac06607131cbfd8e8ed5"
+    }
+  },
+  "method": "Original ZIP verified against hosted digest; every member CRC and streamedSHA checked. Large source map remains ZIP-only. Only small logs/receipts extracted. No build/oracle/source/assertion mutation."
+}

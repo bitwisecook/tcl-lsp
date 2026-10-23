@@ -1,0 +1,36 @@
+{
+  "updated_utc": "2026-10-23T20:34:29.734372+00:00",
+  "verdict": "BOUNDED_STATIC_MINIMUM_ACTUAL_DB_TWO_E0425_WORK_CLEAN_REPAIR_CLEAR_UNCOMPILED",
+  "master_manifest_sha256": "74d94ee09701971b2fce4ce72acf92b65605026912c3170b340d7032c7c6fb09",
+  "files": [
+    {
+      "kind": "work",
+      "patch_sha256": "a8cf2c543d75a7cf7835f9cba9c02cb3967ec62d4a2c46c967968ed673048304",
+      "manifest_sha256": "d8ad17bcd060a6fe322decad64535cff0af7db45c0f972209eec27d04287a882",
+      "before": "72334383d9a840d09902388aaa1a012915826917dfb1f6dcf98af4f04b6e4bf3",
+      "after": "0719dd7828e9b1d43109814ebbd9c3b2ffa531c728653c6b0b402ffd60aa2362",
+      "current_and_actual_work_before_join": "EXACT",
+      "only_two_original_context_argument_parameter_insertions": "PASS",
+      "helper_entire_body_original_queries_guards_owners": "BYTE_IDENTICAL",
+      "copied_forward_reverse0nooffset_exactfinal_pinnedfmt": "PASS"
+    },
+    {
+      "kind": "clean",
+      "patch_sha256": "f6b84abdeb8dd2c0fdad24295b07b802de26e36c3f9cf620a977862983c009c7",
+      "manifest_sha256": "69daf45593eb67ecb098c9125579b9820a809dd06b3c98fc192a490f00453a9a",
+      "before": "d1e5bbe8434d09a253233426b8accb7b2c8c3b2272492e6cd37e15e7ff99c153",
+      "after": "6ec8c4ccad69f63a504a6aa506e981d270fc4c9e3f94b47511e876da5e3aba84",
+      "current_and_actual_work_before_join": "EXACT",
+      "only_two_original_context_argument_parameter_insertions": "PASS",
+      "helper_entire_body_original_queries_guards_owners": "BYTE_IDENTICAL",
+      "copied_forward_reverse0nooffset_exactfinal_pinnedfmt": "PASS"
+    }
+  ],
+  "same_existing_cleanup_ordered_full_before_after": "EXACT",
+  "semantics": "Original caller context=key.context(db) retained and passed as sixth borrowed-lifetime Salsa CfgContext handle argument into existing fallback. Interned context handle is Copy, same db lifetime/key/registry/config/maps; no new query, reconstruction, source/world substitute or owner change. Original fastpath uses original_inputs then returns unchanged; fallback only now receives authentic original handle for same command_bindings/procedure_summary_owners queries. Entire fallback body bytes and evaluation/drop/source/retirement/currentness guards unchanged, exact tests/asserts/allow/outside cleanup retained.",
+  "actual_observations": [
+    "E0425 lib.rs2876:13 context",
+    "E0425 lib.rs2877:13 context"
+  ],
+  "limits": "Fresh build required for actual E0425 closure. No Cargo/typing/Clippy/runtime/startup/Context/serverfuture/gate admission."
+}
