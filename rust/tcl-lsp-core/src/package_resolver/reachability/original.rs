@@ -108,13 +108,13 @@ struct Control {
     stops: bool,
     admission: ControlAdmission,
     original: tcl_lexer::NativeScriptCommandWords,
-    package_control: Option<OriginalPackageIndexControl>,
+    package_index: Option<OriginalPackageIndexControl>,
     source_clauses: Option<Vec<(Option<usize>, usize)>>,
     advertisement: Option<std::sync::Arc<OriginalPackageIndexAdvertisement>>,
 }
 impl Control {
     fn path_admitted(&self) -> bool {
-        self.admission.lookup_closed || self.package_control.is_some()
+        self.admission.lookup_closed || self.package_index.is_some()
     }
 }
 
@@ -206,7 +206,7 @@ impl Walker<'_, '_> {
                 roles_complete,
             },
             original: original.clone(),
-            package_control: source_control,
+            package_index: source_control,
             source_clauses,
             advertisement,
         })
