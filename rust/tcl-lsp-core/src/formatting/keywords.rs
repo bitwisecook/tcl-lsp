@@ -584,32 +584,52 @@ pub(crate) fn rewrites_for_selected_invocation(
         }
     }
     if config.boolean_form != BooleanForm::Preserve {
-        for index in 0..count {
-            let Some(word) = touchable(index) else {
-                continue;
-            };
-            let mut site = selected_boolean_site(selected, index);
-            if site == BooleanSite::None {
-                continue;
-            }
-            if !across_selected_releases(selected, config, |current| {
-                site = site.min(selected_boolean_site(current, index));
-                site != BooleanSite::None
-            }) {
-                continue;
-            }
-            if let Some(text) = canonical_boolean(word, config.boolean_form, site)
-                && selected.source_literal_replacement_keeps_selection(index, &text)
-                && across_selected_releases(selected, config, |current| {
-                    current.source_literal_replacement_keeps_selection(index, &text)
-                })
-            {
-                out.push(KeywordRewrite { index, text });
-            }
-        }
+        extend_selected_boolean_rewrites(selected, config, count, &touchable, &mut out);
     }
     out.sort_by_key(|rewrite| rewrite.index);
     let mut retained: Vec<KeywordRewrite> = Vec::new();
+    retain_joint_selected_rewrites(selected, config, out, &mut retained);
+    retained
+}
+
+fn extend_selected_boolean_rewrites<'a>(
+    selected: &ResolvedInvocation<'_, '_>,
+    config: &FormatterConfig,
+    count: usize,
+    touchable: &impl Fn(usize) -> Option<&'a str>,
+    out: &mut Vec<KeywordRewrite>,
+) {
+    for index in 0..count {
+        let Some(word) = touchable(index) else {
+            continue;
+        };
+        let mut site = selected_boolean_site(selected, index);
+        if site == BooleanSite::None {
+            continue;
+        }
+        if !across_selected_releases(selected, config, |current| {
+            site = site.min(selected_boolean_site(current, index));
+            site != BooleanSite::None
+        }) {
+            continue;
+        }
+        if let Some(text) = canonical_boolean(word, config.boolean_form, site)
+            && selected.source_literal_replacement_keeps_selection(index, &text)
+            && across_selected_releases(selected, config, |current| {
+                current.source_literal_replacement_keeps_selection(index, &text)
+            })
+        {
+            out.push(KeywordRewrite { index, text });
+        }
+    }
+}
+
+fn retain_joint_selected_rewrites(
+    selected: &ResolvedInvocation<'_, '_>,
+    config: &FormatterConfig,
+    out: Vec<KeywordRewrite>,
+    retained: &mut Vec<KeywordRewrite>,
+) {
     for candidate in out {
         let replacements = retained
             .iter()
@@ -624,7 +644,6 @@ pub(crate) fn rewrites_for_selected_invocation(
             retained.push(candidate);
         }
     }
-    retained
 }
 
 /// Validate the exact batch that survives caller lexical/origin filtering.

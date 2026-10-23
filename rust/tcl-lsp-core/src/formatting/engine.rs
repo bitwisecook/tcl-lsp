@@ -543,36 +543,6 @@ fn parse_commands(
     let mut argv: Vec<CommandArg> = Vec::new();
     let mut prev_type = TokenType::Eol;
 
-    let flush = |argv: &mut Vec<CommandArg>,
-                 pending_comments: &mut Vec<CommentLine>,
-                 pending_blank_lines: usize,
-                 terminated_by_semicolon: bool,
-                 commands: &mut Vec<ParsedCommand>| {
-        if argv.is_empty() {
-            return;
-        }
-        let taken_args = std::mem::take(argv);
-        let head_start = taken_args
-            .first()
-            .and_then(|arg| arg.tokens.first())
-            .map_or(0, |token| token.span.start());
-        commands.push(ParsedCommand {
-            resolved_name: String::new(),
-            source_roles: None,
-            logical_roles: None,
-            logical_context: None,
-            source_traits: None,
-            source_words: None,
-            source_case: None,
-            expression_bracing: None,
-            head_start,
-            args: taken_args,
-            preceding_comments: std::mem::take(pending_comments),
-            preceding_blank_lines: pending_blank_lines,
-            terminated_by_semicolon,
-        });
-    };
-
     for &tok in tokens {
         match tok.kind {
             TokenType::Eof => break,
@@ -594,7 +564,7 @@ fn parse_commands(
                 } else {
                     // A pure `;` separator (no newline in the Eol run) means
                     // this command shared a line with the next.
-                    flush(
+                    flush_parsed_command(
                         &mut argv,
                         &mut pending_comments,
                         pending_blank_lines,
@@ -638,7 +608,7 @@ fn parse_commands(
         prev_type = tok.kind;
     }
 
-    flush(
+    flush_parsed_command(
         &mut argv,
         &mut pending_comments,
         pending_blank_lines,
@@ -778,33 +748,8 @@ fn identify_body_args(
         || identities.decoded_phase.is_some()
         || identities.conditional_phase.is_some()
     {
-        cmd.source_roles = Some(Vec::new());
-        cmd.logical_roles = None;
-        cmd.logical_context = None;
-        cmd.source_traits = Some(Traits::empty());
-        cmd.source_words = None;
-        cmd.resolved_name.clear();
-        if identities.input.lexer_config() != config.lexer_config()
-            || identities
-                .analysis
-                .as_ref()
-                .is_some_and(|analysis| analysis.body_lexer_config != Some(config.lexer_config()))
-            || identities
-                .input
-                .context_registry()
-                .commands()
-                .snapshot()
-                .semantic_key()
-                != registry.snapshot().semantic_key()
-        {
-            return;
-        }
-        let Some(image) = identities
-            .conditional_phase
-            .as_ref()
-            .map(|phase| phase.image())
-            .or_else(|| identities.realm.original_source_image())
-        else {
+        reset_selected_command_roles(cmd);
+        let Some(image) = selected_formatting_image(identities, config, registry) else {
             return;
         };
         let Ok(whole) = std::str::from_utf8(image.bytes()) else {
@@ -852,36 +797,10 @@ fn identify_body_args(
         }) else {
             return;
         };
-        if let (Some(original), Some((_, words))) = (&identities.original, &aligned) {
-            let bodies = match original.member_body_arguments(head, words) {
-                Ok(super::analysis_layout::MemberBodyArguments::CompleteNonMember) => None,
-                Ok(super::analysis_layout::MemberBodyArguments::CompleteMember(bodies)) => {
-                    Some(bodies)
-                }
-                Err(_) => return,
-            };
-            if let Some(bodies) = bodies {
-                // The selected declaration vocabulary precedes global lookup even
-                // when an unrelated global command has the same member spelling.
-                for (arg, word) in cmd.args.iter_mut().zip(words) {
-                    arg.original_word = Some(word.clone());
-                }
-                for &(written, presentation) in &bodies {
-                    if let Some(arg) = cmd.args.get_mut(written)
-                        && arg.is_braced
-                    {
-                        arg.kind = ArgKind::Body;
-                        arg.member_body_presentation = Some(presentation);
-                    }
-                }
-                cmd.source_roles = Some(
-                    bodies
-                        .into_iter()
-                        .map(|(written, _)| (written, ArgRole::Body))
-                        .collect(),
-                );
-                return;
-            }
+        if let (Some(original), Some((_, words))) = (&identities.original, &aligned)
+            && apply_selected_member_bodies(cmd, original, head, words)
+        {
+            return;
         }
         let selected = if let Some(phase) = &identities.conditional_phase {
             crate::original_invocation::conditional_lambda_registry_words(
@@ -905,149 +824,20 @@ fn identify_body_args(
             // bodies independently of a global command schema. It donates no
             // formal value, expression rewrite or executed member identity.
             if let (Some(original), Some((_, words))) = (&identities.original, &aligned) {
-                let mut roles = Vec::new();
-                for (written, (arg, word)) in cmd.args.iter_mut().zip(words).enumerate().skip(1) {
-                    arg.original_word = Some(word.clone());
-                    if arg.is_braced
-                        && word
-                            .content_span()
-                            .is_ok_and(|span| original.has_script(span))
-                    {
-                        arg.kind = ArgKind::Body;
-                        roles.push((written, ArgRole::Body));
-                    }
-                }
-                cmd.source_roles = Some(roles);
+                apply_original_fallback_bodies(cmd, original, words);
             }
             return;
         };
-        let logical = match &selected.source {
-            crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) => {
-                advice.original_head().logical_input().is_some()
-                    && advice.logical_source_input() == Some(&identities.input)
-            }
-            _ => false,
-        };
-        let roles = selected.roles.as_deref().unwrap_or_default();
-        let input = &identities.input;
-        let context = input.context_registry();
-        let Some((traits, presentations, case)) = selected.with_source_schema(&context, |schema| {
-            (
-                schema.semantics.traits,
-                roles
-                    .iter()
-                    .map(|&(ordinal, _)| {
-                        (
-                            ordinal,
-                            schema.authored_source_argument_presentation(ordinal),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-                schema
-                    .authored_source_case_invocation()
-                    .and_then(|(descriptor, layout)| Some((descriptor, layout.clause_list_index?)))
-                    .or_else(|| schema.authored_source_case_presentation()),
-            )
-        }) else {
+        let Some(_selected_role_owners) = apply_selected_command_roles(
+            cmd,
+            &selected,
+            identities,
+            config,
+            registry,
+            (whole, segment),
+        ) else {
             return;
         };
-        cmd.source_traits = Some(traits);
-        cmd.source_case = case.and_then(|(descriptor, ordinal)| {
-            match selected.origins.get(ordinal.checked_add(1)?)? {
-                tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)
-                    if *written > 0 && *written < cmd.args.len() =>
-                {
-                    Some((*written, descriptor))
-                }
-                _ => None,
-            }
-        });
-        if config.enforce_braced_expr && identities.conditional_phase.is_none() {
-            let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
-                &SourceMap::new(whole),
-                config.lexer_config(),
-                segment,
-            );
-            identities.realm.stamp_original_tokens(&mut tokens);
-            cmd.expression_bracing = tokens.source_binding.as_ref().and_then(|binding| {
-                let proof = binding.original_literal_expression_bracing(&tokens, registry)?;
-                let original = proof.original_operand();
-                let written = segment
-                    .argv
-                    .iter()
-                    .position(|token| token.span.start() == original.span().start())?;
-                (written > 0).then(|| (written, proof.replacement_source_word().to_owned()))
-            });
-        }
-        // Geometry belongs to every genuine written operand, independently
-        // of whether the selected schema assigns that operand a source role.
-        for (ordinal, operand) in selected.operands.iter().enumerate() {
-            let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
-                selected.origins.get(ordinal.saturating_add(1))
-            else {
-                continue;
-            };
-            let (Some(arg), Some(operand)) = (cmd.args.get_mut(*written), operand.as_ref()) else {
-                continue;
-            };
-            if *written == 0 {
-                continue;
-            }
-            arg.original_word.clone_from(&operand.word);
-            arg.original_input.clone_from(&operand.input);
-        }
-        let mut written_roles = Vec::new();
-        for &(ordinal, role) in roles {
-            let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
-                selected.origins.get(ordinal.saturating_add(1))
-            else {
-                continue;
-            };
-            if *written == 0 || *written >= cmd.args.len() {
-                continue;
-            }
-            written_roles.push((*written, role));
-            let arg = &mut cmd.args[*written];
-            arg.kind = match role {
-                ArgRole::Body
-                    if arg.is_braced
-                        && presentations.iter().any(|(index, presentation)| {
-                            *index == ordinal
-                                && presentation.is_some_and(tcl_registry::ArgPresentation::is_block)
-                        }) =>
-                {
-                    ArgKind::Body
-                }
-                ArgRole::LambdaLiteral if arg.is_braced && arg.original_word.is_some() => {
-                    ArgKind::LambdaLiteral
-                }
-                ArgRole::Keyword => ArgKind::Keyword,
-                ArgRole::ParamList if arg.is_braced => ArgKind::ParamList,
-                _ => ArgKind::Word,
-            };
-        }
-        if logical {
-            cmd.source_roles = None;
-            cmd.logical_roles = Some(written_roles);
-            cmd.logical_context = Some(std::sync::Arc::clone(&context));
-        } else {
-            cmd.source_roles = Some(written_roles);
-        }
-        let identity_arguments =
-            selected
-                .origins
-                .iter()
-                .skip(1)
-                .enumerate()
-                .all(|(index, origin)| {
-                    *origin
-                        == tcl_compiler::registry_invocation::InvocationWordOrigin::Written(
-                            index + 1,
-                        )
-                });
-        if identity_arguments && selected.arguments.len() + 1 == cmd.args.len() {
-            cmd.resolved_name.clone_from(&selected.command);
-        }
         cmd.source_words = Some(selected);
         return;
     }
@@ -2428,34 +2218,14 @@ pub(crate) fn format_body(
         let arg_count = commands[i].args.len();
         for a in 0..arg_count {
             if commands[i].args[a].kind == ArgKind::Body && commands[i].args[a].is_braced {
-                let body_text = commands[i].args[a].text.clone();
-                let body_source_offset = commands[i].args[a]
-                    .tokens
-                    .first()
-                    .map_or(source_offset, |&token| {
-                        token_content_source_offset(source_offset, token)
-                    });
-                let formatted =
-                    if let Some((_, case_list)) = case_list_body.filter(|(index, _)| *index == a) {
-                        format_case_list_body(
-                            &body_text,
-                            body_source_offset,
-                            &case_list,
-                            config,
-                            registry,
-                            identities,
-                            inner_level,
-                        )
-                    } else {
-                        format_body(
-                            &body_text,
-                            config,
-                            registry,
-                            identities,
-                            FormattingRegion::body(config, body_source_offset, inner_level),
-                        )
-                    };
-                commands[i].args[a].formatted_body = Some(formatted);
+                format_plain_body_argument(
+                    &mut commands[i].args[a],
+                    case_list_body,
+                    config,
+                    registry,
+                    identities,
+                    (a, source_offset, inner_level),
+                );
             } else if commands[i].args[a].kind == ArgKind::LambdaLiteral
                 && commands[i].args[a].is_braced
                 && let Some(&tok) = commands[i].args[a].tokens.first()
@@ -2463,112 +2233,14 @@ pub(crate) fn format_body(
                     decoded_lambda(&commands[i].args[a], commands[i].logical_context.is_some())
                 && let Some(body_text) = elems.body
             {
-                // Format only the real, *decoded* body element —
-                // `render_lambda_literal_arg` re-derives the parameter list /
-                // namespace elements from the original source at
-                // reconstruction time and reassembles them. Decoding first
-                // (rather than reformatting the raw source spelling) matters
-                // for a non-literal (bare/quoted) body: its backslash escapes
-                // must be collapsed before the result is parsed as a script,
-                // exactly as Tcl's own list-then-script evaluation would.
-                let original_body = commands[i].args[a].original_word.as_ref().and_then(|word| {
-                    tcl_compiler::lambda_literal::split_original_lambda_literal(word)
-                        .and_then(|elements| elements.braced_body())
-                        .filter(|span| {
-                            word.image()
-                                .try_text()
-                                .ok()
-                                .and_then(|text| text.get(span.as_range()))
-                                == Some(body_text.as_ref())
-                                || identities.original.as_ref().and_then(|layout| {
-                                    layout
-                                        .presentation_span(*span)
-                                        .and_then(|span| layout.text().get(span.as_range()))
-                                }) == Some(body_text.as_ref())
-                        })
-                });
-                let presented_body =
-                    original_body.and_then(|span| identities.presentation_span(span));
-                let lambda_body_offset = presented_body.map_or_else(
-                    || {
-                        if commands[i].args[a].original_word.is_some() {
-                            u32::MAX
-                        } else {
-                            lambda_body_source_offset(source, source_offset, tok)
-                        }
-                    },
-                    tcl_lexer::Span::start,
+                let (formatted, _retained_conditional_phase) = format_lambda_body_argument(
+                    (&commands[i], a),
+                    (source, source_offset, tok, inner_level),
+                    config,
+                    registry,
+                    identities,
+                    body_text.as_ref(),
                 );
-                let presented_text = identities
-                    .original
-                    .as_ref()
-                    .and_then(|layout| layout.text().get(presented_body?.as_range()));
-                let phase = original_body
-                    .is_none()
-                    .then(|| {
-                        let parent = commands[i].args[a].original_word.as_ref()?;
-                        commands[i]
-                            .source_words
-                            .as_ref()?
-                            .decoded_lambda_formatting_body(
-                                &identities.input,
-                                &identities.realm,
-                                parent,
-                            )
-                    })
-                    .flatten()
-                    .filter(|phase| phase.text() == Some(body_text.as_ref()));
-                let conditional_phase = original_body.is_none().then(|| {
-                    let parent = commands[i].args[a].original_word.as_ref()?;
-                    if let Some(current) = &identities.conditional_phase {
-                        current.child(parent, &identities.input)
-                    } else {
-                        tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody::capture(
-                            &identities.realm, &identities.input, parent)
-                    }
-                }).flatten().filter(|phase| phase.image().try_text().ok() == Some(body_text.as_ref()));
-                let formatted = if let Some(phase) = phase {
-                    let base = phase.source_base();
-                    let phase_layout = FormattingSourceLayout {
-                        realm: phase.realm().clone(),
-                        analysis: None,
-                        input: identities.input.clone(),
-                        original: None,
-                        decoded_phase: Some(phase),
-                        conditional_phase: None,
-                    };
-                    format_body(
-                        &body_text,
-                        config,
-                        registry,
-                        &phase_layout,
-                        FormattingRegion::body(config, base, inner_level),
-                    )
-                } else if let Some(phase) = conditional_phase {
-                    let phase_layout = FormattingSourceLayout {
-                        realm: identities.realm.clone(),
-                        analysis: None,
-                        input: identities.input.clone(),
-                        original: None,
-                        decoded_phase: None,
-                        conditional_phase: Some(phase),
-                    };
-                    format_body(
-                        &body_text,
-                        config,
-                        registry,
-                        &phase_layout,
-                        FormattingRegion::body(config, 0, inner_level),
-                    )
-                } else {
-                    format_body(
-                        presented_text.unwrap_or(&body_text),
-                        config,
-                        registry,
-                        identities,
-                        FormattingRegion::body(config, lambda_body_offset, inner_level),
-                    )
-                };
                 commands[i].args[a].formatted_body = Some(formatted);
             }
         }
@@ -2710,6 +2382,462 @@ fn format_tcl_impl(
         result = result.replace('\n', &line_ending);
     }
     result
+}
+
+fn flush_parsed_command(
+    argv: &mut Vec<CommandArg>,
+    pending_comments: &mut Vec<CommentLine>,
+    pending_blank_lines: usize,
+    terminated_by_semicolon: bool,
+    commands: &mut Vec<ParsedCommand>,
+) {
+    if argv.is_empty() {
+        return;
+    }
+    let taken_args = std::mem::take(argv);
+    let head_start = taken_args
+        .first()
+        .and_then(|arg| arg.tokens.first())
+        .map_or(0, |token| token.span.start());
+    commands.push(ParsedCommand {
+        resolved_name: String::new(),
+        source_roles: None,
+        logical_roles: None,
+        logical_context: None,
+        source_traits: None,
+        source_words: None,
+        source_case: None,
+        expression_bracing: None,
+        head_start,
+        args: taken_args,
+        preceding_comments: std::mem::take(pending_comments),
+        preceding_blank_lines: pending_blank_lines,
+        terminated_by_semicolon,
+    });
+}
+
+fn reset_selected_command_roles(cmd: &mut ParsedCommand) {
+    cmd.source_roles = Some(Vec::new());
+    cmd.logical_roles = None;
+    cmd.logical_context = None;
+    cmd.source_traits = Some(Traits::empty());
+    cmd.source_words = None;
+    cmd.resolved_name.clear();
+}
+
+fn selected_formatting_image<'a>(
+    identities: &'a FormattingSourceLayout,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+) -> Option<&'a tcl_lexer::SourceImage> {
+    if identities.input.lexer_config() != config.lexer_config()
+        || identities
+            .analysis
+            .as_ref()
+            .is_some_and(|analysis| analysis.body_lexer_config != Some(config.lexer_config()))
+        || identities
+            .input
+            .context_registry()
+            .commands()
+            .snapshot()
+            .semantic_key()
+            != registry.snapshot().semantic_key()
+    {
+        return None;
+    }
+    identities
+        .conditional_phase
+        .as_ref()
+        .map(|phase| phase.image())
+        .or_else(|| identities.realm.original_source_image())
+}
+
+fn apply_selected_member_bodies(
+    cmd: &mut ParsedCommand,
+    original: &super::analysis_layout::AnalysisFormattingLayout,
+    head: u32,
+    words: &[tcl_lexer::NativeWord],
+) -> bool {
+    let bodies = match original.member_body_arguments(head, words) {
+        Ok(super::analysis_layout::MemberBodyArguments::CompleteNonMember) => None,
+        Ok(super::analysis_layout::MemberBodyArguments::CompleteMember(bodies)) => Some(bodies),
+        Err(_) => return true,
+    };
+    if let Some(bodies) = bodies {
+        // The selected declaration vocabulary precedes global lookup even
+        // when an unrelated global command has the same member spelling.
+        for (arg, word) in cmd.args.iter_mut().zip(words) {
+            arg.original_word = Some(word.clone());
+        }
+        for &(written, presentation) in &bodies {
+            if let Some(arg) = cmd.args.get_mut(written)
+                && arg.is_braced
+            {
+                arg.kind = ArgKind::Body;
+                arg.member_body_presentation = Some(presentation);
+            }
+        }
+        cmd.source_roles = Some(
+            bodies
+                .into_iter()
+                .map(|(written, _)| (written, ArgRole::Body))
+                .collect(),
+        );
+        return true;
+    }
+    false
+}
+
+fn apply_original_fallback_bodies(
+    cmd: &mut ParsedCommand,
+    original: &super::analysis_layout::AnalysisFormattingLayout,
+    words: &[tcl_lexer::NativeWord],
+) {
+    let mut roles = Vec::new();
+    for (written, (arg, word)) in cmd.args.iter_mut().zip(words).enumerate().skip(1) {
+        arg.original_word = Some(word.clone());
+        if arg.is_braced
+            && word
+                .content_span()
+                .is_ok_and(|span| original.has_script(span))
+        {
+            arg.kind = ArgKind::Body;
+            roles.push((written, ArgRole::Body));
+        }
+    }
+    cmd.source_roles = Some(roles);
+}
+
+fn apply_expression_bracing(
+    cmd: &mut ParsedCommand,
+    whole: &str,
+    segment: &tcl_compiler::segmenter::SegmentedCommand,
+    identities: &FormattingSourceLayout,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+) {
+    let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &SourceMap::new(whole),
+        config.lexer_config(),
+        segment,
+    );
+    identities.realm.stamp_original_tokens(&mut tokens);
+    cmd.expression_bracing = tokens.source_binding.as_ref().and_then(|binding| {
+        let proof = binding.original_literal_expression_bracing(&tokens, registry)?;
+        let original = proof.original_operand();
+        let written = segment
+            .argv
+            .iter()
+            .position(|token| token.span.start() == original.span().start())?;
+        (written > 0).then(|| (written, proof.replacement_source_word().to_owned()))
+    });
+}
+
+fn apply_selected_operand_geometry(
+    cmd: &mut ParsedCommand,
+    selected: &crate::original_invocation::OriginalRegistryWords,
+) {
+    for (ordinal, operand) in selected.operands.iter().enumerate() {
+        let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+            selected.origins.get(ordinal.saturating_add(1))
+        else {
+            continue;
+        };
+        let (Some(arg), Some(operand)) = (cmd.args.get_mut(*written), operand.as_ref()) else {
+            continue;
+        };
+        if *written == 0 {
+            continue;
+        }
+        arg.original_word.clone_from(&operand.word);
+        arg.original_input.clone_from(&operand.input);
+    }
+}
+
+fn apply_selected_command_roles(
+    cmd: &mut ParsedCommand,
+    selected: &crate::original_invocation::OriginalRegistryWords,
+    identities: &FormattingSourceLayout,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    position: (&str, &tcl_compiler::segmenter::SegmentedCommand),
+) -> Option<(
+    Vec<(usize, Option<tcl_registry::ArgPresentation>)>,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+)> {
+    let (whole, segment) = position;
+    let logical = match &selected.source {
+        crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) => {
+            advice.original_head().logical_input().is_some()
+                && advice.logical_source_input() == Some(&identities.input)
+        }
+        _ => false,
+    };
+    let roles = selected.roles.as_deref().unwrap_or_default();
+    let input = &identities.input;
+    let context = input.context_registry();
+    let Some((traits, presentations, case)) = selected.with_source_schema(&context, |schema| {
+        (
+            schema.semantics.traits,
+            roles
+                .iter()
+                .map(|&(ordinal, _)| {
+                    (
+                        ordinal,
+                        schema.authored_source_argument_presentation(ordinal),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            schema
+                .authored_source_case_invocation()
+                .and_then(|(descriptor, layout)| Some((descriptor, layout.clause_list_index?)))
+                .or_else(|| schema.authored_source_case_presentation()),
+        )
+    }) else {
+        return None;
+    };
+    cmd.source_traits = Some(traits);
+    cmd.source_case = case.and_then(|(descriptor, ordinal)| {
+        match selected.origins.get(ordinal.checked_add(1)?)? {
+            tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)
+                if *written > 0 && *written < cmd.args.len() =>
+            {
+                Some((*written, descriptor))
+            }
+            _ => None,
+        }
+    });
+    if config.enforce_braced_expr && identities.conditional_phase.is_none() {
+        apply_expression_bracing(cmd, whole, segment, identities, config, registry);
+    }
+    // Geometry belongs to every genuine written operand, independently
+    // of whether the selected schema assigns that operand a source role.
+    apply_selected_operand_geometry(cmd, selected);
+    let mut written_roles = Vec::new();
+    for &(ordinal, role) in roles {
+        let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
+            selected.origins.get(ordinal.saturating_add(1))
+        else {
+            continue;
+        };
+        if *written == 0 || *written >= cmd.args.len() {
+            continue;
+        }
+        written_roles.push((*written, role));
+        let arg = &mut cmd.args[*written];
+        arg.kind = match role {
+            ArgRole::Body
+                if arg.is_braced
+                    && presentations.iter().any(|(index, presentation)| {
+                        *index == ordinal
+                            && presentation.is_some_and(tcl_registry::ArgPresentation::is_block)
+                    }) =>
+            {
+                ArgKind::Body
+            }
+            ArgRole::LambdaLiteral if arg.is_braced && arg.original_word.is_some() => {
+                ArgKind::LambdaLiteral
+            }
+            ArgRole::Keyword => ArgKind::Keyword,
+            ArgRole::ParamList if arg.is_braced => ArgKind::ParamList,
+            _ => ArgKind::Word,
+        };
+    }
+    if logical {
+        cmd.source_roles = None;
+        cmd.logical_roles = Some(written_roles);
+        cmd.logical_context = Some(std::sync::Arc::clone(&context));
+    } else {
+        cmd.source_roles = Some(written_roles);
+    }
+    let identity_arguments = selected
+        .origins
+        .iter()
+        .skip(1)
+        .enumerate()
+        .all(|(index, origin)| {
+            *origin == tcl_compiler::registry_invocation::InvocationWordOrigin::Written(index + 1)
+        });
+    if identity_arguments && selected.arguments.len() + 1 == cmd.args.len() {
+        cmd.resolved_name.clone_from(&selected.command);
+    }
+    Some((presentations, context))
+}
+
+fn format_plain_body_argument(
+    arg: &mut CommandArg,
+    case_list_body: Option<(usize, CaseListSpec)>,
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    identities: &FormattingSourceLayout,
+    position: (usize, u32, usize),
+) {
+    let (a, source_offset, inner_level) = position;
+    let body_text = arg.text.clone();
+    let body_source_offset = arg.tokens.first().map_or(source_offset, |&token| {
+        token_content_source_offset(source_offset, token)
+    });
+    let formatted = if let Some((_, case_list)) = case_list_body.filter(|(index, _)| *index == a) {
+        format_case_list_body(
+            &body_text,
+            body_source_offset,
+            &case_list,
+            config,
+            registry,
+            identities,
+            inner_level,
+        )
+    } else {
+        format_body(
+            &body_text,
+            config,
+            registry,
+            identities,
+            FormattingRegion::body(config, body_source_offset, inner_level),
+        )
+    };
+    arg.formatted_body = Some(formatted);
+}
+
+fn original_formatted_lambda_body(
+    arg: &CommandArg,
+    identities: &FormattingSourceLayout,
+    body_text: &str,
+) -> Option<tcl_lexer::Span> {
+    arg.original_word.as_ref().and_then(|word| {
+        tcl_compiler::lambda_literal::split_original_lambda_literal(word)
+            .and_then(|elements| elements.braced_body())
+            .filter(|span| {
+                word.image()
+                    .try_text()
+                    .ok()
+                    .and_then(|text| text.get(span.as_range()))
+                    == Some(body_text)
+                    || identities.original.as_ref().and_then(|layout| {
+                        layout
+                            .presentation_span(*span)
+                            .and_then(|span| layout.text().get(span.as_range()))
+                    }) == Some(body_text)
+            })
+    })
+}
+
+fn format_lambda_body_argument(
+    selected: (&ParsedCommand, usize),
+    position: (&str, u32, Token, usize),
+    config: &FormatterConfig,
+    registry: &CommandRegistry,
+    identities: &FormattingSourceLayout,
+    body_text: &str,
+) -> (
+    String,
+    Option<std::sync::Arc<tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody>>,
+) {
+    let (command, arg_index) = selected;
+    let (source, source_offset, tok, inner_level) = position;
+    // Format only the real, *decoded* body element —
+    // `render_lambda_literal_arg` re-derives the parameter list /
+    // namespace elements from the original source at
+    // reconstruction time and reassembles them. Decoding first
+    // (rather than reformatting the raw source spelling) matters
+    // for a non-literal (bare/quoted) body: its backslash escapes
+    // must be collapsed before the result is parsed as a script,
+    // exactly as Tcl's own list-then-script evaluation would.
+    let original_body =
+        original_formatted_lambda_body(&command.args[arg_index], identities, body_text);
+    let presented_body = original_body.and_then(|span| identities.presentation_span(span));
+    let lambda_body_offset = presented_body.map_or_else(
+        || {
+            if command.args[arg_index].original_word.is_some() {
+                u32::MAX
+            } else {
+                lambda_body_source_offset(source, source_offset, tok)
+            }
+        },
+        tcl_lexer::Span::start,
+    );
+    let presented_text = identities
+        .original
+        .as_ref()
+        .and_then(|layout| layout.text().get(presented_body?.as_range()));
+    let phase = original_body
+        .is_none()
+        .then(|| {
+            let parent = command.args[arg_index].original_word.as_ref()?;
+            command
+                .source_words
+                .as_ref()?
+                .decoded_lambda_formatting_body(&identities.input, &identities.realm, parent)
+        })
+        .flatten()
+        .filter(|phase| phase.text() == Some(body_text));
+    let conditional_phase = original_body
+        .is_none()
+        .then(|| {
+            let parent = command.args[arg_index].original_word.as_ref()?;
+            if let Some(current) = &identities.conditional_phase {
+                current.child(parent, &identities.input)
+            } else {
+                tcl_compiler::command_binding::OriginalConditionalLambdaFormattingBody::capture(
+                    &identities.realm,
+                    &identities.input,
+                    parent,
+                )
+            }
+        })
+        .flatten()
+        .filter(|phase| phase.image().try_text().ok() == Some(body_text));
+    if let Some(phase) = phase {
+        let base = phase.source_base();
+        let phase_layout = FormattingSourceLayout {
+            realm: phase.realm().clone(),
+            analysis: None,
+            input: identities.input.clone(),
+            original: None,
+            decoded_phase: Some(phase),
+            conditional_phase: None,
+        };
+        (
+            format_body(
+                body_text,
+                config,
+                registry,
+                &phase_layout,
+                FormattingRegion::body(config, base, inner_level),
+            ),
+            conditional_phase,
+        )
+    } else if let Some(phase) = conditional_phase {
+        let phase_layout = FormattingSourceLayout {
+            realm: identities.realm.clone(),
+            analysis: None,
+            input: identities.input.clone(),
+            original: None,
+            decoded_phase: None,
+            conditional_phase: Some(phase),
+        };
+        (
+            format_body(
+                body_text,
+                config,
+                registry,
+                &phase_layout,
+                FormattingRegion::body(config, 0, inner_level),
+            ),
+            None,
+        )
+    } else {
+        (
+            format_body(
+                presented_text.unwrap_or(body_text),
+                config,
+                registry,
+                identities,
+                FormattingRegion::body(config, lambda_body_offset, inner_level),
+            ),
+            None,
+        )
+    }
 }
 
 #[cfg(test)]
