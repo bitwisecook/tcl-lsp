@@ -176,6 +176,25 @@ fn configured_proc_source_headers_defer_body_effects_and_keep_unknown_hook_effec
     }));
 }
 
+fn assert_no_supplied_callback_source_arity(
+    db: &TclDatabase,
+    project: Project,
+    source: &str,
+    analysis: &AnalysisResult,
+) {
+    assert!(
+        project_callback_diagnostics_for_analysis_with_inputs(
+            db,
+            project,
+            source,
+            analysis,
+            |_| false
+        )
+        .iter()
+        .all(|row| row.callback_source_arity().is_none())
+    );
+}
+
 #[test]
 fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signature() {
     // naming.database.original-project-callback-projection
@@ -243,17 +262,7 @@ fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signat
     library
         .set_text(&mut db)
         .to("proc external {one two} {return LATER}".to_owned());
-    assert!(
-        project_callback_diagnostics_for_analysis_with_inputs(
-            &db,
-            project,
-            source,
-            &analysis,
-            |_| false
-        )
-        .iter()
-        .all(|row| row.callback_source_arity().is_none())
-    );
+    assert_no_supplied_callback_source_arity(&db, project, source, &analysis);
 
     library_config
         .set_spec_pack_key(&mut db)
@@ -261,17 +270,7 @@ fn supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signat
     assert!(document_analysis_input(&db, library, library_config).is_err());
     assert!(document_analysis_input(&db, caller, caller_config).is_ok());
     assert!(project_original_command_signatures_for_inputs(&db, project).is_empty());
-    assert!(
-        project_callback_diagnostics_for_analysis_with_inputs(
-            &db,
-            project,
-            source,
-            &analysis,
-            |_| false
-        )
-        .iter()
-        .all(|row| row.callback_source_arity().is_none())
-    );
+    assert_no_supplied_callback_source_arity(&db, project, source, &analysis);
     library_config.set_spec_pack_key(&mut db).to(0);
     for mapping in [
         None,

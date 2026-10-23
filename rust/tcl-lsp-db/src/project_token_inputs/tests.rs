@@ -55,8 +55,80 @@ fn is_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
     })
 }
 
+fn assert_project_tokens_withdraw_changed_availability(
+    db: &mut TclDatabase,
+    project: Project,
+    library: SourceFile,
+    caller: SourceFile,
+    library_config: AnalyserConfig,
+    caller_config: AnalyserConfig,
+    source: &str,
+) {
+    // The caller's configuration is not donated to the library.
+    project.set_token_configurations(db).to(Some(vec![
+        (library, caller_config),
+        (caller, caller_config),
+    ]));
+    assert!(project_proc_var_index_for_inputs(db, project).is_empty());
+    assert!(!is_variable(
+        &semantic_tokens_project_for_inputs(db, caller, project),
+        source,
+        "retained"
+    ));
+    project.set_token_configurations(db).to(Some(vec![
+        (library, library_config),
+        (caller, caller_config),
+    ]));
+    assert!(is_variable(
+        &semantic_tokens_project_for_inputs(db, caller, project),
+        source,
+        "retained"
+    ));
+
+    let changed = read_pack(false);
+    let _changed_registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed);
+    library_config.set_spec_pack_key(db).to(changed.key);
+    set_overlay_epoch(db, tcl_registry::overlay_epoch());
+    assert!(project_proc_var_index_for_inputs(db, project).is_empty());
+    assert!(!is_variable(
+        &semantic_tokens_project_for_inputs(db, caller, project),
+        source,
+        "retained"
+    ));
+    library_config.set_spec_pack_key(db).to(u64::MAX - 354);
+    assert!(document_analysis_input(db, library, library_config).is_err());
+    assert!(project_proc_var_index_for_inputs(db, project).is_empty());
+    assert!(!is_variable(
+        &semantic_tokens_project_for_inputs(db, caller, project),
+        source,
+        "retained"
+    ));
+}
+
+fn assert_project_token_visibility(
+    db: &TclDatabase,
+    caller: SourceFile,
+    caller_config: AnalyserConfig,
+    project: Project,
+    source: &str,
+) {
+    assert!(is_variable(
+        &semantic_tokens_project_for_inputs(db, caller, project),
+        source,
+        "retained"
+    ));
+    assert!(!is_variable(
+        &semantic_tokens(db, caller, caller_config),
+        source,
+        "retained"
+    ));
+}
+
 #[test]
 fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability() {
+    use tcl_compiler::registry_invocation::source_structure::{
+        OriginalProjectProcedureRoles, original_project_procedure_arguments,
+    };
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Source-only parameter hints; no Native invocation or variable binding.
@@ -98,9 +170,6 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
     // Representation changed from joined report maps to genuine per-file
     // declaration/formal owners. Compare that exact transport, then project
     // the actual selected call back to the original library declaration.
-    use tcl_compiler::registry_invocation::source_structure::{
-        OriginalProjectProcedureRoles, original_project_procedure_arguments,
-    };
     assert_eq!(
         index.project_source_roles(),
         &[
@@ -150,56 +219,17 @@ fn project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability()
             |traits| traits.contains(&tcl_compiler::analyser::types::ProcArgTrait::VarRead)
         )
     );
-    assert!(is_variable(
-        &semantic_tokens_project_for_inputs(&db, caller, project),
-        source,
-        "retained"
-    ));
-    assert!(!is_variable(
-        &semantic_tokens(&db, caller, caller_config),
-        source,
-        "retained"
-    ));
+    assert_project_token_visibility(&db, caller, caller_config, project, source);
 
-    // The caller's configuration is not donated to the library.
-    project.set_token_configurations(&mut db).to(Some(vec![
-        (library, caller_config),
-        (caller, caller_config),
-    ]));
-    assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
-    assert!(!is_variable(
-        &semantic_tokens_project_for_inputs(&db, caller, project),
+    assert_project_tokens_withdraw_changed_availability(
+        &mut db,
+        project,
+        library,
+        caller,
+        library_config,
+        caller_config,
         source,
-        "retained"
-    ));
-    project.set_token_configurations(&mut db).to(Some(vec![
-        (library, library_config),
-        (caller, caller_config),
-    ]));
-    assert!(is_variable(
-        &semantic_tokens_project_for_inputs(&db, caller, project),
-        source,
-        "retained"
-    ));
-
-    let changed = read_pack(false);
-    let _changed_registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl", &changed);
-    library_config.set_spec_pack_key(&mut db).to(changed.key);
-    set_overlay_epoch(&mut db, tcl_registry::overlay_epoch());
-    assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
-    assert!(!is_variable(
-        &semantic_tokens_project_for_inputs(&db, caller, project),
-        source,
-        "retained"
-    ));
-    library_config.set_spec_pack_key(&mut db).to(u64::MAX - 354);
-    assert!(document_analysis_input(&db, library, library_config).is_err());
-    assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
-    assert!(!is_variable(
-        &semantic_tokens_project_for_inputs(&db, caller, project),
-        source,
-        "retained"
-    ));
+    );
 }
 
 #[test]
@@ -323,10 +353,11 @@ fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
         *project_proc_var_index_for_inputs(&db, project),
         facts.proc_roles
     );
-    assert!(
-        !semantic_tokens_project_for_inputs(&db, file, project)
+    assert_ne!(
+        semantic_tokens_project_for_inputs(&db, file, project)
             .data
-            .is_empty()
+            .len(),
+        0
     );
     for mapping in [
         None,
@@ -342,10 +373,11 @@ fn supplied_project_cards_require_complete_unambiguous_current_file_mapping() {
         );
         assert!(project_proc_var_index_for_inputs(&db, project).is_empty());
         assert!(project_named_instance_index_for_inputs(&db, project).is_empty());
-        assert!(
+        assert_eq!(
             semantic_tokens_project_for_inputs(&db, file, project)
                 .data
-                .is_empty()
+                .len(),
+            0
         );
     }
     project

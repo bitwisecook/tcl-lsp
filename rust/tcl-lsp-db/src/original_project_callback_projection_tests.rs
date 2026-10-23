@@ -71,7 +71,7 @@ fn supplied_project_callback_projection_matches_tracked_headers_and_source_barri
             callback_codes(&supplied),
             expected.into_iter().collect::<Vec<_>>()
         );
-        assert!(
+        assert_eq!(
             callback_codes(&project_callback_diagnostics_for_analysis(
                 &db,
                 project,
@@ -79,7 +79,8 @@ fn supplied_project_callback_projection_matches_tracked_headers_and_source_barri
                 &analysis,
                 |code| matches!(code, "E002" | "E003" | "E005"),
             ))
-            .is_empty()
+            .len(),
+            0
         );
     }
 }
@@ -119,7 +120,7 @@ fn supplied_project_callback_projection_reads_current_exact_project_headers() {
     );
     let updated =
         project_callback_diagnostics_for_analysis(&db, project, source, &analysis, |_| false);
-    assert!(callback_codes(&updated).is_empty());
+    assert_eq!(callback_codes(&updated).len(), 0);
     assert_eq!(
         project_callback_diagnostics(&db, caller, config, project).as_ref(),
         &updated
@@ -312,7 +313,7 @@ fn supplied_project_callbacks_refuse_unavailable_generation_with_original_receip
     let input = analysis.resolved_input.as_ref().unwrap();
     let image = tcl_lexer::SourceImage::document(source);
     assert!(analysis.matches_original_source_image(&image, input.lexer_config()));
-    assert!(callback_codes(&analysis.diagnostics).is_empty());
+    assert_eq!(callback_codes(&analysis.diagnostics).len(), 0);
     assert_eq!(
         callback_codes(&project_callback_diagnostics_for_analysis(
             &db,
