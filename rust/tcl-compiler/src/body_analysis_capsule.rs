@@ -86,6 +86,47 @@ impl PartialEq for ClosedBodyProjection {
     }
 }
 
+fn validate_body_request_input(
+    request: &crate::compilation_unit::LatticeRequest<'_>,
+) -> Option<()> {
+    let actual_input = request.module.source_metadata_input.as_ref()?;
+    let supplied_input = request.source_metadata_input?;
+    if (supplied_input != actual_input && supplied_input != &actual_input.for_nested_source())
+        || request.lexer_config.nested().normalized()
+            != supplied_input.lexer_config().nested().normalized()
+    {
+        return None;
+    }
+    Some(())
+}
+
+fn original_neutral_declaration(
+    procedure: &crate::ir::Procedure,
+    native_card: Option<&crate::command_binding::OriginalNativeProcedureBody>,
+) -> Option<NeutralDeclaration> {
+    Some(NeutralDeclaration {
+        publication: if native_card.is_some() {
+            None
+        } else {
+            Some(procedure.publication.clone()?)
+        },
+        native_source_slot: native_card.map(|card| {
+            (
+                card.original_name_input().policy(),
+                card.source_slot().clone(),
+            )
+        }),
+        authored_source_slot: None,
+        namespace: procedure.body.namespace_context.as_deref()?.clone(),
+        written_name: procedure.name.clone(),
+        display: procedure.qualified_name.clone(),
+        parameters: procedure.params.clone(),
+        parameters_text: procedure.params_raw.clone(),
+        body_text: procedure.body_source.clone()?,
+        kind: procedure.body_kind,
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct NeutralDeclaration {
     publication: Option<crate::signature_scan::scope::SignatureSourceCommand>,
@@ -729,14 +770,7 @@ impl BodyLatticeInputs {
         {
             return Self::retain_authored_source(request, registry);
         }
-        let actual_input = module.source_metadata_input.as_ref()?;
-        let supplied_input = request.source_metadata_input?;
-        if (supplied_input != actual_input && supplied_input != &actual_input.for_nested_source())
-            || request.lexer_config.nested().normalized()
-                != supplied_input.lexer_config().nested().normalized()
-        {
-            return None;
-        }
+        validate_body_request_input(request)?;
         let retained = module.retained_source_bindings.as_ref()?;
         retained.positioned_for_module(module, registry)?;
         let mut original = procedure.body.clone();
@@ -767,27 +801,7 @@ impl BodyLatticeInputs {
             // Authentic conditional source does not imply neutral memo closure.
             return Some(Self::from(request.body.clone()));
         }
-        let declaration = NeutralDeclaration {
-            publication: if native_card.is_some() {
-                None
-            } else {
-                Some(procedure.publication.clone()?)
-            },
-            native_source_slot: native_card.map(|card| {
-                (
-                    card.original_name_input().policy(),
-                    card.source_slot().clone(),
-                )
-            }),
-            authored_source_slot: None,
-            namespace: procedure.body.namespace_context.as_deref()?.clone(),
-            written_name: procedure.name.clone(),
-            display: procedure.qualified_name.clone(),
-            parameters: procedure.params.clone(),
-            parameters_text: procedure.params_raw.clone(),
-            body_text: procedure.body_source.clone()?,
-            kind: procedure.body_kind,
-        };
+        let declaration = original_neutral_declaration(procedure, native_card.map(Arc::as_ref))?;
         let scope = crate::command_binding::BodyProofScope {
             source: request.source,
             body_source: &declaration.body_text,

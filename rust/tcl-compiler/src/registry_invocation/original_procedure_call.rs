@@ -435,6 +435,21 @@ pub(crate) struct OriginalProcedureMayDependencies {
     pub(crate) unknown_alternatives: bool,
 }
 
+fn original_logical_summary_body_purpose_matches(
+    module: &Module,
+    id: &crate::ir::ProcedureId,
+    procedure: &Procedure,
+) -> bool {
+    match procedure.body_kind {
+        crate::ir::ProcedureBodyKind::Named => module.procedures.get(id) == Some(procedure),
+        crate::ir::ProcedureBodyKind::OriginalDeclaration => module
+            .original_logical_declaration_body_units
+            .get(id)
+            .is_some_and(|card| card.matches_procedure(module, procedure)),
+        _ => false,
+    }
+}
+
 /// Possible Logical body dependencies under an authentic original source scope.
 /// Namespace/name coordinates select only current Module-issued source bodies;
 /// unknown alternatives remain and no argv binder, call or return is supplied.
@@ -512,14 +527,8 @@ pub(crate) fn original_logical_procedure_may_dependencies_for_module(
     let mut bodies: Vec<_> = module
         .original_source_procedure_bodies()
         .filter_map(|(id, procedure)| {
-            let authentic_purpose = match procedure.body_kind {
-                crate::ir::ProcedureBodyKind::Named => module.procedures.get(id) == Some(procedure),
-                crate::ir::ProcedureBodyKind::OriginalDeclaration => module
-                    .original_logical_declaration_body_units
-                    .get(id)
-                    .is_some_and(|card| card.matches_procedure(module, procedure)),
-                _ => false,
-            };
+            let authentic_purpose =
+                original_logical_summary_body_purpose_matches(module, id, procedure);
             if !authentic_purpose || !retained.matches_original_procedure_summary(*id, procedure) {
                 return None;
             }

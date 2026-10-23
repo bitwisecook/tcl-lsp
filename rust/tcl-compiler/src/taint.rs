@@ -1851,6 +1851,64 @@ fn substitution_transform_colour(
         })
 }
 
+fn substitution_arguments_taint<S: std::hash::BuildHasher>(
+    args: &[String],
+    effective: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    (nested, ctx): (Option<&CommandTokens>, TaintCtx<'_>),
+    depth: u32,
+) -> TaintLattice {
+    let mut t = TaintLattice::clean();
+    for index in 0..args.len() {
+        let arg_ctx = TaintCtx {
+            source_tokens: nested.or(ctx.source_tokens),
+            ..ctx
+        };
+        t = t.join(positional_argument_taint(
+            index,
+            args,
+            effective,
+            uses,
+            taints,
+            arg_ctx,
+            depth + 1,
+        ));
+    }
+    t
+}
+
+fn finish_substitution_taint(
+    mut t: TaintLattice,
+    normal: Option<&crate::registry_invocation::NormalTaintInvocation>,
+    ctx: TaintCtx<'_>,
+    cmd: &str,
+    arg_refs: &[&str],
+) -> TaintLattice {
+    t = t.shape_unproven();
+    // Stamp the encoder/transform colour the command adds to its result
+    // (e.g. `uri::encode` → `URL_ENCODED`, `file normalize` →
+    // `PATH_NORMALISED`), so a later pass through the same encoder is
+    // detectable as a double-encode (T106) and a consumer asking "has
+    // this value been through a normalising sanitiser" gets a yes.
+    //
+    // Stamped regardless of taint.  The colour describes what the
+    // *command* guarantees about its result, not what its input was, so
+    // gating it on `is_tainted()` would make the fact unobservable for
+    // exactly the values a hygiene check like W201 asks about — a path
+    // built from clean local variables and then normalised.  Nothing
+    // widens as a result: every consumer that acts on a colour
+    // ([`emit_double_encode_warnings`], the sink mitigation checks)
+    // requires `is_tainted()` first, and a clean lattice is `join`'s
+    // identity, so a clean colour never dilutes a tainted operand's
+    // must-have mitigations.
+    let transform = substitution_transform_colour(normal, ctx, cmd, arg_refs);
+    if let Some(colour) = transform {
+        t = t.with(colour);
+    }
+    t
+}
+
 fn substitution_word_taint<S: std::hash::BuildHasher>(
     word: &str,
     invocation: (&str, &[String]),
@@ -1957,44 +2015,15 @@ fn substitution_word_taint<S: std::hash::BuildHasher>(
     // strip shape-dependent mitigations (`shape_unproven`) rather than
     // optimistically assuming e.g. `PATH_PREFIXED` survives an
     // arbitrary `string range` / `lindex [split ...]` transform.
-    let mut t = TaintLattice::clean();
-    for index in 0..args.len() {
-        let arg_ctx = TaintCtx {
-            source_tokens: nested.as_ref().or(ctx.source_tokens),
-            ..ctx
-        };
-        t = t.join(positional_argument_taint(
-            index,
-            args,
-            effective.as_ref(),
-            uses,
-            taints,
-            arg_ctx,
-            depth + 1,
-        ));
-    }
-    t = t.shape_unproven();
-    // Stamp the encoder/transform colour the command adds to its result
-    // (e.g. `uri::encode` → `URL_ENCODED`, `file normalize` →
-    // `PATH_NORMALISED`), so a later pass through the same encoder is
-    // detectable as a double-encode (T106) and a consumer asking "has
-    // this value been through a normalising sanitiser" gets a yes.
-    //
-    // Stamped regardless of taint.  The colour describes what the
-    // *command* guarantees about its result, not what its input was, so
-    // gating it on `is_tainted()` would make the fact unobservable for
-    // exactly the values a hygiene check like W201 asks about — a path
-    // built from clean local variables and then normalised.  Nothing
-    // widens as a result: every consumer that acts on a colour
-    // ([`emit_double_encode_warnings`], the sink mitigation checks)
-    // requires `is_tainted()` first, and a clean lattice is `join`'s
-    // identity, so a clean colour never dilutes a tainted operand's
-    // must-have mitigations.
-    let transform = substitution_transform_colour(normal.as_ref(), ctx, cmd, &arg_refs);
-    if let Some(colour) = transform {
-        t = t.with(colour);
-    }
-    t
+    let t = substitution_arguments_taint(
+        args,
+        effective.as_ref(),
+        uses,
+        taints,
+        (nested.as_ref(), ctx),
+        depth,
+    );
+    finish_substitution_taint(t, normal.as_ref(), ctx, cmd, &arg_refs)
 }
 
 /// Determine the taint produced by a statement's definition(s).
@@ -2135,6 +2164,36 @@ fn selected_source_write_targets_definition(
     Some(writes.iter().any(selects_target))
 }
 
+fn call_arguments_taint<S: std::hash::BuildHasher>(
+    args: &[String],
+    effective: Option<&crate::registry_invocation::EffectiveCommandWords>,
+    uses: &HashMap<Symbol, u32>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ctx: TaintCtx<'_>,
+) -> TaintLattice {
+    let mut t = TaintLattice::clean();
+    for index in 0..args.len() {
+        t = t.join(positional_argument_taint(
+            index, args, effective, uses, taints, ctx, 0,
+        ));
+    }
+    t
+}
+
+fn call_source_colour(ctx: TaintCtx<'_>, command: &str, arg_refs: &[&str]) -> Option<TaintLattice> {
+    source_colour(
+        ctx.registry,
+        command,
+        arg_refs,
+        ctx.dialect,
+        ctx.instance_classes,
+        ctx.source_position,
+        ctx.source_tokens
+            .and_then(|tokens| tokens.words().first())
+            .map(|word| (word, ctx.source.config)),
+    )
+}
+
 fn call_definition_taint<S: std::hash::BuildHasher>(
     stmt: &Statement,
     defined_var: Symbol,
@@ -2222,17 +2281,7 @@ fn call_definition_taint<S: std::hash::BuildHasher>(
     if is_sanitiser(ctx.registry, command, &arg_refs) {
         return TaintLattice::clean();
     }
-    if let Some(t) = source_colour(
-        ctx.registry,
-        command,
-        &arg_refs,
-        ctx.dialect,
-        ctx.instance_classes,
-        ctx.source_position,
-        ctx.source_tokens
-            .and_then(|tokens| tokens.words().first())
-            .map(|word| (word, ctx.source.config)),
-    ) {
+    if let Some(t) = call_source_colour(ctx, command, &arg_refs) {
         return t;
     }
     if let Some(t) = interproc_call_taint(
@@ -2247,19 +2296,13 @@ fn call_definition_taint<S: std::hash::BuildHasher>(
         return t;
     }
     // Binding prefixes are literal values, never a fresh source eval.
-    let mut t = TaintLattice::clean();
-    for index in 0..args.len() {
-        t = t.join(positional_argument_taint(
-            index,
-            args,
-            resolved.as_ref().map(|resolved| &resolved.effective),
-            uses,
-            taints,
-            ctx,
-            0,
-        ));
-    }
-    t
+    call_arguments_taint(
+        args,
+        resolved.as_ref().map(|resolved| &resolved.effective),
+        uses,
+        taints,
+        ctx,
+    )
 }
 
 /// Apply rendered-property-derived colours to a taint lattice.

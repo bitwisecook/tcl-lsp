@@ -318,27 +318,8 @@ impl RemoteBodyScan<'_> {
             // The query is at this exact handle operand, before later operands
             // and before this handler. Its association never survives the call.
             if let Some(layout) = summary.remote.and_then(|role| role.calls_method().copied()) {
-                let handle_at = usize::from(layout.handle_arg);
-                if words
-                    .arguments()
-                    .iter()
-                    .take(handle_at)
-                    .all(|word| word.literal_bytes().is_some())
-                    && let Some(operand) = words.original_argument_word(handle_at)
-                    && let Some(key) = self.read_key(operand)
-                    && let Some((_, binding)) = bindings.iter().find(|(owned, _)| *owned == key)
-                    && binding.constructor_layout.family == layout.family
-                    && words.with_source_schema(self.context, |schema| {
-                        schema.facts().arity_accepts_frozen_arguments()
-                    }) == Some(Some(true))
-                {
-                    calls.push(OriginalSourceRemoteFirstOperandAssociation {
-                        invocation: words.clone(),
-                        layout,
-                        handle_operand: operand.clone(),
-                        binding: Arc::clone(binding),
-                        body_path: body_path.to_vec(),
-                    });
+                if let Some(call) = self.first_remote_operand(&words, layout, bindings, body_path) {
+                    calls.push(call);
                 }
                 remote_source_trace!(
                     "REMOTE_FIRST_OPERAND stage=remote-barrier offset={offset} calls={} bindings={}",
@@ -352,21 +333,7 @@ impl RemoteBodyScan<'_> {
             // the exact sole constructor RHS is exempted from continuity here;
             // it does not make the constructor or its result quiet/current.
             if let Some((key, pending)) = self.binding(&words) {
-                if !summary.admits_source_setter
-                    || summary.writes.opaque_variable_frame
-                    || summary.writes.literal_names.len() != 1
-                    || self
-                        .key(summary.writes.literal_names[0].as_bytes())
-                        .as_ref()
-                        != Some(&key)
-                    || command.words.iter().any(|word| {
-                        word != &pending.operand
-                            && !word
-                                .executable_parts()
-                                .all_parts()
-                                .all(|part| matches!(part.part, ExecutablePart::Text(_)))
-                    })
-                {
+                if self.setter_operands_refuse(&summary, &key, &pending, &command.words) {
                     remote_source_trace!(
                         "REMOTE_FIRST_OPERAND stage=setter-eligibility offset={offset} admits={} opaque={} writes={}",
                         summary.admits_source_setter,
@@ -420,6 +387,127 @@ impl RemoteBodyScan<'_> {
             }
         }
         Some(())
+    }
+
+    fn first_remote_operand(
+        &self,
+        words: &OriginalRegistryWords,
+        layout: RemoteCallSpec,
+        bindings: &[(String, Arc<OriginalSourceRemoteResultAssociation>)],
+        body_path: &[OriginalRegistryWords],
+    ) -> Option<OriginalSourceRemoteFirstOperandAssociation> {
+        let handle_at = usize::from(layout.handle_arg);
+        if words
+            .arguments()
+            .iter()
+            .take(handle_at)
+            .all(|word| word.literal_bytes().is_some())
+            && let Some(operand) = words.original_argument_word(handle_at)
+            && let Some(key) = self.read_key(operand)
+            && let Some((_, binding)) = bindings.iter().find(|(owned, _)| *owned == key)
+            && binding.constructor_layout.family == layout.family
+            && words.with_source_schema(self.context, |schema| {
+                schema.facts().arity_accepts_frozen_arguments()
+            }) == Some(Some(true))
+        {
+            return Some(OriginalSourceRemoteFirstOperandAssociation {
+                invocation: words.clone(),
+                layout,
+                handle_operand: operand.clone(),
+                binding: Arc::clone(binding),
+                body_path: body_path.to_vec(),
+            });
+        }
+        None
+    }
+
+    fn setter_keyword_matches(
+        setter: &OriginalRegistryWords,
+        layout: &HandleBindingSpec,
+    ) -> Option<()> {
+        if let Some(keyword) = layout.keyword
+            && setter
+                .arguments()
+                .get(usize::from(keyword.at))?
+                .literal_bytes()?
+                != keyword.word.as_bytes()
+        {
+            return None;
+        }
+        Some(())
+    }
+
+    fn constructor_operands_match(
+        &self,
+        original: &[NativeWord],
+        constructor: &OriginalRegistryWords,
+        constructor_layout: RemoteHandleSpec,
+    ) -> Option<()> {
+        if original.len().checked_sub(1)? != usize::from(constructor_layout.exact_argc)
+            || constructor.with_source_schema(self.context, |schema| {
+                schema.facts().arity_accepts_frozen_arguments()
+            }) != Some(Some(true))
+            || original.iter().any(|word| word.group().expand)
+            || constructor
+                .arguments()
+                .iter()
+                .any(|argument| argument.literal_bytes().is_none())
+        {
+            return None;
+        }
+        for ordinal in [
+            constructor_layout.scope_arg,
+            constructor_layout.extension_arg,
+        ] {
+            let value = constructor
+                .arguments()
+                .get(usize::from(ordinal))?
+                .literal_bytes()?;
+            if value.is_empty() || value.contains(&0) || std::str::from_utf8(value).is_err() {
+                return None;
+            }
+        }
+        Some(())
+    }
+
+    fn setter_operands_refuse(
+        &self,
+        summary: &SourceSummary,
+        key: &str,
+        pending: &OriginalSourceRemoteResultAssociation,
+        original: &[NativeWord],
+    ) -> bool {
+        !summary.admits_source_setter
+            || summary.writes.opaque_variable_frame
+            || summary.writes.literal_names.len() != 1
+            || self
+                .key(summary.writes.literal_names[0].as_bytes())
+                .as_deref()
+                != Some(key)
+            || original.iter().any(|word| {
+                word != &pending.operand
+                    && !word
+                        .executable_parts()
+                        .all_parts()
+                        .all(|part| matches!(part.part, ExecutablePart::Text(_)))
+            })
+    }
+
+    fn single_constructor_plan(
+        &self,
+        body: tcl_lexer::Span,
+    ) -> Option<tcl_lexer::NativeScriptWordsPlan> {
+        let plan = tcl_lexer::native_script_words_in_with_purpose(
+            self.image.clone(),
+            body,
+            self.config.nested(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return None;
+        }
+        Some(plan)
     }
 
     fn selected_setter_rhs_script(
@@ -637,15 +725,7 @@ impl RemoteBodyScan<'_> {
         let HandleClassSource::ConstructionValue(value_at) = layout.class_from else {
             return None;
         };
-        if let Some(keyword) = layout.keyword
-            && setter
-                .arguments()
-                .get(usize::from(keyword.at))?
-                .literal_bytes()?
-                != keyword.word.as_bytes()
-        {
-            return None;
-        }
+        Self::setter_keyword_matches(setter, &layout)?;
         let variable_word = setter.original_argument_word(usize::from(variable_at))?;
         let mut advice = self
             .analysis
@@ -687,16 +767,7 @@ impl RemoteBodyScan<'_> {
         let ExecutablePart::Command { body } = part.part else {
             return None;
         };
-        let plan = tcl_lexer::native_script_words_in_with_purpose(
-            self.image.clone(),
-            body,
-            self.config.nested(),
-            tcl_lexer::SourceSegmentationPurpose::NestedScript,
-        )
-        .ok()?;
-        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
-            return None;
-        }
+        let plan = self.single_constructor_plan(body)?;
         let original = &plan.commands.first()?.words;
         let constructor = remote_source_guard!(
             self.words_at(original.first()?.span().start(), original),
@@ -717,30 +788,7 @@ impl RemoteBodyScan<'_> {
             );
             return None;
         };
-        if original.len().checked_sub(1)? != usize::from(constructor_layout.exact_argc)
-            || constructor.with_source_schema(self.context, |schema| {
-                schema.facts().arity_accepts_frozen_arguments()
-            }) != Some(Some(true))
-            || original.iter().any(|word| word.group().expand)
-            || constructor
-                .arguments()
-                .iter()
-                .any(|argument| argument.literal_bytes().is_none())
-        {
-            return None;
-        }
-        for ordinal in [
-            constructor_layout.scope_arg,
-            constructor_layout.extension_arg,
-        ] {
-            let value = constructor
-                .arguments()
-                .get(usize::from(ordinal))?
-                .literal_bytes()?;
-            if value.is_empty() || value.contains(&0) || std::str::from_utf8(value).is_err() {
-                return None;
-            }
-        }
+        self.constructor_operands_match(original, &constructor, constructor_layout)?;
         Some((
             key,
             OriginalSourceRemoteResultAssociation {

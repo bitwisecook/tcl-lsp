@@ -506,6 +506,136 @@ pub(crate) fn logical_structured_invocation(
     logical_structured_invocation_with_metadata_context(registry, context.into(), tokens, bindings)
 }
 
+fn original_structured_source_selection(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    bindings: Option<&crate::command_binding::SourceCommandBindings>,
+) -> Option<ResolvedStatementInvocation> {
+    let selected =
+        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
+    let selected = selected.or_else(|| {
+        bindings.and_then(|bindings| {
+            owned_body_layout_invocation(registry, context, tokens, bindings)
+                .map(|owned| owned.invocation)
+        })
+    });
+    let selected =
+        selected.or_else(|| original_declared_structured_invocation(registry, context, tokens));
+    let selected = selected
+        .or_else(|| original_inline_control_structured_invocation(registry, context, tokens))?;
+    Some(selected)
+}
+
+fn authored_simulation_structure_is_supported(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    selected: &ResolvedStatementInvocation,
+    source_roles: Option<&StructuredSourceRoles>,
+) -> Option<()> {
+    let advice = tokens
+        .source_binding
+        .as_ref()?
+        .declaration_operand_layout_advice(tokens)
+        .or_else(|| {
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_compilation_lookup_advice(tokens)
+        })?;
+    if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
+        return None;
+    }
+    let config = context.source_analysis_input()?.lexer_config();
+    if tokens.words().iter().any(|word| match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
+        WordExpr::Variable { .. } => {
+            word.sole_variable_substitution()
+                .is_none_or(|(spelling, _)| {
+                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        .is_none()
+                })
+        }
+        _ => true,
+    }) {
+        return None;
+    }
+    let roles = source_roles.map_or_else(
+        || selected.written_argument_roles(),
+        StructuredSourceRoles::argument_roles,
+    );
+    selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
+        use tcl_registry::hooks::LoweringHookId;
+        if !matches!(
+            schema.facts().lowering_hook?,
+            LoweringHookId::If
+                | LoweringHookId::Switch
+                | LoweringHookId::While
+                | LoweringHookId::For
+                | LoweringHookId::Foreach
+                | LoweringHookId::Lmap
+                | LoweringHookId::Catch
+                | LoweringHookId::Try
+        ) || schema.semantics.frame_effect.is_some()
+            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+        {
+            return None;
+        }
+        for &(argument, role) in &roles {
+            if role == tcl_registry::ArgRole::Body
+                && schema.authored_source_script_timing_at(argument)?
+                    != tcl_registry::ScriptTiming::SameInvocation
+            {
+                return None;
+            }
+        }
+        Some(())
+    })?;
+    Some(())
+}
+
+fn original_structured_operands_are_supported(
+    registry: &CommandRegistry,
+    selected: &ResolvedStatementInvocation,
+    source_roles: Option<&StructuredSourceRoles>,
+    tokens: &CommandTokens,
+) -> Option<()> {
+    // A possible case body is readonly advice. Unreadable option selection
+    // retains generic IR instead of borrowing a definitive Switch topology.
+    if source_roles.is_some_and(StructuredSourceRoles::selection_unknown) {
+        return None;
+    }
+    // Source-shape lowering requires each operand to retain its original slot.
+    // Alias prefixes, selector rewriting and expanded elements use generic IR
+    // until a lowerer explicitly accepts their composed operand projection.
+    if (!selected.facts.arg_roles_complete && source_roles.is_none())
+        || selected.facts.arity_accepts_frozen_arguments() != Some(true)
+        || selected.effective.words.len() != tokens.words().len()
+        || !selected
+            .effective
+            .origins
+            .iter()
+            .enumerate()
+            .skip(1)
+            .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index))
+    {
+        return None;
+    }
+    if selected.facts.successful_handler
+        == Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments)
+        && tokens
+            .source_binding
+            .as_ref()?
+            .conditional_expression_evaluation(registry, tokens)
+            .is_none_or(|expression| !expression.semantic_lookup_closed())
+    {
+        return None;
+    }
+    Some(())
+}
+
 /// Select source structure using the caller's complete immutable context.
 /// Missing or foreign context refuses; this supplies no executed body/frame.
 pub(crate) fn logical_structured_invocation_with_metadata_context(
@@ -539,18 +669,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     {
         return None;
     }
-    let selected =
-        resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
-    let selected = selected.or_else(|| {
-        bindings.and_then(|bindings| {
-            owned_body_layout_invocation(registry, context, tokens, bindings)
-                .map(|owned| owned.invocation)
-        })
-    });
-    let selected =
-        selected.or_else(|| original_declared_structured_invocation(registry, context, tokens));
-    let selected = selected
-        .or_else(|| original_inline_control_structured_invocation(registry, context, tokens))?;
+    let selected = original_structured_source_selection(registry, context, tokens, bindings)?;
     let source_roles = if logical_source {
         let binding = tokens.source_binding.as_ref()?;
         let realm = binding.original_source_realm_for_input(
@@ -605,100 +724,15 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     };
     if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
     {
-        let advice = tokens
-            .source_binding
-            .as_ref()?
-            .declaration_operand_layout_advice(tokens)
-            .or_else(|| {
-                tokens
-                    .source_binding
-                    .as_ref()?
-                    .original_compilation_lookup_advice(tokens)
-            })?;
-        if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
-            return None;
-        }
-        let config = context.source_analysis_input()?.lexer_config();
-        if tokens.words().iter().any(|word| match word {
-            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
-            WordExpr::Variable { .. } => {
-                word.sole_variable_substitution()
-                    .is_none_or(|(spelling, _)| {
-                        tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
-                            .is_none()
-                    })
-            }
-            _ => true,
-        }) {
-            return None;
-        }
-        let roles = source_roles.as_ref().map_or_else(
-            || selected.written_argument_roles(),
-            StructuredSourceRoles::argument_roles,
-        );
-        selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
-            use tcl_registry::hooks::LoweringHookId;
-            if !matches!(
-                schema.facts().lowering_hook?,
-                LoweringHookId::If
-                    | LoweringHookId::Switch
-                    | LoweringHookId::While
-                    | LoweringHookId::For
-                    | LoweringHookId::Foreach
-                    | LoweringHookId::Lmap
-                    | LoweringHookId::Catch
-                    | LoweringHookId::Try
-            ) || schema.semantics.frame_effect.is_some()
-                || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
-            {
-                return None;
-            }
-            for &(argument, role) in &roles {
-                if role == tcl_registry::ArgRole::Body
-                    && schema.authored_source_script_timing_at(argument)?
-                        != tcl_registry::ScriptTiming::SameInvocation
-                {
-                    return None;
-                }
-            }
-            Some(())
-        })?;
+        authored_simulation_structure_is_supported(
+            registry,
+            context,
+            tokens,
+            &selected,
+            source_roles.as_ref(),
+        )?;
     }
-    // A possible case body is readonly advice. Unreadable option selection
-    // retains generic IR instead of borrowing a definitive Switch topology.
-    if source_roles
-        .as_ref()
-        .is_some_and(StructuredSourceRoles::selection_unknown)
-    {
-        return None;
-    }
-    // Source-shape lowering requires each operand to retain its original slot.
-    // Alias prefixes, selector rewriting and expanded elements use generic IR
-    // until a lowerer explicitly accepts their composed operand projection.
-    if (!selected.facts.arg_roles_complete && source_roles.is_none())
-        || selected.facts.arity_accepts_frozen_arguments() != Some(true)
-        || selected.effective.words.len() != tokens.words().len()
-        || !selected
-            .effective
-            .origins
-            .iter()
-            .enumerate()
-            .skip(1)
-            .all(|(index, origin)| *origin == InvocationWordOrigin::Written(index))
-    {
-        return None;
-    }
-    if selected.facts.successful_handler
-        == Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::ExpressionArguments)
-        && tokens
-            .source_binding
-            .as_ref()?
-            .conditional_expression_evaluation(registry, tokens)
-            .is_none_or(|expression| !expression.semantic_lookup_closed())
-    {
-        return None;
-    }
+    original_structured_operands_are_supported(registry, &selected, source_roles.as_ref(), tokens)?;
     Some(LogicalStructuredInvocation {
         invocation: selected,
         source_roles,
@@ -7450,6 +7484,47 @@ fn retain_conditional_body_invocation(
     }
 }
 
+struct LogicalParameterSourceFacts {
+    facts: InvocationFacts,
+    source_roles: Option<(Vec<(u8, tcl_registry::ArgRole)>, bool)>,
+    named_only_roles: bool,
+}
+
+fn logical_parameter_source_facts(
+    words: &source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+    conditional_source: bool,
+    named_only: bool,
+) -> Option<LogicalParameterSourceFacts> {
+    let (facts, source_roles) = words.with_source_schema(context, |schema| {
+        (
+            schema.facts().clone(),
+            conditional_source.then(|| schema.authored_logical_source_argument_roles()),
+        )
+    })?;
+    let named_only_roles = named_only && facts.arg_roles_complete;
+    if facts.arity_accepts_frozen_arguments() != Some(true)
+        || (!named_only_roles && !source_roles.as_ref().is_some_and(|(_, complete)| *complete))
+    {
+        return None;
+    }
+    Some(LogicalParameterSourceFacts {
+        facts,
+        source_roles,
+        named_only_roles,
+    })
+}
+
+fn logical_parameter_origins_are_unwritten(
+    words: &source_structure::OriginalRegistryWords,
+) -> bool {
+    words
+        .origins()
+        .iter()
+        .enumerate()
+        .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
+}
+
 /// Offset-free syntax assistance joins the retained lookup worlds. It has no
 /// original invocation point and therefore never returns definite grammar,
 /// entered scope or state-bearing alias/value-copy evidence.
@@ -7500,30 +7575,18 @@ pub(crate) fn logical_parameter_body_assistance(
     {
         return None;
     }
-    let (facts, source_roles) = words.with_source_schema(context, |schema| {
-        (
-            schema.facts().clone(),
-            conditional_source.then(|| schema.authored_logical_source_argument_roles()),
-        )
-    })?;
-    let named_only_roles = named_only && facts.arg_roles_complete;
-    if facts.arity_accepts_frozen_arguments() != Some(true)
-        || (!named_only_roles && !source_roles.as_ref().is_some_and(|(_, complete)| *complete))
-    {
-        return None;
-    }
+    let LogicalParameterSourceFacts {
+        facts,
+        source_roles,
+        named_only_roles,
+    } = logical_parameter_source_facts(&words, context, conditional_source, named_only)?;
     let mut tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::from_image(image), config, &segment);
     realm.stamp_original_tokens(&mut tokens);
     // This named-only source descriptor has no alias or expanded prefix. Its
     // canonical Registry label selects facts; original Written operands retain
     // their own geometry and unknown values.
-    if words
-        .origins()
-        .iter()
-        .enumerate()
-        .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
-    {
+    if logical_parameter_origins_are_unwritten(&words) {
         return None;
     }
     let effective = compose_original_effective_words(&tokens, words.command(), &[])?;

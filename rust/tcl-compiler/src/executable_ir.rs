@@ -3834,29 +3834,8 @@ impl FunctionBuilder {
         control: ControlContext,
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
-        let subject_source = original_tokens.and_then(|tokens| {
-            let (command, _) = tokens
-                .source_binding
-                .as_ref()?
-                .original_recorded_command()?;
-            (command.span == statement.span()).then_some(())?;
-            let selected =
-                crate::registry_invocation::original_source_name_roles(registry, tokens)?;
-            (selected.facts().operation
-                == SemanticOperationId::StructuredLowering(LoweringHookId::Switch))
-            .then_some(())?;
-            tokens.words().iter().enumerate().find_map(|(index, word)| {
-                let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
-                if word.source().span == parts.subject_span
-                    && word.legacy_text() == parts.subject
-                    && braced == parts.subject_braced
-                {
-                    Some((index.checked_sub(1)?, braced))
-                } else {
-                    None
-                }
-            })
-        });
+        let subject_source = original_tokens
+            .and_then(|tokens| original_switch_subject_source(registry, statement, tokens, parts));
         let subject_braced = parts.subject_braced;
         let subject_value = self.allocator.value();
         let subject_completion = self.allocator.completion();
@@ -3944,6 +3923,33 @@ impl FunctionBuilder {
         }
         Ok(self.complete_region(statement, node, join, control, tail))
     }
+}
+
+fn original_switch_subject_source(
+    registry: &CommandRegistry,
+    statement: &Statement,
+    tokens: &crate::ir::CommandTokens,
+    parts: &SwitchParts<'_>,
+) -> Option<(usize, bool)> {
+    let (command, _) = tokens
+        .source_binding
+        .as_ref()?
+        .original_recorded_command()?;
+    (command.span == statement.span()).then_some(())?;
+    let selected = crate::registry_invocation::original_source_name_roles(registry, tokens)?;
+    (selected.facts().operation == SemanticOperationId::StructuredLowering(LoweringHookId::Switch))
+        .then_some(())?;
+    tokens.words().iter().enumerate().find_map(|(index, word)| {
+        let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+        if word.source().span == parts.subject_span
+            && word.legacy_text() == parts.subject
+            && braced == parts.subject_braced
+        {
+            Some((index.checked_sub(1)?, braced))
+        } else {
+            None
+        }
+    })
 }
 
 /// The `for`/`while` operands one loop projection needs.

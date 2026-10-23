@@ -77,6 +77,75 @@ pub struct OriginalDeclarationAssistance {
     pub lambda_arguments: Vec<usize>,
 }
 
+type LogicalAliasNameObligation = (
+    tcl_lexer::Span,
+    Option<tcl_registry::VariableAliasDestination>,
+);
+
+fn original_logical_alias_name_obligations(
+    words: &super::source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+) -> Option<Vec<LogicalAliasNameObligation>> {
+    Some(match words.source() {
+        super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
+            if advice.logical_source_input().is_some() =>
+        {
+            words.with_source_schema(context, |schema| {
+                let Some(transitions) = schema.authored_logical_source_state_transitions() else {
+                    if schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
+                    {
+                        return advice
+                            .original_words()
+                            .first()
+                            .map(|head| vec![(head.span(), None)])
+                            .unwrap_or_default();
+                    }
+                    return Vec::new();
+                };
+                let mut obligations = Vec::new();
+                for fact in transitions.facts() {
+                    let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition
+                    else {
+                        continue;
+                    };
+                    let variable = match &alias.target {
+                        tcl_registry::VariableAliasTarget::Global { variable }
+                        | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
+                        | tcl_registry::VariableAliasTarget::CallerSelectedFrame {
+                            variable, ..
+                        }
+                        | tcl_registry::VariableAliasTarget::Namespace { variable, .. } => variable,
+                    };
+                    let local = written_alias_operand(words, &alias.local);
+                    let target = written_alias_operand(words, variable);
+                    if local.is_some()
+                        && target.is_some()
+                        && !matches!(alias.local, tcl_registry::TransitionSubject::Unknown { .. })
+                        && !matches!(variable, tcl_registry::TransitionSubject::Unknown { .. })
+                    {
+                        continue;
+                    }
+                    let span = target
+                        .or(local)
+                        .or_else(|| advice.original_words().first())
+                        .map(tcl_lexer::NativeWord::span);
+                    if let Some(span) = span {
+                        let obligation = (span, Some(alias.destination));
+                        if !obligations.contains(&obligation) {
+                            obligations.push(obligation);
+                        }
+                    }
+                }
+                obligations
+            })?
+        }
+        _ => Vec::new(),
+    })
+}
+
 /// Original source operands of alias grammar, retaining conditional schema
 /// applicability independently of executed alias installation or target cells.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,72 +184,7 @@ impl OriginalSourceVariableAliasOperands {
         // The independent Logical frame grammar may retain an alias whose
         // ordinary transition only widens the variable domains. Preserve its
         // unresolved original names without donating a link or alias operand.
-        let logical_name_obligations = match words.source() {
-            super::source_structure::OriginalRegistrySource::SourceTransitions(advice)
-                if advice.logical_source_input().is_some() =>
-            {
-                words.with_source_schema(context, |schema| {
-                    let Some(transitions) = schema.authored_logical_source_state_transitions()
-                    else {
-                        if schema
-                            .semantics
-                            .traits
-                            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
-                        {
-                            return advice
-                                .original_words()
-                                .first()
-                                .map(|head| vec![(head.span(), None)])
-                                .unwrap_or_default();
-                        }
-                        return Vec::new();
-                    };
-                    let mut obligations = Vec::new();
-                    for fact in transitions.facts() {
-                        let tcl_registry::StateTransition::VariableCellAlias(alias) =
-                            &fact.transition
-                        else {
-                            continue;
-                        };
-                        let variable = match &alias.target {
-                            tcl_registry::VariableAliasTarget::Global { variable }
-                            | tcl_registry::VariableAliasTarget::CurrentNamespace { variable }
-                            | tcl_registry::VariableAliasTarget::CallerSelectedFrame {
-                                variable,
-                                ..
-                            }
-                            | tcl_registry::VariableAliasTarget::Namespace { variable, .. } => {
-                                variable
-                            }
-                        };
-                        let local = written_alias_operand(&words, &alias.local);
-                        let target = written_alias_operand(&words, variable);
-                        if local.is_some()
-                            && target.is_some()
-                            && !matches!(
-                                alias.local,
-                                tcl_registry::TransitionSubject::Unknown { .. }
-                            )
-                            && !matches!(variable, tcl_registry::TransitionSubject::Unknown { .. })
-                        {
-                            continue;
-                        }
-                        let span = target
-                            .or(local)
-                            .or_else(|| advice.original_words().first())
-                            .map(tcl_lexer::NativeWord::span);
-                        if let Some(span) = span {
-                            let obligation = (span, Some(alias.destination));
-                            if !obligations.contains(&obligation) {
-                                obligations.push(obligation);
-                            }
-                        }
-                    }
-                    obligations
-                })?
-            }
-            _ => Vec::new(),
-        };
+        let logical_name_obligations = original_logical_alias_name_obligations(&words, context)?;
         // Source frame applicability is independent of ordinary alias facts.
         // Even an ordinary alias may be inactive in this actual source frame.
         let logical_declarations = match words.source() {

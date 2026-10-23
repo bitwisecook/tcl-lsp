@@ -635,7 +635,49 @@ fn return_undefined_variable_message(name: &str, defined_vars: &HashSet<String>)
     message
 }
 
+fn dead_store_message(
+    var: &str,
+    conditional_unread: bool,
+    overwrite: Option<OverwriteDiagnostic>,
+    defined_vars: &HashSet<String>,
+) -> String {
+    use std::fmt::Write as _;
+    let mut message = if conditional_unread {
+        format!("Assignment to '{var}' may be unused in the declared local frame")
+    } else if overwrite == Some(OverwriteDiagnostic::Conditional) {
+        format!("Assignment to '{var}' may be overwritten before it is read")
+    } else {
+        format!("Assignment to '{var}' is never read")
+    };
+    if let Some(similar) = find_case_mismatch(var, defined_vars) {
+        let _ = write!(message, "; did you mean '{similar}'?");
+    }
+    message
+}
+
 impl Analyser {
+    fn emit_dead_store_diagnostic(
+        &mut self,
+        var: &str,
+        cmd_span: tcl_lexer::Span,
+        conditional_unread: bool,
+        overwrite: Option<OverwriteDiagnostic>,
+        defined_vars: &HashSet<String>,
+    ) {
+        // Anchor at the variable name (the assignment target), not the
+        // command-start column.
+        let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
+        let message = dead_store_message(var, conditional_unread, overwrite, defined_vars);
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W220,
+                span,
+                message,
+                Severity::Hint,
+            ));
+    }
+
     /// W128 describes original table absence at a slot this Module mutates.
     /// Dynamic or ambiguous source ownership suppresses the diagnostic.
     pub(super) fn emit_w128_renamed_command(
@@ -778,7 +820,6 @@ is renamed or deleted in this file."
         module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         use crate::def_use::DefKind;
-        use std::fmt::Write as _;
 
         // A dynamic read (`[set $name]`, `subst $tmpl`) can observe *any*
         // store, so "this assignment is never read" is unprovable anywhere in
@@ -885,27 +926,13 @@ is renamed or deleted in this file."
             ) else {
                 continue;
             };
-            // Anchor at the variable name (the assignment target), not the
-            // command-start column.
-            let span = self.narrow_to_assigned_name(cmd_span).unwrap_or(cmd_span);
-            let mut message = if conditional_unread {
-                format!("Assignment to '{var}' may be unused in the declared local frame")
-            } else if overwrite == Some(OverwriteDiagnostic::Conditional) {
-                format!("Assignment to '{var}' may be overwritten before it is read")
-            } else {
-                format!("Assignment to '{var}' is never read")
-            };
-            if let Some(similar) = find_case_mismatch(var, defined_vars) {
-                let _ = write!(message, "; did you mean '{similar}'?");
-            }
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::W220,
-                    span,
-                    message,
-                    Severity::Hint,
-                ));
+            self.emit_dead_store_diagnostic(
+                var,
+                cmd_span,
+                conditional_unread,
+                overwrite,
+                defined_vars,
+            );
         }
     }
 

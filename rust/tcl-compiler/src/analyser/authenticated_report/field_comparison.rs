@@ -68,15 +68,7 @@ fn subjects(
     }
 }
 
-pub(super) fn compare(
-    a: &AnalysisResult,
-    b: &AnalysisResult,
-    bodies: &ReportBodyCorrespondence<'_>,
-    image: &SourceImage,
-    registry: &RegistrySemanticKey,
-    output: &super::ReportOutputCorrespondence<'_>,
-) -> AnalysisReportComparison {
-    // Exhaustive inventory, including every non-diagnostic report field.
+fn check_exhaustive_report_fields(a: &AnalysisResult) {
     let AnalysisResult {
         optimiser_source_origin: _,
         analysis_context_unavailable: _,
@@ -169,13 +161,13 @@ pub(super) fn compare(
         body_lexer_config: _,
         library_versions: _,
     } = a;
-    // Strict typed equality can prove these facets unchanged. If it cannot,
-    // there is no implicit replacement of a nested issuer or authority.
+}
+
+fn report_owners_are_exact(a: &AnalysisResult, b: &AnalysisResult) -> bool {
     macro_rules! require_exact_owners {
         ($($field:ident),* $(,)?) => { $(
             if a.$field != b.$field {
-                return AnalysisReportComparison::Unavailable(
-                    AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable);
+                return false;
             }
         )* };
     }
@@ -264,6 +256,26 @@ pub(super) fn compare(
         scoped_sibling_defs,
         hierarchy_cache,
     );
+    true
+}
+
+pub(super) fn compare(
+    a: &AnalysisResult,
+    b: &AnalysisResult,
+    bodies: &ReportBodyCorrespondence<'_>,
+    image: &SourceImage,
+    registry: &RegistrySemanticKey,
+    output: &super::ReportOutputCorrespondence<'_>,
+) -> AnalysisReportComparison {
+    // Exhaustive inventory, including every non-diagnostic report field.
+    check_exhaustive_report_fields(a);
+    // Strict typed equality can prove these facets unchanged. If it cannot,
+    // there is no implicit replacement of a nested issuer or authority.
+    if !report_owners_are_exact(a, b) {
+        return AnalysisReportComparison::Unavailable(
+            AnalysisReportUnavailable::CompleteFieldCorrespondenceUnavailable,
+        );
+    }
     // Authenticate every typed body/candidate reference before any Difference.
     let Some(input) = a.resolved_input.as_ref() else {
         return AnalysisReportComparison::Unavailable(

@@ -1114,6 +1114,15 @@ fn tainted_global_writes_from_cfg(
     close_tainted_global_writes(ir_module, registry, writes)
 }
 
+fn retain_global_call_defs(defs: &mut HashSet<String>, call_defs: &[String]) {
+    defs.extend(
+        call_defs
+            .iter()
+            .filter(|name| name.starts_with("::"))
+            .cloned(),
+    );
+}
+
 fn direct_instance_option_writes(
     ir_module: &crate::ir::Module,
     cfg_module: &mut crate::cfg::CfgModule,
@@ -1150,12 +1159,7 @@ fn direct_instance_option_writes(
                     };
                     if let Some(metadata) = metadata {
                         let Some(tokens) = tokens.as_ref() else {
-                            defs.extend(
-                                call_defs
-                                    .iter()
-                                    .filter(|name| name.starts_with("::"))
-                                    .cloned(),
-                            );
+                            retain_global_call_defs(&mut defs, call_defs);
                             continue;
                         };
                         // Prefer the genuine point-local registered receiver
@@ -1169,12 +1173,7 @@ fn direct_instance_option_writes(
                                     )
                                 });
                         let Some(selected) = selected else {
-                            defs.extend(
-                                call_defs
-                                    .iter()
-                                    .filter(|name| name.starts_with("::"))
-                                    .cloned(),
-                            );
+                            retain_global_call_defs(&mut defs, call_defs);
                             continue;
                         };
                         let mut joined_every_target = true;
@@ -1198,22 +1197,12 @@ fn direct_instance_option_writes(
                             defs.insert(name);
                         }
                         if !joined_every_target {
-                            defs.extend(
-                                call_defs
-                                    .iter()
-                                    .filter(|name| name.starts_with("::"))
-                                    .cloned(),
-                            );
+                            retain_global_call_defs(&mut defs, call_defs);
                         }
                         continue;
                     }
                     if !standalone {
-                        defs.extend(
-                            call_defs
-                                .iter()
-                                .filter(|name| name.starts_with("::"))
-                                .cloned(),
-                        );
+                        retain_global_call_defs(&mut defs, call_defs);
                         continue;
                     }
                     let lookup = canonical_command.as_deref().unwrap_or(command);

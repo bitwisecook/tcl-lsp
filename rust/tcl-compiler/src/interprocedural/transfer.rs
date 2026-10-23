@@ -315,6 +315,39 @@ pub(crate) type RerunSeeds<'s> = (
     &'s [(Option<ExactValue>, Existence)],
 );
 
+struct RerunEntrySeeds {
+    seed: HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>,
+    entries: HashMap<String, Existence>,
+}
+
+fn rerun_entry_seeds(
+    declared_params: &[String],
+    links: &[(usize, String)],
+    (params, places): RerunSeeds<'_>,
+) -> RerunEntrySeeds {
+    let mut seed: HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue> =
+        HashMap::new();
+    for (name, value) in declared_params.iter().zip(params) {
+        if let Some(value) = value {
+            seed.insert(
+                (name.clone(), 0),
+                crate::value_transfer::exact_to_lattice(value),
+            );
+        }
+    }
+    let mut entries: HashMap<String, Existence> = HashMap::new();
+    for ((_, local), (value, existence)) in links.iter().zip(places) {
+        if let Some(value) = value {
+            seed.insert(
+                (local.clone(), 0),
+                crate::value_transfer::exact_to_lattice(value),
+            );
+        }
+        entries.insert(local.clone(), *existence);
+    }
+    RerunEntrySeeds { seed, entries }
+}
+
 /// How deep re-runs nest: a call a re-run evaluates re-runs its callee in
 /// turn.
 const MAX_RERUN_DEPTH: usize = 32;
@@ -850,26 +883,8 @@ impl<'a> ModuleProcedures<'a> {
         let declared = self.source.as_ref()?.procedure(callee)?;
         let links = self.links(callee)?;
         let (cfg, ssa) = self.flow_of(callee)?;
-        let mut seed: HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue> =
-            HashMap::new();
-        for (name, value) in declared.params.iter().zip(params) {
-            if let Some(value) = value {
-                seed.insert(
-                    (name.clone(), 0),
-                    crate::value_transfer::exact_to_lattice(value),
-                );
-            }
-        }
-        let mut entries: HashMap<String, Existence> = HashMap::new();
-        for ((_, local), (value, existence)) in links.iter().zip(places) {
-            if let Some(value) = value {
-                seed.insert(
-                    (local.clone(), 0),
-                    crate::value_transfer::exact_to_lattice(value),
-                );
-            }
-            entries.insert(local.clone(), *existence);
-        }
+        let RerunEntrySeeds { seed, entries } =
+            rerun_entry_seeds(&declared.params, &links, (params, places));
         let owned: HashSet<String> = entries.keys().cloned().collect();
         let caller_places = CallerPlaces { entries };
         let trace = self.trace;
