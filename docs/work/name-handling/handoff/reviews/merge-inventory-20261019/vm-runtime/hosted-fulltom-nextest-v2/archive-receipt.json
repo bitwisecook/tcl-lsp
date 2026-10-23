@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T17:19:35.328606+00:00",
+  "status": "STATIC_CLEAR_WORK_ONLY_UNRUN_NO_DISPATCH",
+  "files": {
+    "v1-v2.patch": "9cea6eaa7fdd65cf7f47788edbec620060574a3eec1d11d3f70d8deba747371b",
+    "proposal.patch": "f660c5d9a948d074991fecc2be6a6bb37e2a65d529d9d78c6c201f763f081921",
+    "ccg-static-peer.json": "08dd3cb10e7f624d757ad4395a92c3d6f6ff32cfe288fcd1e57f63b0b52e9dc1",
+    "manifest.json": "a795e2ff3269e385bc1af680e4f70514b150d57ff5ddc83d5d1df3e47606dd47",
+    "owner-validation.json": "afcce97ef0224b80f48457c92304c1ae38eb15039c131c07b6018f584856d706",
+    "frozen-workflow.tar.gz": "7722e829a24f6dddaee81be75d2a3f7f29ae48c0ee2663bb70503cb95fadbea4"
+  },
+  "root_authority": "Root only integrates/pushes WORK and dispatches exact source commit; do not carry release.",
+  "scope": "Original standalone lib/integration assertions engine/locked, actualfreshnextestselected roster, doctests excluded explicitly; process isolation diagnostic not cargo-test gate acceptance."
+}

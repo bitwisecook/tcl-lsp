@@ -1,0 +1,35 @@
+--- v1/perf.yml
++++ v2/perf.yml
+@@ -526,6 +526,7 @@
+           mkdir "$OUT"
+           [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+           test "$(git rev-parse HEAD)" = "${EXPECTED_WORK_SHA,,}"
++          test "${EXPECTED_WORK_SHA,,}" = "$GITHUB_SHA"
+           test -z "$(git status --porcelain)"
+           git rev-parse HEAD > "$OUT/source-commit.txt"
+           git status --porcelain > "$OUT/git-before.txt"
+@@ -573,6 +574,13 @@
+           result=$?
+           set -e
+           printf '%s\n' "$result" > "$OUT/capture-exit.txt"
++          incomplete=0
++          for raw in "$OUT/nextest.raw.jsonl" "$OUT/nextest.stderr"; do
++            if [[ ! -f "$raw" ]] || [[ "$(stat -c %s "$raw")" -ge 10485760 ]]; then
++              incomplete=1
++            fi
++          done
++          printf '%s\n' "$incomplete" > "$OUT/raw-capture-incomplete.txt"
+           # Each raw tee file is capped at10MiB; hitting a cap is an incomplete
+           # diagnostic, never an ordinary passing outcome. Original assertions
+           # and every selected nonignored test remain unchanged.
+@@ -581,6 +589,10 @@
+           sha256sum -c "$OUT/tracked-source-before.sha256" > "$OUT/source-after.txt"
+           git status --porcelain > "$OUT/git-after.txt"
+           test ! -s "$OUT/git-after.txt"
++          if [[ "$incomplete" == 1 ]]; then
++            echo "::error::raw capture missing or reached its cap; diagnostic incomplete"
++            exit 125
++          fi
+           exit "$result"
+       - name: Upload full diagnostic evidence
+         if: always()

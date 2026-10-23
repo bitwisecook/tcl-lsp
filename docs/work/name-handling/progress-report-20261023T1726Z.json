@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T17:26:39.344241+00:00",
+  "scheduled_report_utc": "2026-10-23T17:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T17:55:37+00:00",
+  "change_since_previous_report": [
+    "Canonical7f3 normalpush confirmed. It includes all six observed compiler error repairs, SSA6 and independently reviewed26 further compilerlengthsites. Activeproductmirror8332e7f3/tree51b7cf exactlymatches7f3.",
+    "Original13 successorv8 launched17:11:06 with reviewed closedfailedparent cacheonly,100654source map and17500provider seal. First compilerlib build stillrunning without observed compiler errors/warnings; no selectedbuildsuccess or runtime outcome yet. Root7032 owns onlybuildslot.",
+    "Cleanrelease next26v2carriedb637 afterindependentpeer caughtv1omittedlogicalparameter helper. Hostedrooted-headrepair+SSA6+sixtypingrepairs and two staleWASMdesignrefs alreadycarried. Candidate remains red and has noPR.",
+    "FullTom release88runtime endedSIGSEGV11 at17:06:28 after1960closedrows/1959unique/114uniqueFAIL; fullinventoryunknown. Priorfatalfixture,clock,numeric_tower nowPASS;24additionalfailures newlyreached, notassumedregressions. StrictNoTom17typed+1refusalPASS.",
+    "Work-only isolatedFullTomnextest diagnosticworkflow v2 independentlyclear: preservesoriginalengine/locked cases, separateprocesscrashidentity, fullpanicpayloads and boundedlogs withcompleteactualroster; docs excludedexplicitly, notsemanticgatewaiver. Publication/dispatchpendingroot.",
+    "Finalquality audit proved3newcratewide LSPtoo_many_lines suppressions absentbaseline; removedinpublisher1e8, samefunctionalreleasecarrypending. Static266longfunctioncandidates isnotactualClippyfindings. Otherdiff-addedattrs requireowner/baselinecorrespondenceadjudication beforeclaimnewcount.",
+    "Freshreleasechaffcensus scanned10974trackedfiles/no missing on eaa102. Current1224regexhits retainedas semanticcontrols/terminology;106changedfilehits contextreviewed,1118byte-identicalinheritpriorclassification. Priorstaleresidueclaimsretractedafterrootlivefilecheck; no blanketauditprose/runtimeclaim.",
+    "Externalperf17:00:04 reports serviceinterruption/currentcorpusunverified; preserveexistingSpecTcl1P2F andrecoveryprocesses. BIGIP13:17 completedstampstale>60/newheavyblockersalreadyrouted; no duplicateexternalroles."
+  ],
+  "committed": [
+    "8332e7f3b438c6a57210dadc2a97d0e537a46db4"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish work-only runtime diagnostic and3LSPallowremovals afterfreshfetch/rebase, dispatch exactworkSHA isolatedruntime andsubsequent scopedstrictLSPClippy.",
+    "Close currentoriginal13 build/tests/finalseals, then originalN17/SpecTcl4 andfreshselectedserver startup/Context diagnostics tofindconcrete semanticfixes.",
+    "Finishremainingcompilerlengths andunsuppressedLSPwarnings, generalnewallowadjudication, completefullbaselineP2F inventory, acceptedTclperformance andfinalreleasecleanup/gatesbeforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T17:00:04+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No admissions/validated-row changes. Shared13currentlybuildpending, no fixedcompileclaim. FullTomSIGSEGV/114partialFAIL, shipping/editorfailures,heavy16P2F,perf1P2F blockrelease. Fullbaselineunknown. Newcrateallowremoval exposesqualitywork notgreenmeasurement.",
+  "disk_free_bytes": 2778718208,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T17:18:00.750026+00:00",
+  "patch_sha256": "f660c5d9a948d074991fecc2be6a6bb37e2a65d529d9d78c6c201f763f081921",
+  "zero_fuzz_no_offset_exact_final": true,
+  "whole_yaml_and_all_bash_syntax": true,
+  "incomplete_always_after_finalseals": true,
+  "no_cargo_or_dispatch": true
+}

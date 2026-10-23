@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T17:17:31.581303+00:00",
+  "head": "7f3d0bfe9b88422b88f394901ea53c17a26761d4",
+  "status": "TEMP_WORK_ONLY_STATIC_PREPARED_NO_DISPATCH",
+  "files": [
+    {
+      "path": ".github/workflows/perf.yml",
+      "before_sha256": "3f2dee19b791616d276c7109278e1e405327ca3ad9d2bb1119fa76ae4b0736d3",
+      "after_sha256": "9f47db3b0bec464fb2e6a752e3efb46b6d179b67a3620b3b0f3881bf06f8447a"
+    }
+  ],
+  "patch_sha256": "f660c5d9a948d074991fecc2be6a6bb37e2a65d529d9d78c6c201f763f081921",
+  "notes": [
+    "Existing registered perf workflow new mode, ordinary/paired/NoTom unchanged except newmode excludes graph+benchmark standard jobs.",
+    "Fresh fullTom same sourcefetch/engine/locked; original actual nextest-selected standalone lib+integration roster; docs excluded recorded.",
+    "Original assertions unchanged, percase180s via explicit profile,60minjobceiling, fresh target,2GiBstartup floor, fullraw panic payload artifact+existingconsole20MB cap. RawJSON andstderr each10MiBhard cap; caphit incomplete diagnostic.",
+    "No GO/build/source/dispatch; WORK only never carryrelease."
+  ],
+  "predecessor": "v1 held dispatch source equality and stderr tee cap status guards",
+  "delta": "Require inputfullSHA==actualGITHUB_SHA; missing or >=10MiB rawJSON/stderr sets durable incomplete125 only after all finalsource/provider/gitcleanseals. Raw original nextest/capture exit remains separatelyrecorded."
+}

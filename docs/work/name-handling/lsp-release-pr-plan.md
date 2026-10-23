@@ -44,32 +44,39 @@ All of these conditions are necessary:
   warnings, packaging works, and running generation/gates leaves no unexplained
   tracked changes. Squash-tree verification uses the same product tree.
 
-## Starting point and immediate sequence
+## Current position and immediate sequence
 
-Integrated product `897b4f9b` passes the selected eight-package all-target check
-with zero errors/warnings. Focused compiler58 is 40 pass/18 fail; LSP23 17/6;
-Jim7 1/6; codegen3 0/3; livehook2 1/1. These are scoped failed runs, not release
-acceptance. Native15 is the last group on the frozen product; its allocator and
-launcher are already running under root session78490. Never duplicate them.
+The six-hour target passed at14:56UTC with required gates still red. Work and
+the reduced release branch remain separate; no PR is open. Current detailed
+outcomes and owner routing live in `current-state.md` and `outstanding/`.
 
-The next reviewed batch is core19/v5, manifest `9e8c0477`, patch `402fbd34`:
-19 components, 31 changed paths and proposed cumulative66 versus its development
-baseline. It includes three functional repairs, four justified fixture repairs
-and twelve diagnostics. Static peer review passed; integration, compilation and
-runtime checks have not run. The alias fixture change remains excluded. These
-counts describe this development batch, not the complete PR diff from `rust`.
+The latest shipping client passed cold tokens, then failed its unchanged
+30-second workspace scan barrier while origin/rust completed the protocol.
+Fresh editor runs show Context diagnostic refusals followed by document and
+server liveness failures. The heavy shard has16 confirmed baseline pass-to-fail
+cases; the complete baseline join remains unknown. The last complete frozen
+SpecTcl performance comparison also has one pass-to-fail. These block release.
 
-1. Close Native15; verify exact selectors/counts, raw outcomes, fresh artifacts,
-   all guards and parent/process closure. Preserve the complete results on work.
-2. Review/apply the exact core19 batch on work, commit its real product identity,
-   construct the actual map/tree and materialise the reviewed v10 typecheck
-   protocol. Run fresh all-target typing before affected runtime tests.
-3. Use the resulting failures and traces to make narrow repairs. Re-run affected
-   positives and adversarial refusals. Do not remove a diagnostic until its
-   evidence has been collected and its owner supplies an exact removal patch.
-4. Close the workstreams below, then assemble and validate the reduced candidate.
-   Early inventory/docs review can proceed in parallel without editing frozen
-   source or starting overlapping builds.
+The shared13 targeted build closed at16:54UTC with six Rust typing errors and
+no runtime tests reached. Narrow repairs are independently reviewed and now
+committed on both work and the release branch. Remaining strict compiler
+refactors are reviewed in small components and composed against exact source
+pins; their intended lint coverage is not a measured green Clippy result.
+
+1. Finish reviewed source composition on work and carry the same functional
+   changes through release cleanup. Mirror the committed product into the
+   active diagnostic tree and issue its actual HEAD/tree identity.
+2. Run the original six compiler controls and seven WASM regressions under the
+   reviewed cache-only successor. Require current selected build artifacts,
+   zero warnings, unchanged assertions and complete final seals.
+3. Execute the original N17/SpecTcl checks and freshly built server diagnostics.
+   Locate the first startup/Context refusal and make narrow work-branch fixes;
+   retain all supported positives, conservative refusals and original budgets.
+4. Complete all functional workstreams and exact shipping gates below. Obtain
+   the full origin/rust inventory join and accepted Tcl/SpecTcl performance.
+5. Finish the repository-wide documentation/comment audit, generated drift,
+   formatting, packaging and clean squash-tree verification. Open the PR only
+   when every acceptance condition holds.
 
 ## Functional workstreams and owners
 
@@ -111,9 +118,10 @@ them. Reuse the real server/e2e and editor harnesses:
 Run the required shared C Tcl8.4–9.1 and pinned Jim oracle vectors, preserving
 family differences. Complete dedicated Jim/EDA/UPF tests beyond
 `make test-spectcl-compat`; its inventory alone does not include Jim core packs
-or prove every executable hook slot. Verify the existing no-Tommath baseline
-regressions in their actual backend configuration; neither full-Tommath success
-nor an intentionally emitted warning waives the zero-warning shipping rule.
+or prove every executable hook slot. Use the recorded capability split: the full-TomMath suite is the semantic
+release gate with original bignum assertions; strict intentional no-TomMath
+checks cover capability and refusal, including the approved explicit absence
+assertion. Both gates require zero warnings.
 
 ## Corpus performance acceptance
 

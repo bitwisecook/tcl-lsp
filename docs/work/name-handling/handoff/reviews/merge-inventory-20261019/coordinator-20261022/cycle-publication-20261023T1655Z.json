@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T17:01:35.265572+00:00",
+  "scheduled": "2026-10-23T16:55:37+00:00",
+  "source_snapshot": "66e048611e5efe9498f165f065d04d77346fd16f",
+  "published_snapshot": "ca823d20097cf8cf476ae9897a317da8465fe278",
+  "source_commits": [
+    "66e048611e5efe9498f165f065d04d77346fd16f"
+  ],
+  "product_tree_diff": [
+    "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/validity.rs",
+    "rust/tcl-compiler/src/common_aot_plan.rs",
+    "rust/tcl-compiler/src/compilation_unit.rs",
+    "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+    "rust/tcl-compiler/src/taint.rs"
+  ],
+  "external_product_base": "5a965040cc8f79236c91dfce41fa669bcbf83cbd",
+  "external_changes_preserved_not_validated": true,
+  "remote_confirmed": "ca823d20097cf8cf476ae9897a317da8465fe278",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

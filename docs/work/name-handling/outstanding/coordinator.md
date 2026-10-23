@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T17:00:02.760837+00:00
+Last updated: 2026-10-23T17:26:38.454734+00:00
 
 ## In progress
 
@@ -47,12 +47,13 @@ Last updated: 2026-10-23T17:00:02.760837+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (16:55 UTC)
+### Current cycle and routing (17:25 UTC)
 
-- Published work34191 contains reviewed privateargument/Box7 follow-ups. Clean release next7c7964 prepared; release88a0 ordinary CI39988230252 queued, no PR.
-- Closed shared13 first compiler build: Cargo101 with six Rust typing errors and zero observed warnings; all13 runtime tests UNRUN. All final source/provider/artifact/GO seals stable; launcher/lock closed. Narrow repairs independently reviewed before next source snapshot.
-- Fresh f62 heavy shard318PASS37FAIL/355; exact scoped baseline16PASS-to-FAIL,21addedFAIL and1absentbaselineidentity remain blocking and routed to externalBIGIP/shared owners. f62Rustshard1 terminal capture absent after cancellednextest, so full baseline comparison remains unknown.
-- Actualf62 editorlogs confirm Context diagnostic refusals and later document/liveness timeouts. LSProle resumed firstcause triage with unchanged client budgets and fail-closed guards.
-- Externalperf16:38 reports frozen SpecTcl comparisonFAILED: every_shipped_pack newFAIL oldPASS at unchanged30min interpretededa_xilinx budget. Currentcanonical full controls/corpus proof pending; no optimization accepted or forwarded.
-- Lossless Gitcache repair restored disk and normal shallowfetch config; all55050 duplicate-pack objects proved available without candidatepack before removal, source/history/refs/targets/executables untouched. Activecapture continued without ENOSPC.
-- BIGIP13:17 completedhandoff remains stale>60min and newheavy regressions routed, useralreadyinformed; reviewtriage completedstale timestamp remains visible. No duplicate externalroles.
+- Canonical7f3 normalpush confirmed. It includes all six observed compiler error repairs, SSA6 and independently reviewed26 further compilerlengthsites. Activeproductmirror8332e7f3/tree51b7cf exactlymatches7f3.
+- Original13 successorv8 launched17:11:06 with reviewed closedfailedparent cacheonly,100654source map and17500provider seal. First compilerlib build stillrunning without observed compiler errors/warnings; no selectedbuildsuccess or runtime outcome yet. Root7032 owns onlybuildslot.
+- Cleanrelease next26v2carriedb637 afterindependentpeer caughtv1omittedlogicalparameter helper. Hostedrooted-headrepair+SSA6+sixtypingrepairs and two staleWASMdesignrefs alreadycarried. Candidate remains red and has noPR.
+- FullTom release88runtime endedSIGSEGV11 at17:06:28 after1960closedrows/1959unique/114uniqueFAIL; fullinventoryunknown. Priorfatalfixture,clock,numeric_tower nowPASS;24additionalfailures newlyreached, notassumedregressions. StrictNoTom17typed+1refusalPASS.
+- Work-only isolatedFullTomnextest diagnosticworkflow v2 independentlyclear: preservesoriginalengine/locked cases, separateprocesscrashidentity, fullpanicpayloads and boundedlogs withcompleteactualroster; docs excludedexplicitly, notsemanticgatewaiver. Publication/dispatchpendingroot.
+- Finalquality audit proved3newcratewide LSPtoo_many_lines suppressions absentbaseline; removedinpublisher1e8, samefunctionalreleasecarrypending. Static266longfunctioncandidates isnotactualClippyfindings. Otherdiff-addedattrs requireowner/baselinecorrespondenceadjudication beforeclaimnewcount.
+- Freshreleasechaffcensus scanned10974trackedfiles/no missing on eaa102. Current1224regexhits retainedas semanticcontrols/terminology;106changedfilehits contextreviewed,1118byte-identicalinheritpriorclassification. Priorstaleresidueclaimsretractedafterrootlivefilecheck; no blanketauditprose/runtimeclaim.
+- Externalperf17:00:04 reports serviceinterruption/currentcorpusunverified; preserveexistingSpecTcl1P2F andrecoveryprocesses. BIGIP13:17 completedstampstale>60/newheavyblockersalreadyrouted; no duplicateexternalroles.

@@ -2,11 +2,57 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T16:49:27.999011+00:00 (SSA6 helper drafts frozen pending peer; runtime heavy actual355closed, env10 unrun)
+Last updated: 2026-10-23T17:19:35.328606+00:00 (hostedFullTomv2 STATIC CLEAR08dd3cb1 readyrootpublish; actual114FAIL/SIGSEGV unresolved)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Temporary WORK-only hosted FullTom nextestv2 frozenf660c5d9/manifest a795e2ff,
+CCG STATIC CLEAR08dd3cb1. Exactbefore3f2dee19/final9f47db3b; YAML/bash-n/current
+copyapply0-nooffset/finals/oldmode preservation verified. Durable own evidence
+hosted-fulltom-nextest-v2/ contains losslessworkflowgzip+proposal/pins/peer.
+Root has exactregisteredperf mode runtime-fulltom-diagnostics CLI; runtime_sha
+must equal actualWORK dispatchHEAD. No VMsourcewrite/Cargo/push/dispatch.
+This isolates original standalone lib+integration cases for namedcrash+fullpanic
+payloads; doctests excluded explicitly. Per-process PASS is NOT sharedprocess
+cargo-test gate acceptance. Actual88 partial114FAIL/SIGSEGV remains unresolved.
+
+Rootauthorised temporary WORK-only hosted FullTom diagnostic prepared onefile
+/workspace/naming-proof-storage/vm-hosted-fulltom-nextest-diagnostic-v1/ proposal
+ecd4f266 (perf registered newmode runtime-fulltom-diagnostics). Fresh selected
+standalone lib+integration engine/locked originaltests, same9.0provider/pinned
+nextest0.9.148/actions,180scases/60minjob/20MBconsole/rawpanicartifactalways;
+source/providers/gitclean evidence, no doctest or gateacceptance claim. YAML/
+allbash-n/copyapply0-nooffset/exactfinalPASS; CCG rapidpeer pending. No active
+source/Cargo/dispatch, candidateexplicitlyexcluded. Root owns publish/launch.
+
+Latest88 FullTom120535069159 CLOSED17:06:28 SIGSEGV11/makeexit2, NO finalsummary.
+Exact fullsemantic phase1960rows/1959uniqueclosed/114uniqueFAIL; earlier18NoTom
+capability rows excluded. Namespacefatalfix and clockfixture nowPASS; oldnumeric
+towerPASS. Old92fail retains90;24additionalFAIL newlyreached beyond priorabort,
+not automatically P2F. Env10 stillFAIL/no panicpayload beforefatal. Raw324KB and
+classificationf8e69a0e at proof-storage/vm-fulltom-ci88-runtime120535069159/.
+Actualargv cargo test --locked --features engine without testthreads override;
+parallel completionrows cannot identify crashedtest from lastPASS. Counters are
+threadlocal, no unsupported globalcounterrace cause. Existing capture supports
+named per-process terminals but clips failureoutput; next-diagnostic-recipe.json
+records bounded exactenv10 firstpayload +freshroster per-process fullinventory
+route, noGO/noexecution. All originalassertions/guards preserved; rootnotified.
+command_subst_callees helperb106 frozen, owner mintsv2 for additional lengthcut;
+VM pauses furtherstyle for actualruntime priority. No rootCargo/sourcechanges.
+
+SSA6 allfourv2 components independently STATIC CLEAR c16201. Exact composed
+/workspace/naming-proof-storage/vm-ssa-six-composed-v1/proposal.patch 53df9046,
+manifestcebc16cf, actual34191a/before2a26cae1/finalff3565af; copiedapply0-nooffset
+and pinnedfmtPASS. CompilerClippy finalcomposition STATIC CLEAR4b84635a (exact independent component
+replay/currentpins/copyapply/fmt). No typing or
+Clippy claim. Separate irules1 cab4 substantive VM STATIC CLEAR b20511a4.
+Latestrelease CI39988230252 head88a0: SpecTcl120535068763, browserext120535068847,
+browserLSP120535069125 failed same6compilerliberrors before runtime, no new
+ownedruntime/assertion outcomes. FullTom120535069159 running atlastAPIcheck;
+old34ef39979911286 cancelled. Rawlogs/receipt vm-ci39988230252-preruntime under
+proof-storage; rootnotified, no duplicatefix/build. Runtimefirstcause priority.
 
 Root disjoint SSA6 assistance prepared four immutable v2 components under
 /workspace/naming-proof-storage/: vm-ssa-length-boundaries-v2 47872056,

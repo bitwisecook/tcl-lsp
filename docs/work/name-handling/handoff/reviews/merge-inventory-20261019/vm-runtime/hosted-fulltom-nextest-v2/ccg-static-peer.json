@@ -1,0 +1,8 @@
+{
+  "status": "STATIC_WORK_ONLY_WORKFLOW_CLEAR",
+  "utc": "2026-10-23T17:18:42.874301+00:00",
+  "patch_sha256": "f660c5d9a948d074991fecc2be6a6bb37e2a65d529d9d78c6c201f763f081921",
+  "manifest_sha256": "a795e2ff3269e385bc1af680e4f70514b150d57ff5ddc83d5d1df3e47606dd47",
+  "checks": "Actual publisher HEAD Git blob beforepin (sparse working file absent)/copiedapply0/nooffset/finalpin, YAML deepcompare existing jobs unchanged except explicit newmode exclusion for two standardjobs; all newrun blocks bash-n PASS. Dispatch current fullSHA binding and rawfile missing/cap incomplete125 guards close v1 findings; originalcaptureexit retained; finalsource/Tom provider/clean checks precede cap refusal. Existing wrapper owns subprocessgroup/strict selected terminal and experimental libtest JSON; no selectors/assertions/skips/features weakened.",
+  "limits": "No hosted dispatch, Cargo, runtime execution or gate acceptance. Nextest excludes doctests explicitly; runtime case timeout profile separate60minjob bound. WORK-only diagnostic must not carry release."
+}
