@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T19:59:15.689788+00:00",
+  "scheduled_report_utc": "2026-10-23T19:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T20:25:37+00:00",
+  "change_since_previous_report": [
+    "Published19:25 WIP/report998ca68 with no admissions, then fetched only work depth1 plus one necessary missing cached parent. Concurrent perf docs577480/29c2 were preserved during source rebase. Functional source is committed on work; exact hosted retries use named SHAs.",
+    "Post-cfg startup40011435443 on633f5d selected no server/runtime cases: fetch0/build101 after159.135s, full source124962/provider2256/dependency21500/tool7 seals stable and complete process groups. Actual compilation_unit errors are3types plus3 warning-denied unused bindings. Exact source and independent artifact assessment are retained in coordinator/post-cfg-hosted-633.",
+    "Minimal compiler-six correction9a116be7 fixes only the RetainedModuleFacts field carrier and unused copied reference/bool/mut bindings. Independent LSP semantic peer8d9e57b0 and clean counterpartc2eb2182; workcf848 rebased into current source and release70c706 integrated. New strict compile/runtime result is still pending.",
+    "New scopedClippy40011444981 on633f5d closed all3commands101 before any LSP target. Exact6source findings repeated18emissions; all402 prior LSP findings are NOT_OBSERVED_TARGET_UNREACHED, never resolved by subtraction. Its manual source checksum protocol skips one escaped backslash/Unicode fixture:124961/124962 checked. Direct compiler source is authenticated; full source closure remains PARTIAL. Shared strict JSON-path snapshot/verify repair is being prepared for future scoped/runtime captures, without repairing old evidence.",
+    "FocusedFullTom40011441076 on633f5d reached exactly3tests: active original command SIGSEGV11 at4.1856s, native append timeout180.0098s, numeric increment reports Integer value too big despite TomMath. No unknown selected tests, raw process closure valid, but full source checksum has the same one-path gap. Facts remain separate from guarded acceptance.",
+    "Root integrated observer-only test memory-safety fixe5637b5a in5551cdbd after independent Namespeerfa596186. Clone the two existing observer Rcs before selfreplacement and use those after possible client-data Box destruction; every original test assertion and production deletion schedule remain unchanged. Original active_calls expectation remains binding and may now fail normally; no semantic/shared-suite pass is inferred. No new C callback/timing oracle was run.",
+    "Reviewed cold reload boundary uses one typed boxed future at the shared cold entry, with the original async body unchanged. Added provider2/metadata3, main token2 and formatting4 refactors preserve original guards/owners/assertions; clean carries retain all prior observer/comment/fixture cleanup. No136-warning or whole-lint discharge is inferred. Seven development-note references were removed from release-only lint reasons, with existing attributes and all outside bytes unchanged.",
+    "Latest9c SpecTcl exact log confirms codegen_stamps28/28, golden_packs3/3, real Tclpack1/1 pass, then ALL10 pack_source_e2e7PASS/3FAIL. All4 native ASCII positive controls pass. Three fold failures remain DSL[]vs[5], reference42None and derived8.6xyNone; old preflight theory is not a current cause. Hosted original10+catch1 diagnostics are prepared under peer, not executed.",
+    "Compiler-names preserved distinct Jim inventories: initial9PASS17FAIL/26, later21PASS13FAIL/34 and focused1PASS6FAIL/7. Current class/proc changes make old-source causality inconclusive. Existing original7 tests remain unchanged; a current hosted diagnosis is in preparation.",
+    "External perf29c2 reports genuine frozenb6 controls16/16 BOTH and lexer586/586 BOTH with0W. Full corpus/PackSet, compiler229, server and SpecTcl proof are still pending. Original interpreted SpecTcl pass-to-fail remains recorded; no clean perf patch or realm/interprocedural readiness is accepted.",
+    "All local builds remain stopped. Closed old Clippy text maps were losslessly gzip-compressed; four large JSON copies from fully closed startup400091 were removed only after exact verified retained ZIP-byte checks and durable rehydration metadata, freeing72,806,996bytes in/tmp. No target, executable, live input or active artifact was deleted. Disk remains tight and is checked each cycle.",
+    "Whole24312 baseline comparison, current shipping performance, native/WASM/editor hosts, SpecTcl C1\u2013C2 and all sectionF gates remain open. BIG-IP13:17 is stale more than60minutes and user is notified without takeover; review-triage is completed. The previously asked Instruction flag API/allowance choice has no answer and remains pending."
+  ],
+  "committed": [
+    "dc1cb1783ffea1eaa8df2eb36060a4e0d109c166"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish19:55 official report/WIP snapshot and rearm20:25 reminder.",
+    "Run fresh hosted startup after the actual compiler repair, with current source and complete JSON seals.",
+    "Integrate shared source guard repair and peer-cleared N17/Jim diagnostics, then use current producer/failure payloads for narrow functional fixes.",
+    "Finish runtime numeric/append and unchanged active-command assertions, remaining strict lint, clean release carries and repository-wide documentation/comment/fixture audit.",
+    "Complete every shipping gate, accepted Tcl performance and full zero-P2F baseline join before opening the PR; no release/tag/merge action."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 19:41 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or row closure. Post-cfg startup has valid sealed build failure before runtime; scoped/focused source captures are PARTIAL due one escaped fixture path. Current source fixes are reviewed but not fresh green. Perf controls are agent-reported on frozenb6, not full corpus acceptance.",
+  "disk_free_bytes": 2130292736,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

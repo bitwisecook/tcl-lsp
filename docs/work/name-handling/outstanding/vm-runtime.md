@@ -2,7 +2,7 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T19:19:40.618767+00:00
+Last updated: 2026-10-23T19:57:27.102364+00:00
 
 ## Resume
 
@@ -45,10 +45,16 @@ Proposals/reviews:
 `/workspace/naming-proof-storage/vm-fulltom-diagnostic-repair-v4/`,
 `/workspace/naming-proof-storage/ccg-composed-startup-v3-fulltom-v4/`,
 `/workspace/naming-proof-storage/vm-fulltom-v4-whitespace-only-v1/`.
-Actual full-roster run40010108061/job120607995674 started19:16:36 on3720ed578;
-19:18 readonly API shows checkout in progress, no artifact yet. Evidence:
-`/workspace/naming-proof-storage/vm-fulltom-v4-40010108061/`.
-No runtime outcomes or complete full-roster acceptance are yet measured.
+Actual full-roster run40010108061/job120607995674 on3720ed578 closedFAIL19:24:22.
+Setup/checkout/tools/source/Tcl stepsPASS; nextest list --no-run fails101 on one
+actual tcl-registry LIB dead_code warning: assert_original_trace_computed_receivers
+at resolved_invocation.rs11273. Selected JSON is empty; all test executionUNRUN,
+no full runtime payloads or source/provider finalseals. Artifact12526317152 did
+upload successfully in~2s,20,378,849bytes, ZIP SHA528249666552f418f430cdea1d7b01c431253e510e4084b9be523be42ab572ae.
+ZIP is preserved/tmp/vm-fulltom-v4-40010108061.zip; small log+complete disposition
+receipt are in `/workspace/naming-proof-storage/vm-fulltom-v4-40010108061/`.
+Names already owns exact helpercfg fixWORKb4f59c64/CLEAN5aa8c7dd, CCGpeerceb28d96;
+root may integrate; no duplicate source fix and no fresh build pass claimed.
 
 Root authorised an explicit focused3 mode successor. Frozen19:17 proposal
 `/workspace/naming-proof-storage/vm-fulltom-focused-mode-v1/` patch8b84dce7,
@@ -61,10 +67,16 @@ Seven mock groups (actual inline build AST with Cargo argv replaced, real helper
 roster) pass including extra/missing/ignored/wrongbinary refusal125 and fullzeroargs.
 Ruff0.17.1/ty0.0.88/Pyright1.1.414 on2inline programs pass; exact copiedapply/YAML/
 bash/whitespace pass. CCG STATIC CLEARdd2d2312; Names STATIC CLEARedd7970f. Both independent peers
-authorise root integration of the exact proposal. Actual nextest,
+cleared the exact proposal for root integration. Actual nextest,
 Cargo and Tcl execution by this role remains UNRUN. Pinned0.9.148 filter-reference
 confirms exactmatcher/binary_id/test/boolean syntax; no actual parser pass is claimed.
 Temporary diagnostics never carry release or discharge shared-process acceptance.
+
+Actual focused3 run40011441076/job120612543548 on633f5d6b34e464087ee2f42385cf2c24efbb81af closed FAIL. Exactly3 selected/closed/failed,0 unknown; nextest100, capture errors empty, rawcapfalse, owned group empty after two scans. Artifact12527231564 SHAa27bf277dd0755b16c94d958272a9812ffe3e1389cd5c99ce2b1c62f0dc41c37 is staged/extracted under /tmp/vm-fulltom-focused3-40011441076/; complete payloads and inventory are in analysis/. Actual failures: active-original-command SIGSEGV11 at4.18561587s; native_append timeout180.009772923s; numeric_towers exit101 at16.049561219s, incr LLMAX errors “Integer value too big to be represented”. All assertions remain binding. Provider before/after identical; source seal is PARTIAL:124962 GNU manifest lines but124961 post-check OK, warning1 improperly formatted escaped fixture path. This is not a guarded complete pass, and old artifacts are not repaired.
+
+Root integrated reviewed existing-test observer safety fix on WORK5551. Exact off-tree /tmp/vm-active-command-observer-safety-v1/ patche5637b5a, manifest50e99312, Names independent semantic peerfa596186. Two Rc observer clones before replacement avoid accessing a Box consumed by deleteProc; actual observation remains after replacement, every original assertion and callback/Box schedule unchanged. This is test UB correction only; corrected test and semantic gate remain UNRUN. Existing pinned C witness671 proves delete callbacks before invocation return with stack client records, not freed-client lifetime; scope preserved, no new oracle. Clean release counterpart is being frozen on70c706ba for independent peer.
+
+Numeric source triage: legacy Jim increment already uses wrapping_add and pinned Jim.tsv confirms LLMAX wraps; overflow source and reached dialect remain under investigation, no assertion change. Native append1035 original observations repeatedly construct fresh interpreters; setup hot path is a hypothesis, actual cause unproven. DB owns shared future JSON path/hash/count/membership source-snapshot helper; this role will compose FullTom call sites after helper review. Guard and semantic repairs remain UNRUN.
 
 ## Decisions and accepted constraints
 
@@ -72,8 +84,7 @@ Temporary diagnostics never carry release or discharge shared-process acceptance
   PASS; preserve the split and every original semantic assertion.
 - VM8 attribute removals are already WORK-published and clean-carried to release7ad;
   no duplicate fixes. Fresh complete strict/runtime validation remains pending.
-- The possible callback-lifetime concern is unproven. No new native lifetime or
-  timing oracle is authorised by this role's assignment; none was prepared/run.
+- Actual SIGSEGV11 and existing-test use-after-free are established; observer-only safety correction preserves all original semantics. No new native lifetime or timing oracle is authorised; none was prepared/run.
 - A focused original crash-suspect/native_append/numeric diagnostic may collect
   complete payloads; it cannot replace the full shared-process acceptance gate.
 - Mandatory local2GiB floor and20MB log bounds remain; no local build is allocated
@@ -81,13 +92,9 @@ Temporary diagnostics never carry release or discharge shared-process acceptance
 
 ## Outstanding
 
-1. Complete Names focused3 peer, then root alone integrates/pushes/dispatches.
-2. Monitor actual full-roster40010108061 plus root's focused3 successor. On closure,
-   fetch full bounded JSON/JUnit/schema/lifecycle/source-provider seals. Explicitly
-   retain all cap/missing/started-unfinished/never-started rows as incomplete.
-3. Use actual complete original failure payloads/process reasons to triage causes;
-   preserve every original assertion and separate source/mode differences. Restore
-   original shared-process acceptance plus root-allocated VM/SpecTcl/runtime gates.
+1. Independently peer clean counterpart of the reviewed observer test-UB correction on70c706ba; root alone integrates. No corrected-runtime pass claimed.
+2. Diagnose numeric overflow and native_append180s timeout from exact source and existing evidence; propose only proven narrow fixes, preserve all original assertions and case budgets.
+3. Compose FullTom future source guard with DB shared JSON helper after frozen review. Preserve historical partial seals. Root alone dispatches fresh focused/full shared-process gates; isolation cannot replace acceptance.
 
 Earlier role history is retained losslessly in
 `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/resume-archive-20261023T190009Z/vm-runtime-previous.md.gz`.

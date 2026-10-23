@@ -1,0 +1,44 @@
+{
+  "artifact_zip_api_and_upload_log_digest_size": "PASS",
+  "artifact_id": 12525914446,
+  "run_id": 40011444981,
+  "source_commit": "633f5d6b34e464087ee2f42385cf2c24efbb81af",
+  "source_commit_api_artifact_agreement": "PASS",
+  "workflow_definition_sha256": "24c68fd2598d84248ad78727f32e4274161df0b2c0da6df74f566a11613a7296",
+  "tracked_manifest_membership_vs_exact_git_tree": "PASS124962",
+  "tracked_before_count": 124962,
+  "post_source_OK_count": 124961,
+  "post_source_checksum_guard": "PARTIAL_DO_NOT_ADMIT_COMPLETE_STABILITY",
+  "post_source_missing_paths": [
+    "experiments/name-handling/results/tcllibpath-original-c5/original/fixture/caf\u00e9 space {braces} [literal];$value\\tail/lib/sentinel"
+  ],
+  "post_source_extra_paths": [],
+  "source_guard_stderr": "2026-10-23T19:36:32.4829944Z sha256sum: WARNING: 1 line is improperly formatted",
+  "source_guard_cause": "Existing non-strict sha256sum -c skipped the single GNU-escaped backslash-path record. Original artifact preserved unchanged; no repair of this run.",
+  "quoted_status_names_normalised": 18,
+  "all_rs_paths_have_post_OK": true,
+  "rs_paths_count": 5345,
+  "git_before_and_after_empty": true,
+  "tools_post_OK_count": 3,
+  "tools_post_results": [
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver: OK"
+  ],
+  "capture_exit": 1,
+  "capture_incomplete_flag": 0,
+  "all_three_direct_cargo_processes_closed_exit101": true,
+  "all_logs_truncated_false": true,
+  "captured_log_bytes_total": 24848,
+  "capture_global_cap_bytes": 20971520,
+  "minimum_observed_disk_bytes": 75945967616,
+  "process_tree_empty_seal": "NOT_RECORDED; outcomes prove direct process wait/EOF only",
+  "compiler_source_attribution": {
+    "file": "rust/tcl-compiler/src/compilation_unit.rs",
+    "artifact_manifest_sha256": "fdc25767510b0ad94534c6c43afab6b78c3b5a068dec69688fa9d09155b55013",
+    "exact_source_git_blob_sha256": "fdc25767510b0ad94534c6c43afab6b78c3b5a068dec69688fa9d09155b55013",
+    "publisher_head_checked": "cf8480d2fe5f41180dce3246fc8d86b817f98418",
+    "current_publisher_blob_identical_to_observed_source": false
+  },
+  "limits": "Global capture-incomplete0 describes process/log/disk capture, not full sourceguard coverage. One skipped fixture prevents complete source-checksum stability claim. Requested LSP targets remain uncovered."
+}

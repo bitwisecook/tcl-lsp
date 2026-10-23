@@ -1,0 +1,1014 @@
+{
+  "updated_utc": "2026-10-23T19:50:59.821007+00:00",
+  "source_commit": "633f5d6b34e464087ee2f42385cf2c24efbb81af",
+  "scope": "Actual three separate --locked --no-deps -p LSP --all-targets --all-features -- -Dwarnings commands. All requested LSP targets blocked by compiler-lib failures.",
+  "summary": {
+    "distinct_located_findings": 6,
+    "distinct_rust_E_errors": 3,
+    "distinct_Rust_warnings": 3,
+    "located_emissions": 18,
+    "Rust_E_error_emissions": 9,
+    "Rust_warning_emissions": 9,
+    "nonlocated_error_summary_emissions": 6,
+    "observed_primary_LSP_located_findings": 0,
+    "primary_LSP_inventory_status": "UNREACHED; no census or clean claim"
+  },
+  "scopes": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "process": {
+        "package": "tcl-lsp-core",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76559245312,
+          "/home/runner/work/_temp": 76559245312
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-core",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792783986.986522,
+        "pid": 3172,
+        "exit_code": 101,
+        "ended": 1792784054.0850034,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76159901696,
+          "/home/runner/work/_temp": 76159901696
+        }
+      },
+      "started_utc": "2026-10-23T19:33:06.986522+00:00",
+      "ended_utc": "2026-10-23T19:34:14.085003+00:00",
+      "duration_seconds": 67.09848141670227,
+      "log_bytes": 13838,
+      "log_sha256": "73a78070605b703583d615af98e2e1978646563f0abeb200d6f184b03bcf1eb0",
+      "raw_error_headers": 5,
+      "raw_warning_headers": 3,
+      "located_rust_errors": 3,
+      "located_rust_warnings": 3,
+      "located_clippy_lints": 0,
+      "nonlocated_error_headers": 2,
+      "requested_crate_check_line_observed": false,
+      "coverage": "REQUESTED_LSP_CRATE_TARGETS_UNREACHED_COMPILER_DEPENDENCY_FAILED; no all-target census established"
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "process": {
+        "package": "tcl-lsp-db",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 76159885312,
+          "/home/runner/work/_temp": 76159885312
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-db",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792784054.085481,
+        "pid": 4561,
+        "exit_code": 101,
+        "ended": 1792784112.9217956,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75985534976,
+          "/home/runner/work/_temp": 75985534976
+        }
+      },
+      "started_utc": "2026-10-23T19:34:14.085481+00:00",
+      "ended_utc": "2026-10-23T19:35:12.921796+00:00",
+      "duration_seconds": 58.83631467819214,
+      "log_bytes": 6515,
+      "log_sha256": "ca4487be932acfe07c54bf6fe0cdc264e313184812e6cc8d2a0d8650e39f22bb",
+      "raw_error_headers": 5,
+      "raw_warning_headers": 3,
+      "located_rust_errors": 3,
+      "located_rust_warnings": 3,
+      "located_clippy_lints": 0,
+      "nonlocated_error_headers": 2,
+      "requested_crate_check_line_observed": false,
+      "coverage": "REQUESTED_LSP_CRATE_TARGETS_UNREACHED_COMPILER_DEPENDENCY_FAILED; no all-target census established"
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "process": {
+        "package": "tcl-lsp-server",
+        "state": "CLOSED",
+        "disk_before": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75985518592,
+          "/home/runner/work/_temp": 75985518592
+        },
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--no-deps",
+          "-p",
+          "tcl-lsp-server",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-Dwarnings"
+        ],
+        "started": 1792784112.9222665,
+        "pid": 5052,
+        "exit_code": 101,
+        "ended": 1792784145.8736808,
+        "log_truncated": false,
+        "disk_after": {
+          "/home/runner/work/tcl-lsp/tcl-lsp": 75945967616,
+          "/home/runner/work/_temp": 75945967616
+        }
+      },
+      "started_utc": "2026-10-23T19:35:12.922266+00:00",
+      "ended_utc": "2026-10-23T19:35:45.873681+00:00",
+      "duration_seconds": 32.951414346694946,
+      "log_bytes": 4495,
+      "log_sha256": "c24552df1bbbaadd0c282e2fb5026eb590bfaedae641726d11073eff11740c02",
+      "raw_error_headers": 5,
+      "raw_warning_headers": 3,
+      "located_rust_errors": 3,
+      "located_rust_warnings": 3,
+      "located_clippy_lints": 0,
+      "nonlocated_error_headers": 2,
+      "requested_crate_check_line_observed": false,
+      "coverage": "REQUESTED_LSP_CRATE_TARGETS_UNREACHED_COMPILER_DEPENDENCY_FAILED; no all-target census established"
+    }
+  ],
+  "unique_located_findings": [
+    {
+      "severity": "error",
+      "message": "mismatched types",
+      "rust_error": "E0308",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3753,
+      "column": 9,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "de0337338ed0c17be2f99a9ccbe4a308f96c77f2156e7d4ec69dec1949e0c66f",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "mismatched types",
+          "rust_error": "E0308",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 282,
+          "block_sha256": "b53ff672a41e08376b24cf87fc8a755ab387c3b655691c46d68ce1a259188651",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3753,
+          "column": 9,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "mismatched types",
+          "rust_error": "E0308",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 78,
+          "block_sha256": "5508f32356d638c1c3a68d3622bb0ae43faed23156eb14a8747f92bc4e16bde7",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3753,
+          "column": 9,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "mismatched types",
+          "rust_error": "E0308",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 23,
+          "block_sha256": "58f7da78b3dd2ff91f422767c8b7e1cf66d2a8799d4f82521e67dc99cb2a5282",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3753,
+          "column": 9,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 3752,
+          "text": "        analysis_context,"
+        },
+        {
+          "line": 3753,
+          "text": "        cfg_context,"
+        },
+        {
+          "line": 3754,
+          "text": "        call_site_constants,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3863,
+      "column": 69,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "9e98e0ec154275fc593ce06885d2f21422e1c63252c39577b907fddcd4926882",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 293,
+          "block_sha256": "120d75b13b58ac00495d53fd5bc9ab258069792dab0714c6bf70b6db3b0e0179",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3863,
+          "column": 69,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 89,
+          "block_sha256": "5accf9e117158f38d73eb6fb7a5c83143ccce65b83952fc1445d27d587fdae4a",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3863,
+          "column": 69,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 34,
+          "block_sha256": "afa52b09eaf8afa98a2a387902a5e444aba9a9c4e7825a80844283af1e6682ec",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 3863,
+          "column": 69,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 3862,
+          "text": "            cfg_module,"
+        },
+        {
+          "line": 3863,
+          "text": "            cfg_context: facts.cfg_context.map(|prepared| &prepared.context),"
+        },
+        {
+          "line": 3864,
+          "text": "            registry,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4027,
+      "column": 60,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "86d4ee54ca33796a971e1aeebf565b457facbbd0f08dadc390173a5709ddc474",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 303,
+          "block_sha256": "6173224bba8364c61f003ec22b3ac0eddd190cefcad6b8b7c751ac4977b61d4e",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4027,
+          "column": 60,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 99,
+          "block_sha256": "4f9764d7c37af9d3016e9c00b6b428937c81a86d7739b540c7c6a516ccde3719",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4027,
+          "column": 60,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+          "rust_error": "E0609",
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 44,
+          "block_sha256": "238e9eaacb85dbe9303dbea85bdea512ed2938043e7c37c47fbc10f352a6cba9",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4027,
+          "column": 60,
+          "lint": null,
+          "category": "RustEError",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 4026,
+          "text": "        DeclaredBodyMemoContext {"
+        },
+        {
+          "line": 4027,
+          "text": "            prepared: cfg_context.map(|prepared| &prepared.context),"
+        },
+        {
+          "line": 4028,
+          "text": "            dialect,"
+        }
+      ]
+    },
+    {
+      "severity": "warning",
+      "message": "unused variable: `registry`",
+      "rust_error": null,
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4685,
+      "column": 13,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "e5691b36b14e2750f6007fb2b1be7ec5a8468a6be4bd4f4c2fe5cf0eed321be2",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "warning",
+          "message": "unused variable: `registry`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 338,
+          "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4685,
+          "column": 13,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "warning",
+          "message": "unused variable: `registry`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 109,
+          "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4685,
+          "column": 13,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "warning",
+          "message": "unused variable: `registry`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 60,
+          "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4685,
+          "column": 13,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 4684,
+          "text": "        let UnitBuildOptions {"
+        },
+        {
+          "line": 4685,
+          "text": "            registry, dialect, .."
+        },
+        {
+          "line": 4686,
+          "text": "        } = options;"
+        }
+      ]
+    },
+    {
+      "severity": "warning",
+      "message": "variable does not need to be mutable",
+      "rust_error": null,
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 67,
+      "lint": "unused_mut",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "877a6248a25fd744979c1b29e8ec20b9aecd5455185bda0bad01e6757267c1a6",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "warning",
+          "message": "variable does not need to be mutable",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 346,
+          "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 67,
+          "lint": "unused_mut",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "warning",
+          "message": "variable does not need to be mutable",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 117,
+          "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 67,
+          "lint": "unused_mut",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "warning",
+          "message": "variable does not need to be mutable",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 68,
+          "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 67,
+          "lint": "unused_mut",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 4944,
+          "text": "                let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;"
+        },
+        {
+          "line": 4945,
+          "text": "                let (original_declaration_body, declaration_body, mut entry_context) ="
+        },
+        {
+          "line": 4946,
+          "text": "                    body_unit_entry_context(ir_module, registry, id, proc, &cfg);"
+        }
+      ]
+    },
+    {
+      "severity": "warning",
+      "message": "unused variable: `declaration_body`",
+      "rust_error": null,
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 49,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false,
+      "identity_sha256": "ac16de8b48105853661152318a74c4cf01ba358647d2deaecae4a7fb16473690",
+      "emission_count": 3,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "warning",
+          "message": "unused variable: `declaration_body`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+          "log_line": 356,
+          "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 49,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "warning",
+          "message": "unused variable: `declaration_body`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+          "log_line": 127,
+          "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 49,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        },
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "warning",
+          "message": "unused variable: `declaration_body`",
+          "rust_error": null,
+          "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+          "log_line": 78,
+          "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+          "source_package": "tcl-compiler",
+          "file": "rust/tcl-compiler/src/compilation_unit.rs",
+          "line": 4945,
+          "column": 49,
+          "lint": "unused_variables",
+          "category": "RustWarning",
+          "primary_for_requested_scope": false
+        }
+      ],
+      "source_excerpt": [
+        {
+          "line": 4944,
+          "text": "                let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;"
+        },
+        {
+          "line": 4945,
+          "text": "                let (original_declaration_body, declaration_body, mut entry_context) ="
+        },
+        {
+          "line": 4946,
+          "text": "                    body_unit_entry_context(ir_module, registry, id, proc, &cfg);"
+        }
+      ]
+    }
+  ],
+  "all_located_emissions": [
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "error",
+      "message": "mismatched types",
+      "rust_error": "E0308",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 282,
+      "block_sha256": "b53ff672a41e08376b24cf87fc8a755ab387c3b655691c46d68ce1a259188651",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3753,
+      "column": 9,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 293,
+      "block_sha256": "120d75b13b58ac00495d53fd5bc9ab258069792dab0714c6bf70b6db3b0e0179",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3863,
+      "column": 69,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 303,
+      "block_sha256": "6173224bba8364c61f003ec22b3ac0eddd190cefcad6b8b7c751ac4977b61d4e",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4027,
+      "column": 60,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "warning",
+      "message": "unused variable: `registry`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 338,
+      "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4685,
+      "column": 13,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "warning",
+      "message": "variable does not need to be mutable",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 346,
+      "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 67,
+      "lint": "unused_mut",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "warning",
+      "message": "unused variable: `declaration_body`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 356,
+      "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 49,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "error",
+      "message": "mismatched types",
+      "rust_error": "E0308",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 78,
+      "block_sha256": "5508f32356d638c1c3a68d3622bb0ae43faed23156eb14a8747f92bc4e16bde7",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3753,
+      "column": 9,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 89,
+      "block_sha256": "5accf9e117158f38d73eb6fb7a5c83143ccce65b83952fc1445d27d587fdae4a",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3863,
+      "column": 69,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 99,
+      "block_sha256": "4f9764d7c37af9d3016e9c00b6b428937c81a86d7739b540c7c6a516ccde3719",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4027,
+      "column": 60,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "warning",
+      "message": "unused variable: `registry`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 109,
+      "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4685,
+      "column": 13,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "warning",
+      "message": "variable does not need to be mutable",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 117,
+      "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 67,
+      "lint": "unused_mut",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "warning",
+      "message": "unused variable: `declaration_body`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 127,
+      "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 49,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "error",
+      "message": "mismatched types",
+      "rust_error": "E0308",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 23,
+      "block_sha256": "58f7da78b3dd2ff91f422767c8b7e1cf66d2a8799d4f82521e67dc99cb2a5282",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3753,
+      "column": 9,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 34,
+      "block_sha256": "afa52b09eaf8afa98a2a387902a5e444aba9a9c4e7825a80844283af1e6682ec",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 3863,
+      "column": 69,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "error",
+      "message": "no field `context` on type `&(HashMap<ProcedureId, UpvarInfo>, HashMap<ProcedureId, _>, _, _, _)`",
+      "rust_error": "E0609",
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 44,
+      "block_sha256": "238e9eaacb85dbe9303dbea85bdea512ed2938043e7c37c47fbc10f352a6cba9",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4027,
+      "column": 60,
+      "lint": null,
+      "category": "RustEError",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "warning",
+      "message": "unused variable: `registry`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 60,
+      "block_sha256": "bf447422956da851ab042b01fe5c762137bedfd86a3a7314ef1811768199ec5e",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4685,
+      "column": 13,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "warning",
+      "message": "variable does not need to be mutable",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 68,
+      "block_sha256": "3d0e6f2abcd2278d4e966e253c0db294517405a02117f7281ac857a7b3e5b261",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 67,
+      "lint": "unused_mut",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "warning",
+      "message": "unused variable: `declaration_body`",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 78,
+      "block_sha256": "5fbcf1355dc29324af509a34f3506855c04d81fa2d0115092fdb271deb755abe",
+      "source_package": "tcl-compiler",
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "line": 4945,
+      "column": 49,
+      "lint": "unused_variables",
+      "category": "RustWarning",
+      "primary_for_requested_scope": false
+    }
+  ],
+  "nonlocated_error_emissions": [
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "error",
+      "message": "`tcl-compiler` (lib) generated 3 warnings",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 364,
+      "block_sha256": "ca0267b99193b01031fc49846905b92efdda489c47909693847d81ff8bb5909b"
+    },
+    {
+      "scope_package": "tcl-lsp-core",
+      "severity": "error",
+      "message": "warnings are denied by `build.warnings` configuration",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-core.log.txt",
+      "log_line": 365,
+      "block_sha256": "a6fc303beb56d2173612cc51ffc8a519447b29fc1a2f1656ea3bebd474abb9e7"
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "error",
+      "message": "`tcl-compiler` (lib) generated 3 warnings",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 135,
+      "block_sha256": "ca0267b99193b01031fc49846905b92efdda489c47909693847d81ff8bb5909b"
+    },
+    {
+      "scope_package": "tcl-lsp-db",
+      "severity": "error",
+      "message": "warnings are denied by `build.warnings` configuration",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-db.log.txt",
+      "log_line": 136,
+      "block_sha256": "a6fc303beb56d2173612cc51ffc8a519447b29fc1a2f1656ea3bebd474abb9e7"
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "error",
+      "message": "`tcl-compiler` (lib) generated 3 warnings",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 86,
+      "block_sha256": "ca0267b99193b01031fc49846905b92efdda489c47909693847d81ff8bb5909b"
+    },
+    {
+      "scope_package": "tcl-lsp-server",
+      "severity": "error",
+      "message": "warnings are denied by `build.warnings` configuration",
+      "rust_error": null,
+      "log_file": "/tmp/lsp-clippy40011444981/artifact/tcl-lsp-server.log.txt",
+      "log_line": 87,
+      "block_sha256": "a6fc303beb56d2173612cc51ffc8a519447b29fc1a2f1656ea3bebd474abb9e7"
+    }
+  ],
+  "source_process_completeness_seals": {
+    "artifact_zip_api_and_upload_log_digest_size": "PASS",
+    "artifact_id": 12525914446,
+    "run_id": 40011444981,
+    "source_commit": "633f5d6b34e464087ee2f42385cf2c24efbb81af",
+    "source_commit_api_artifact_agreement": "PASS",
+    "workflow_definition_sha256": "24c68fd2598d84248ad78727f32e4274161df0b2c0da6df74f566a11613a7296",
+    "tracked_manifest_membership_vs_exact_git_tree": "PASS124962",
+    "tracked_before_count": 124962,
+    "post_source_OK_count": 124961,
+    "post_source_checksum_guard": "PARTIAL_DO_NOT_ADMIT_COMPLETE_STABILITY",
+    "post_source_missing_paths": [
+      "experiments/name-handling/results/tcllibpath-original-c5/original/fixture/caf\u00e9 space {braces} [literal];$value\\tail/lib/sentinel"
+    ],
+    "post_source_extra_paths": [],
+    "source_guard_stderr": "2026-10-23T19:36:32.4829944Z sha256sum: WARNING: 1 line is improperly formatted",
+    "source_guard_cause": "Existing non-strict sha256sum -c skipped the single GNU-escaped backslash-path record. Original artifact preserved unchanged; no repair of this run.",
+    "quoted_status_names_normalised": 18,
+    "all_rs_paths_have_post_OK": true,
+    "rs_paths_count": 5345,
+    "git_before_and_after_empty": true,
+    "tools_post_OK_count": 3,
+    "tools_post_results": [
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo: OK",
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc: OK",
+      "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver: OK"
+    ],
+    "capture_exit": 1,
+    "capture_incomplete_flag": 0,
+    "all_three_direct_cargo_processes_closed_exit101": true,
+    "all_logs_truncated_false": true,
+    "captured_log_bytes_total": 24848,
+    "capture_global_cap_bytes": 20971520,
+    "minimum_observed_disk_bytes": 75945967616,
+    "process_tree_empty_seal": "NOT_RECORDED; outcomes prove direct process wait/EOF only",
+    "compiler_source_attribution": {
+      "file": "rust/tcl-compiler/src/compilation_unit.rs",
+      "artifact_manifest_sha256": "fdc25767510b0ad94534c6c43afab6b78c3b5a068dec69688fa9d09155b55013",
+      "exact_source_git_blob_sha256": "fdc25767510b0ad94534c6c43afab6b78c3b5a068dec69688fa9d09155b55013",
+      "publisher_head_checked": "cf8480d2fe5f41180dce3246fc8d86b817f98418",
+      "current_publisher_blob_identical_to_observed_source": false
+    },
+    "limits": "Global capture-incomplete0 describes process/log/disk capture, not full sourceguard coverage. One skipped fixture prevents complete source-checksum stability claim. Requested LSP targets remain uncovered."
+  },
+  "limits": "Observed diagnostic evidence only, not any gate pass. Original artifact sourceguard remains PARTIAL, no original-run repair; no builds or canonical/Git writes performed."
+}

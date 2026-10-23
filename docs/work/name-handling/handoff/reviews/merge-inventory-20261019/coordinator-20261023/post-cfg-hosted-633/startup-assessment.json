@@ -1,0 +1,94 @@
+{
+  "updated_utc": "2026-10-23T19:42:15.931151+00:00",
+  "status": "ACTUAL_FRESH_HOSTED_BUILD_FAILED_BEFORE_SERVER_RUNTIME",
+  "run_id": 40011435443,
+  "job_id": 120612529462,
+  "artifact_id": 12526957364,
+  "head_sha": "633f5d6b34e464087ee2f42385cf2c24efbb81af",
+  "zip_bytes": 10028006,
+  "zip_sha256": "83c7a9bae57c728cfa519177e1dd5e1581aac50dc36b5eb64fadc5f5eb47d308",
+  "zip_metadata_size_digest_crc_path_safety_verified": true,
+  "raw_build_stderr_sha256": "2179ac995e445686afd2ed7d4a4d102ad09c348712721dd76decb0dc99f68832",
+  "first_observed_build_cause": {
+    "file": "rust/tcl-compiler/src/compilation_unit.rs",
+    "line": 3753,
+    "code": "E0308",
+    "diagnostic": "cfg_context expects old tuple reference but receives PreparedCfgContext reference",
+    "additional_diagnostics": [
+      "E0609 no field context on tuple at3863",
+      "E0609 no field context on tuple at4027",
+      "unused registry at4685",
+      "unused mut at4945",
+      "unused declaration_body at4945"
+    ],
+    "total_errors": 6
+  },
+  "cargo_json_compiler_message_records": 0,
+  "server_binary_events": 0,
+  "processes": [
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 2.76397757,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 75706183680
+    },
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 101,
+      "seconds": 159.135002544,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 75218993152
+    }
+  ],
+  "independently_recompared_seals": {
+    "source": {
+      "exact": true,
+      "files": 124962
+    },
+    "providers": {
+      "exact": true,
+      "files": 2256
+    },
+    "dependencies": {
+      "exact": true,
+      "files": 21500
+    },
+    "tools": {
+      "exact": true,
+      "files": 7
+    }
+  },
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "cases": [],
+  "runtime_reached": false,
+  "selected_server_compilation_0w": false,
+  "scope_limits": "No server binary/startup/Context workers or source runtime diagnosis. No timeout or diskfloor cause. No typing/Clippy/functionality/performance/gate admission. Original failed evidence preserved; no rerun by LSP."
+}
