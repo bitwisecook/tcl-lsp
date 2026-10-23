@@ -25180,7 +25180,13 @@ impl Backend {
     /// The pull-and-apply body of [`Self::pull_and_apply_config`], without the
     /// trailing dialect re-resolve. Returns early when the client declines the
     /// `workspace/configuration` request, or does not answer it in time.
-    async fn pull_and_apply_config_values(&self) -> DocumentSourceResult<()> {
+    fn pull_and_apply_config_values(
+        &self,
+    ) -> std::pin::Pin<Box<impl std::future::Future<Output = DocumentSourceResult<()>> + '_>> {
+        Box::pin(self.pull_and_apply_config_values_inner())
+    }
+
+    async fn pull_and_apply_config_values_inner(&self) -> DocumentSourceResult<()> {
         let items = vec![ConfigurationItem {
             scope_uri: None,
             section: Some("tclLsp".to_owned()),
