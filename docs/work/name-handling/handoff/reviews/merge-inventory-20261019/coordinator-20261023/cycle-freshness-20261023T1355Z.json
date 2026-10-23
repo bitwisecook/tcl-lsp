@@ -1,0 +1,120 @@
+{
+  "utc": "2026-10-23T13:58:58.222882+00:00",
+  "scheduled": "2026-10-23T13:55:37+00:00",
+  "next_due": "2026-10-23T14:25:37+00:00",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "source": "https://github.com/bitwisecook/tcl-lsp/blob/work/docs/work/name-handling/outstanding/bigip-lsp.md",
+      "authenticated_git_blob_sha1": "9c176c0011df4577b9ab7245bd7f06719e0d54c9",
+      "owner_header": "2026-10-23T13:17Z",
+      "age_minutes": 41.970381366666665,
+      "stale_over30": true,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": true,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "compiler-codegen",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:49:08.805042+00:00 (ACTIVE; release all10974 tracked census complete; residual cleanup off-tree; LSP WIPv5 peerCLEAR; WIP4 ready after server slot)",
+      "age_minutes": 9.823630666666666,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "compiler-names",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:54:54.918426+00:00",
+      "age_minutes": 4.055074266666667,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "compiler",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:31:00+00:00 (event original-operand producer priority; nested ILX v2 static peer CLEAR; compiler Clippy source attribution only)",
+      "age_minutes": 27.97038136666667,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "coordinator",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:58:07.852767+00:00",
+      "age_minutes": 0.8395019166666666,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "lsp",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:57:46Z",
+      "age_minutes": 1.2037147,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "perf",
+      "source": "https://github.com/bitwisecook/tcl-lsp/blob/work/docs/work/name-handling/outstanding/perf.md",
+      "authenticated_git_blob_sha1": "220b12f8f85bed08bfa4963475f6beb877aea34b",
+      "owner_header": "2026-10-23 13:53 UTC",
+      "age_minutes": 5.970381366666667,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "review-triage",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-22T19:57:30Z",
+      "age_minutes": 1081.4703813666667,
+      "stale_over30": true,
+      "stale_over60": true,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": true,
+      "unfinished_owner_stale_over30": false
+    },
+    {
+      "role": "vm-runtime",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md",
+      "authenticated_git_blob_sha1": null,
+      "owner_header": "2026-10-23T13:52:06.658222+00:00 (candidate-only residual VM observer cleanup v2 Names STATIC CLEAR; WORK source HOLD)",
+      "age_minutes": 6.859411,
+      "stale_over30": false,
+      "stale_over60": false,
+      "future_invalid": false,
+      "explicit_complete_or_stopped": false,
+      "unfinished_owner_stale_over30": false
+    }
+  ],
+  "external_fetch": "Authenticated GitHub fetch_file work13:57; exact blob SHAs recorded, no external owner file/header rewritten.",
+  "no_takeover": true,
+  "disk_free_bytes": 6170476544,
+  "actual_source_head": "98de99ab6c5e9722cc94deae5f23f34a911e937b",
+  "scope": "No gate/validation count admission. Current fresh server before Cargo; raw source unchanged. Docs-only snapshot, no publish."
+}

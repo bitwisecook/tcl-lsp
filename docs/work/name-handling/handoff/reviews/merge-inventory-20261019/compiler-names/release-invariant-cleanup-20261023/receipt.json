@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-23T13:54:54.914912+00:00",
+  "archive_sha256": "3a05a300fec569654f963fba465d6e6557fcac96e64080a0d5fa5ae67762db2b",
+  "scope": "Exact release-only19 off-tree before/proposed/patch + independent CCG peer; no canonical/WORK/source/Cargo/Git writes or runtime claim. Root exactbefore apply stillrequired.",
+  "patch_sha256": "b16bfb400bebf96d59ddce5d7dc63771182451c91de6fc67cd5aaca88dafa93b",
+  "peer_sha256": "256e52cb415ed76d4003c3b8e23acb039778c4062231809db826bb4b1630c7da"
+}

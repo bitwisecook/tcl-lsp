@@ -2,11 +2,23 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T13:21:23.155925+00:00 (VM styles integrated rootlineage; fatal fixture CLEAR; WASM body CLEAR/counter witness CLEAR, actualWIP4/WIP5 pending)
+Last updated: 2026-10-23T13:52:06.658222+00:00 (candidate-only residual VM observer cleanup v2 Names STATIC CLEAR; WORK source HOLD)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Candidate residual VM observers: explicit v2 patch
+`/tmp/vm-candidate-residual-observer-removal-v2/proposal.patch`
+SHAd8aee6cf9b3cad5b9b2813610aed25057c34aa595c6cd6ad1d9eef3ff32560cd.
+Names STATIC CLEAR2bfa83bc includes exact3candidatepins/copyapply0/finals/fmt;
+removes only options/retired-header/compound/native-string failure observers.
+Real retirement, observe_native_retirement, error-stack operations, assertions,
+guards/errors unchanged. WORK same3pins unchanged; no candidate apply or runtime
+claim. CCG bounded delta peer requested. Durable proposal archived gzip only.
+Root alone allocates actual WASM counter measurement; assertions unchanged.
+Closed proof relocation freed116363727 bytes from /tmp; all fileSHA preserved,
+oldpaths symlinked, no executable/target moved. Receipt in proof-storage/tmp.
 
 Root reports allVM5 style groups Luna235cd3 integrated12e8e29 andnamespaceaa761;
 interpV4 atomic callers checked. No duplicate stylepeer needed; actualClippy/

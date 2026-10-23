@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T13:36:27.348493+00:00
+Last updated: 2026-10-23T13:58:07.852767+00:00
 
 ## In progress
 
@@ -47,9 +47,10 @@ Last updated: 2026-10-23T13:36:27.348493+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (13:25 UTC)
+### Current cycle and routing (13:55 UTC)
 
-- Correction after1325 report: fresh depth1 fetch recovered13:27, pending10 work commits rebased preserving remote6c1c9d and normal-pushed a136668a0. NestedILX and WORK-only event observer now published d9b2f3ee2. Earlier credential-blocked state is historical, not current.
-- Local release projection e4757cfe:126 carried paths, clean workspace/runtime formatting and3292 required-input staging closure. Evidence and process files excluded; full tests, perf and baseline equality remain open.
-- Actual Mac medium baseline97.385s green; candidate scan failed120.096s, open4docs34.902s/~2787MiB, edit.tokens exceeded1800s, cleanup PermissionError. Incomplete result is not accepted performance or exact assertion outcome.
-- All unfinished owner files are fresh; remote perf13:16 and BIG-IP13:17 verified through authenticated connector. Review-triage completed status retains historical timestamp, no duplicate role started.
+- Current active product98de is under source HOLD while selected-server run53561 performs initial source/provider/tool/input guards; no current Cargo start or runtime result claimed. Earlier source135 typing does not admit this source.
+- Root applied42 functional carry edits plus51 release cleanup edits to local candidate e475; full format2438 still in progress. Names19 current-tense invariants/checkpoint cleanup and VM/CCG pure observer removals are independently reviewed; WORK stays instrumented.
+- Nested ILX fix6ccf is reviewed/published WORK; exact selected setter RHS read precedes outer store then association scan stops unconditionally. Actual original+additive regressions remain required; procedure-prefix and12-event issuer gaps remain.
+- Authenticated remote BIGIP owner13:17 completed unblocked owned work and reports blockers; perf owner13:53 is running fresh compiler retries and queued server/SpecTcl tests. Neither role duplicated or admitted as release proof.
+- Every outstanding role freshness is audited separately; completed review-triage retains historical19:57:30 timestamp. No validated row/count/gate admitted. Next cycle14:25:37 UTC.

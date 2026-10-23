@@ -1,0 +1,8 @@
+{
+  "status": "STATIC_ONLY",
+  "copy_apply_exit": 0,
+  "exact_three_final_candidate_before_work_unchanged": true,
+  "rustfmt_2024": "PASS",
+  "candidate_applied": false,
+  "cargo_runtime": false
+}

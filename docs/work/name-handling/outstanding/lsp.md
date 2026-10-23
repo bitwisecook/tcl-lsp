@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T13:28:17Z: actual shipping latency v3 baseline completed semantic controls; candidate a6fab stopped at FIRST cold didOpen→semanticTokens requestid2 with -32801 after539ms, all later phases UNREACHED. First rejecting gate remains unmeasured. WORK-only coarsev2/declined-URI/compiler-world observers are static-peer CLEAR, excluded from release; root sync/fresh selected dev-server build pending. Root-only late-bound diagnostic preparation /tmp/lsp-coarse-wip-native-builder-v3 is frozen with CCG and Names bounded static peers CLEAR; no positive materialization/source capture/GO/Cargo/runtime executed. Established build2400/runtime180/outer2700, shared20MiB/2GiB/executor88125/target/lock retained. Medium Mac actual candidate scan/open/edit-token failures remain a separate unproven-cause blocker. VM style clusters remain untyped/unrun; all section-F/host/Clippy acceptance OPEN.
+Current status 2026-10-23T13:57:46Z: actual diagnostic53561 first build FAILED101 before compilation: ctutils0.4.4 download rejected by restricted static.crates.io proxy network; build stdout empty, no compiler/runtime/first-gate outcome. Run135530 final seals pending. Root will preserve failure and allocate same frozen protocol/source/GO with explicit network after closure. Candidate-only LSP25 cleanup74a151c8 root-applied; first cold ownership gate remains UNKNOWN, no causalfix or guard relaxation. All release-F/host/performance/strict-Clippy acceptance OPEN.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T13:28:17Z
+Last updated: 2026-10-23T13:57:46Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T13:28:17Z: root-priority cold-token/current-world first-refusal diagnosis; root sole Cargo/GO/integration. Next root action after canonical sync is materialize reviewed WIP native protocol against actual identity, then fresh selected server build and unchanged v3 typical worker with both observer flags. Preparation /tmp/lsp-coarse-wip-native-builder-v3 independently static-peer CLEAR; no actual first-gate output yet. Observer incremental af5871b3 retains all currentness guards; WORK-only probes must never ship. Actual v3 candidate cold receipt remains /workspace/naming-release-measurement-artifacts/latency-typical-v3/pair0-candidate/measurement.json. No retry/budget increase/Native grant. Original WASI local-definition failure and browser later UnknownWorld are distinct observed scopes. All release-F, host and Clippy obligations remain OPEN.
+Latest resume pointer 2026-10-23T13:57:46Z: monitor root network-enabled successor only after failed135530 run final closure. First53561 build failed before compilation at ctutils0.4.4 download, no semantic probe ran. Same actual98de source and frozenv5 protocol/GO; root alone executes Cargo/network/GO. Currentness epoch/config split is unproven static hypothesis. No product edits or retries that claim acceptance; failed evidence preserved. Existing runtime180/build2400/outer2700 budgets unchanged.
 
 
 

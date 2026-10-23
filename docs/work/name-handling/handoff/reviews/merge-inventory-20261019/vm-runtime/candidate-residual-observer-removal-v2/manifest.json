@@ -1,0 +1,28 @@
+{
+  "scope": "candidate-only pure temporary observers; no apply, Cargo, or runtime claims",
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "before_sha256": "9332a5bae325ae800e7a7c3e9fa76ac7670d4a48a0d9ddb31ac4e584685ff6de",
+      "after_sha256": "de437df99d6f1758ecc1e3ac61e995dac1106609030166e0d4e039614a48fe81",
+      "work_sha256": "b0dc96af0f623902245188dcb86f5d4b8d221e11763861b7d12b9de22cec7eee",
+      "removed_blocks": 1
+    },
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "before_sha256": "744bc1c9849e261fc73281ac9c7bce484ae526c72b23c5ee2a55590cbe98558f",
+      "after_sha256": "71faf69fe67ac5de0ae812055af44a123771f3a456c5dd39c5d4cf510e56ecf0",
+      "work_sha256": "bfc5aa008b6cb10077f15f3546933c22678aa50bac7391f40e04c42ad1c75e35",
+      "removed_blocks": 3
+    },
+    {
+      "path": "rust/tcl-vm/src/value.rs",
+      "before_sha256": "304121a060e2706bfe05a9befee3e54636b203734fa97f0b7b2ce8da780f2899",
+      "after_sha256": "c44b2f3536b3ab1e3a801bef20a25ed9bc0e8a749f81babd6112b2f140fa3361",
+      "work_sha256": "3b8f809179d839bb0a958d6e91ab101a4dff7eea049dc17520028995e30a323c",
+      "removed_blocks": 3
+    }
+  ],
+  "patch_sha256": "d8aee6cf9b3cad5b9b2813610aed25057c34aa595c6cd6ad1d9eef3ff32560cd",
+  "successor_delta": "also removes sole remaining temporary cfgtest native-string failure reporter and two calls; same production guards and errors"
+}

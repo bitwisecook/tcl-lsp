@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T13:53:59.384866+00:00",
+  "verdict": "CLEAR candidate-only exact v1+remaining pure reporter deletion; type/runtime unrun",
+  "patch_sha256": "d8aee6cf9b3cad5b9b2813610aed25057c34aa595c6cd6ad1d9eef3ff32560cd",
+  "manifest_sha256": "d56cad763cbe32362f3c0c4ee42502d15d0064e1c810645ef3cfe96936c6c8be",
+  "predecessor_peer_sha256": "4ef5a078d1ab5044f244b3ae8bb9a431f980b4434d6435e7b177bb785e439695",
+  "checks": [
+    "All3 exact current candidate before/final pins/copyapply0-nooffset/pinnedfmt pass.",
+    "Exec/interp finals byte-identical reviewed v1. Value delta removes only two cfgtest helper calls+exclusive pure failure logger, both cfg attributes removed with calls; no orphancfg.",
+    "Original source retirement, error returns, actual stage checks and productive string-materialization calls remain unchanged. No assertion changes, no WORK/candidate writes/Cargo/authority change."
+  ]
+}
