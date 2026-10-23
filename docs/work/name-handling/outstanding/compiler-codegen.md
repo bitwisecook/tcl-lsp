@@ -2,11 +2,14 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T05:16:12+00:00 (ACTIVE; agent-reported, off-tree static reviews)
+Last updated: 2026-10-23T05:24:23+00:00 (ACTIVE; agent-reported, off-tree static reviews)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Repaired source46 protocol status, 05:24Z:** first actual eight-package typecheck on source46 produced sole E0716 at `source_bpf_command.rs:673`, zero warnings; it was a Rust test-borrow error. Root integrated the bounded test-only binding fix into actual HEAD `897b4f9b...` / tree `0b11e3a0...`, with repaired 46-path map SHA `f7568b84`; eight-package v9 retry is **pending**, not a PASS claim. Codegen exact3 successor `/tmp/ccg-post46-direct3-v6/` plan `8dba2a61`, suite `2c278dd1`, inputs `10fa392a` pins this actual tuple/map/identity, future v9 plan `983d3418` and all transitive runner inputs, while retaining original3/fivepins/Rust+Tcl5/direct88125. AST/Bash/no-GO pass; VM independent static CLEAR receipt `handoff/reviews/merge-inventory-20261019/vm-runtime/protocols/direct-lifecycle-20261023/ccg-post46-direct3-v6-static-review.txt` SHA `382ee6e2`. Compiler focused58 repaired v3 and Jim7 repaired v3 binding-only static CLEAR receipts `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/compiler-source46-focused58-v3-repaired-binding-static-peer-review.json` SHA `0f20b373` and sibling `compiler-jim7-source46-v3-repaired-binding-static-peer-review.json` SHA `995d2141`. Their original 35/58 and 7/7 counts and Tcl5/env/guards remain; all three suites **unrun**, without GO or Cargo from this role. Prior source46 protocol versions are historical, tied to old product identity.
+
 
 **Actual eight-package E0716 narrow test repair, 05:16Z:** compiler-owned `/tmp/compiler-bpf-foreign-registry-lifetime-v1/proposal.patch` SHA `b9747a9a` is bounded static CLEAR against current `source_bpf_command.rs` before `65f11ee0`; off-tree zero-fuzz after `15ee53b3`. Actual compiler E0716 says a temporary default registry at line 673 is borrowed by the closure at line 676. The patch binds that same fresh registry immediately before the same negative assertion; all five assertions and order remain. Owned receipt `handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/bpf-foreign-registry-e0716-v1-static-peer-review.json` SHA `3063d50f`. **Post-fix Rust typing and tests unrun**; root owns integration/source46 successor, no canonical edit or Cargo by this role.
 

@@ -1,0 +1,122 @@
+{
+  "utc": "2026-10-23T05:24:36.828868+00:00",
+  "status": "RUNNING launch snapshot only; no compilationPASS/result or runtimeacceptance",
+  "base": "/tmp/name-handling-eight-package-check-v9-source46",
+  "archive_sha256": "445ef7c7e1da016e1f5f22e25272302f636381fc59a9fc575878500976929e6e",
+  "file_count": 16,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "bytes": 3554
+    },
+    {
+      "path": "guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109
+    },
+    {
+      "path": "launch-preflight-refusal.json",
+      "sha256": "7f1971edee8af2967340b50794019f2d46ea2b128b82a2da0d3090b9c8bcdbaa",
+      "bytes": 195
+    },
+    {
+      "path": "launch.py",
+      "sha256": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "bytes": 3403
+    },
+    {
+      "path": "launcher-runs/20261023T052327.120208Z/launcher.json",
+      "sha256": "da610d82c521bc76f8bdf08c7e1db1280fc140620889a885ae26e4993dbf90ba",
+      "bytes": 2136
+    },
+    {
+      "path": "launcher-runs/20261023T052327.120208Z/launcher.transcript",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "f317b523f2853b73b5210ae9f37fd4eee49cd46c615642ad4dec7d80a5df3766",
+      "bytes": 1257
+    },
+    {
+      "path": "plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534
+    },
+    {
+      "path": "preflight-readiness.json",
+      "sha256": "8893f023a03196b1b198658462e2e2605b05a45843ffe77fb6c5ed221fb4a0ef",
+      "bytes": 1373
+    },
+    {
+      "path": "repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "bytes": 435
+    },
+    {
+      "path": "root-go-schema.json",
+      "sha256": "d5190ea8a490c6154b92f8b7f229f8d5e88e90b2646ba8a00cd06109c691705a",
+      "bytes": 1584
+    },
+    {
+      "path": "root-go.json",
+      "sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+      "bytes": 792
+    },
+    {
+      "path": "run.sh",
+      "sha256": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "bytes": 89
+    },
+    {
+      "path": "runner-input-manifest.json",
+      "sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "bytes": 1415
+    },
+    {
+      "path": "source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539
+    },
+    {
+      "path": "suite.py",
+      "sha256": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "bytes": 15756
+    }
+  ],
+  "root_go_sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+  "launcher_records": [
+    {
+      "durable_file_backed_output": true,
+      "input_pins_before": {
+        "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+        "/tmp/name-handling-eight-package-check-v9-source46/README.md": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+        "/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+        "/tmp/name-handling-eight-package-check-v9-source46/launch.py": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+        "/tmp/name-handling-eight-package-check-v9-source46/plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+        "/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+        "/tmp/name-handling-eight-package-check-v9-source46/root-go.json": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+        "/tmp/name-handling-eight-package-check-v9-source46/run.sh": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+        "/tmp/name-handling-eight-package-check-v9-source46/runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+        "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+        "/tmp/name-handling-eight-package-check-v9-source46/suite.py": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+        "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+      },
+      "manifest_sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "root_go_sha256": "fe533d5d365401e08d40346f2058eacc112f5b1abcfc76e3b1cc7f15efdcf2e7",
+      "started_utc": "2026-10-23T05:23:27.120257+00:00",
+      "transcript": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.transcript"
+    }
+  ],
+  "roundtrip": "PASS every archived file SHA",
+  "root_reported_start": "2026-10-23T05:23:28Z via sh run.sh session3283",
+  "root_reported_prior_attempt": "Direct executable run.sh permission126; no launcher/Cargo. No chmod or pinnedbyte change.",
+  "limits": [
+    "Live launcher transcript/json are start snapshots and will change on completion; this archive is not finalguard receipt.",
+    "V8 actualFAIL1E0716/0W preserved separately.",
+    "Root owns Cargo/build/GO/monitoring; Names no source/Git/Cargo action."
+  ]
+}

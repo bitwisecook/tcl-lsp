@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T05:25:37.276082+00:00",
+  "scheduled_report_utc": "2026-10-23T05:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T05:55:37+00:00",
+  "change_since_previous_report": [
+    "The04:55 cycle was written on time and pushed931cd6de2. Source30 Spec66 then closed04:59:18 with51PASS/15FAIL/66, zero warnings and all guards valid; root verified its complete388-payload archive. All13 EDA cases pass; Jim and own-surface failures remain open.",
+    "Reviewed source46 was committed425bd8b and published44238b2ea with evidence4b38606ec at05:06:16 after bounded fresh fetch/rebase. Its eight-package check v8 closed05:14:22 with Cargo101: one E0716 in a new BPF refusal test, zero warnings. Source/provider/process/launcher seals were valid; aggregate acceptance correctly failed.",
+    "The minimal test-only fix names the foreign registry through the closure call. All five assertions and production code are unchanged. Committed repaired product897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30; root independently verified all46 actual Git blobs and sole changed after-hash. New mapf7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.",
+    "Eight-package v9 was launched05:23:27 on the actual repaired tuple, plan983d3418, runner inputs1b16beb7 and rootGOfe533d5d. Compilation is running; no PASS is inferred. Compiler58/Jim7 v3 and CCGdirect3 v6 successors are frozen for peer review; LSP23/Native15 successors are in preparation. Runtime allocation still requires actual v9 PASS/zero warnings.",
+    "Fresh depth1 work fetch confirmed external tip4b38606ec with no new changes. BIGIP18:08, perf21:00 and completed review-triage19:57:30 headers remain over60 minutes old. No duplicate or takeover. Full authenticated perf equivalence, strict checks, hosts, all sectionF and exact zero-P2F remain open."
+  ],
+  "committed": [
+    "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Launch and close the repaired-source eight-package v9 check with full source/provider/tool/environment/process guards and zero warnings; fix forward on any failure.",
+    "After actual v9 PASS, execute compiler58, LSP23, Jim7, CCG3 and Native15 on the same repaired46-path product (106 total). Preserve all original expectations, failure records and180-second limits; route measured first refusals to their owners.",
+    "Complete authenticated all-old/mixed perf comparison, current strict Clippy, repository/host/SpecTcl gates and exact baseline comparison. All sectionF boxes remain open and PR creation still requires explicit request."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Eight-package v8 on425bd8b: FAIL, one test-only E0716, zero warnings; full lifecycle/source/provider seals valid. Repaired product897b4f9b/mapf7568b84 is committed and independently verified, v9 retry running from05:23:27, result pending. Earlier seven-package source30 PASS is historical only. Spec66=51PASS15FAIL; full-Tommath4=4PASS; report14=10PASS4FAIL; diag11=1PASS10FAIL; body5=3PASS2FAIL. No current runtime, strict lint, whole-host, perf, C1C2, zero-P2F or sectionF acceptance.",
+  "disk_free_bytes": 9418174464,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

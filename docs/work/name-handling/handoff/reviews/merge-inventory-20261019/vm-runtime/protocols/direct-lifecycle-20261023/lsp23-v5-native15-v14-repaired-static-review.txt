@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-23T05:25:16.974640+00:00",
+  "verdict": "CLEAR bounded repaired LSP23v5/Native15v14 successors; original priorfullguard peers remain provenance, runtimeunrun",
+  "protocols": [
+    {
+      "directory": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23",
+      "expected_original_selectors": 23,
+      "inputs_verified": 13,
+      "sourcepins_match": 7,
+      "pins": {
+        "plan.json": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+        "suite.py": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98",
+        "runner-input-manifest.json": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73"
+      },
+      "verdict": "CLEAR bounded repaired tuple/map/v9 prerequisite delta only"
+    },
+    {
+      "directory": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15",
+      "expected_original_selectors": 15,
+      "inputs_verified": 16,
+      "sourcepins_match": 13,
+      "pins": {
+        "plan.json": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+        "suite.py": "4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+        "runner-input-manifest.json": "71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65"
+      },
+      "verdict": "CLEAR bounded repaired tuple/map/v9 prerequisite delta only"
+    }
+  ],
+  "approved_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46map": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "checks": [
+    "allinputhashes+AST/currentoriginalsourcepins match; GOabsent",
+    "exactoriginal23/15 selectors+sourcepins unchanged, scripts normalized onlyversionpaths/v8tov9SOURCE46",
+    "env5Tcl/Rustactualtools/refusals/providers/lifecycle88125/budgets unchanged",
+    "exactrootapproved897b/tree0b11 mapf756 pinned, current46/sourceapprovedjoins remain",
+    "typing evidence mustPASS/overall0/Cargo0/fullsourceproviderGOmonotonicHEADguards0W sameproduct/pinned983dplan/8packages",
+    "percommit docs-only and monotonic actualHEAD checks retained; final aftercapture source_view and saved head-samples unchanged"
+  ],
+  "limits": [
+    "actual8v8FAIL1E0716 not admission, repaired8v9finalPASS stillneeded",
+    "no original23/15runtime or sectionD/SpecTcl acceptance",
+    "no runner/launcher/provider/Git/Cargo/lock/source execution by reviewer"
+  ]
+}

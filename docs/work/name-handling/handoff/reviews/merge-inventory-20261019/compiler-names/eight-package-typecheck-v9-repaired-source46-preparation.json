@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-23T05:23:28.138778+00:00",
+  "status": "Immutable actual-repaired source46 v9 retry prepared; root GO/typecheck pending, noPASSclaim",
+  "path": "/tmp/name-handling-eight-package-check-v9-source46",
+  "pins": {
+    "plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "suite.py": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+    "launch.py": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+    "run.sh": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+    "runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+    "source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "repaired-identity.json": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+    "root-go-schema.json": "d5190ea8a490c6154b92f8b7f229f8d5e88e90b2646ba8a00cd06109c691705a",
+    "manifest.json": "f317b523f2853b73b5210ae9f37fd4eee49cd46c615642ad4dec7d80a5df3766"
+  },
+  "checks": {
+    "absent_go_refusal": {
+      "exit": 2,
+      "stderr": "",
+      "stdout": "STOP: post-46 root GO absent; no runner or Cargo started\n"
+    },
+    "added_checks": "GO actual HEAD/tree must equal sealed repaired actual tuple",
+    "all46_current_afterhashes": "PASS",
+    "all46_predecessor_beforehashes_unchanged": "PASS",
+    "cargo_started": false,
+    "identity": {
+      "approved_integrated_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+      "approved_integrated_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+      "path_count": 46,
+      "runtime_tested": false,
+      "source46_manifest_path": "/tmp/naming-source46-repaired-manifest.json",
+      "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "typing": false,
+      "utc": "2026-10-23T05:17:37.960371+00:00"
+    },
+    "lock_acquired": false,
+    "no_Git_by_role": "HEAD/tree independently joined across root identity and repaired map; actual committed tuple revalidated by runner at allocation using existing Git guards.",
+    "python_parse": "PASS3",
+    "same_eight_packages_argv_env_process_executorguards": true,
+    "sole_changed_afterhash": [
+      "rust/tcl-compiler/src/ir/source_bpf_command.rs"
+    ],
+    "status": "OFFTREE immutable v9 actualsource retry; independent binding peer/root GO pending",
+    "utc": "2026-10-23T05:22:33.396719+00:00",
+    "v8_manifest_files_unchanged": true
+  },
+  "actual_failed_v8": {
+    "run": "/tmp/name-handling-eight-package-check-v8-source46/runs/20261023T050010.918237Z",
+    "finished_utc": "2026-10-23T05:14:22.962653+00:00",
+    "status": "FAIL",
+    "errors": 1,
+    "error": "E0716 test-only ir/source_bpf_command.rs673 temporaryregistry borrowedagain676",
+    "observed_warnings": 0,
+    "cargo_exit_code": 101,
+    "aggregate_guard_valid": false,
+    "raw_lifecycle_source_providers_GO_docsHEAD_stable": true,
+    "archive": "source46-typecheck-v8-failure/evidence.tar.gz",
+    "archive_sha256": "8c9fddd9c29915fabd71a94632eeb8ce456913462fe9ef2819675ef804d9f8a3"
+  },
+  "limits": [
+    "No Cargo/build/Git/provider/canonical source/GO byNames.",
+    "All106 laterfinite preparations must rebind actualrepairedtuple/map/v9plan undernewversions; actualPASSreceipt hashonlyafterpassingrun."
+  ]
+}

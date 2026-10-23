@@ -2,11 +2,25 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T05:10Z (Spec66complete51/15 archived; direct3v5 explicit5Tcl+8v8Rustenv delta peerCLEAR, actual8PASS gate stillrequired; noCargo/source)
+Last updated: 2026-10-23T05:22:44.495515+00:00 (actual source46v8 typingFAIL1E0716/0W; repairedtuple897b/0b11 mapf756; v9+dependentprotocolbinding prep only; noCargo/source)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual source46 eightpackagev8 closed05:14:22 FAIL Cargo101 from exactlyone
+E0716 in newBPFtest `ir/source_bpf_command.rs` temporary registry borrow;
+0warnings, actual source/provider/GO/docs-onlyHEAD/process stable (aggregate
+guard_valid false reflects failedCargo/diagnosticclean, not source drift).
+Root integrated binding-only fix at897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6,
+tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30; repaired46mapf7568b84
+at `/tmp/naming-source46-repaired-manifest.json`. This is not typed/runtime
+acceptance; Names8v9 retry in preparation, no fictionalGO/PASS.
+VM coordinating bounded direct3/LSP23/Native15 successor tuple/map/v9 delta
+reviews with owners; allenv5Tcl/tools/lifecycle/monotonicfinalseals retained.
+Prior versions immutable. OriginalSpec3 and noTom16 remain unrun, Spec66source30
+actual51/15 preserved separate. No VM Cargo/Git/source/target actions.
+
 
 CCG direct3v5 final boundedenv delta peerCLEAR: frozen
 `/tmp/ccg-post46-direct3-v5/`, plan3875fbea, suite8383ffcf,

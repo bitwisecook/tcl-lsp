@@ -1,0 +1,225 @@
+[
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error[E0716]: temporary value dropped while borrowed\n   --> rust/tcl-compiler/src/ir/source_bpf_command.rs:673:42\n    |\n673 |         assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());\n    |         ---------------------------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^--------------------\n    |         |                                |\n    |         |                                creates a temporary value which is freed while still in use\n    |         temporary value is freed at the end of this statement\n...\n676 |         assert!(build(&script, &module, registry, changed_config).is_none());\n    |                 ----- borrow later used here\n    |\nhelp: consider using a `let` binding to create a longer lived value\n    |\n673 ~         let binding = CommandRegistry::build_default();\n674 ~         assert!(build(&script, &module, &binding, config).is_none());\n    |\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "consider using a `let` binding to create a longer lived value",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 24803,
+              "byte_start": 24803,
+              "column_end": 9,
+              "column_start": 9,
+              "expansion": {
+                "def_site_span": {
+                  "byte_end": 64948,
+                  "byte_start": 64929,
+                  "column_end": 24,
+                  "column_start": 5,
+                  "expansion": null,
+                  "file_name": "/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/macros/mod.rs",
+                  "is_primary": false,
+                  "label": null,
+                  "line_end": 1738,
+                  "line_start": 1738,
+                  "suggested_replacement": null,
+                  "suggestion_applicability": null,
+                  "text": []
+                },
+                "macro_decl_name": "assert!",
+                "span": {
+                  "byte_end": 24888,
+                  "byte_start": 24803,
+                  "column_end": 94,
+                  "column_start": 9,
+                  "expansion": null,
+                  "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+                  "is_primary": false,
+                  "label": null,
+                  "line_end": 673,
+                  "line_start": 673,
+                  "suggested_replacement": null,
+                  "suggestion_applicability": null,
+                  "text": [
+                    {
+                      "highlight_end": 94,
+                      "highlight_start": 9,
+                      "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+                    }
+                  ]
+                }
+              },
+              "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 673,
+              "line_start": 673,
+              "suggested_replacement": "let binding = CommandRegistry::build_default();\n        ",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 9,
+                  "highlight_start": 9,
+                  "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+                }
+              ]
+            },
+            {
+              "byte_end": 24868,
+              "byte_start": 24836,
+              "column_end": 74,
+              "column_start": 42,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 673,
+              "line_start": 673,
+              "suggested_replacement": "binding",
+              "suggestion_applicability": "MaybeIncorrect",
+              "text": [
+                {
+                  "highlight_end": 74,
+                  "highlight_start": 42,
+                  "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "temporary value dropped while borrowed",
+      "spans": [
+        {
+          "byte_end": 24868,
+          "byte_start": 24836,
+          "column_end": 74,
+          "column_start": 42,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+          "is_primary": true,
+          "label": "creates a temporary value which is freed while still in use",
+          "line_end": 673,
+          "line_start": 673,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 74,
+              "highlight_start": 42,
+              "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+            }
+          ]
+        },
+        {
+          "byte_end": 24888,
+          "byte_start": 24887,
+          "column_end": 94,
+          "column_start": 93,
+          "expansion": {
+            "def_site_span": {
+              "byte_end": 64948,
+              "byte_start": 64929,
+              "column_end": 24,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/macros/mod.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 1738,
+              "line_start": 1738,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": []
+            },
+            "macro_decl_name": "assert!",
+            "span": {
+              "byte_end": 24888,
+              "byte_start": 24803,
+              "column_end": 94,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+              "is_primary": false,
+              "label": null,
+              "line_end": 673,
+              "line_start": 673,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 94,
+                  "highlight_start": 9,
+                  "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+                }
+              ]
+            }
+          },
+          "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+          "is_primary": false,
+          "label": "temporary value is freed at the end of this statement",
+          "line_end": 673,
+          "line_start": 673,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 94,
+              "highlight_start": 93,
+              "text": "        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());"
+            }
+          ]
+        },
+        {
+          "byte_end": 25024,
+          "byte_start": 25019,
+          "column_end": 22,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/ir/source_bpf_command.rs",
+          "is_primary": false,
+          "label": "borrow later used here",
+          "line_end": 676,
+          "line_start": 676,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 22,
+              "highlight_start": 17,
+              "text": "        assert!(build(&script, &module, registry, changed_config).is_none());"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "E0716",
+        "explanation": "A temporary value is being dropped while a borrow is still in active use.\n\nErroneous code example:\n\n```compile_fail,E0716\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet p = bar(&foo());\n         // ------ creates a temporary\nlet q = *p;\n```\n\nHere, the expression `&foo()` is borrowing the expression `foo()`. As `foo()` is\na call to a function, and not the name of a variable, this creates a\n**temporary** -- that temporary stores the return value from `foo()` so that it\ncan be borrowed. You could imagine that `let p = bar(&foo());` is equivalent to\nthe following, which uses an explicit temporary variable.\n\nErroneous code example:\n\n```compile_fail,E0597\n# fn foo() -> i32 { 22 }\n# fn bar(x: &i32) -> &i32 { x }\nlet p = {\n  let tmp = foo(); // the temporary\n  bar(&tmp) // error: `tmp` does not live long enough\n}; // <-- tmp is freed as we exit this block\nlet q = p;\n```\n\nWhenever a temporary is created, it is automatically dropped (freed) according\nto fixed rules. Ordinarily, the temporary is dropped at the end of the enclosing\nstatement -- in this case, after the `let p`. This is illustrated in the example\nabove by showing that `tmp` would be freed as we exit the block.\n\nTo fix this problem, you need to create a local variable to store the value in\nrather than relying on a temporary. For example, you might change the original\nprogram to the following:\n\n```\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet value = foo(); // dropped at the end of the enclosing block\nlet p = bar(&value);\nlet q = *p;\n```\n\nBy introducing the explicit `let value`, we allocate storage that will last\nuntil the end of the enclosing block (when `value` goes out of scope). When we\nborrow `&value`, we are borrowing a local variable that already exists, and\nhence no temporary is created.\n\nTemporaries are not always dropped at the end of the enclosing statement. In\nsimple cases where the `&` expression is immediately stored into a variable, the\ncompiler will automatically extend the lifetime of the temporary until the end\nof the enclosing block. Therefore, an alternative way to fix the original\nprogram is to write `let tmp = &foo()` and not `let tmp = foo()`:\n\n```\nfn foo() -> i32 { 22 }\nfn bar(x: &i32) -> &i32 { x }\nlet value = &foo();\nlet p = bar(value);\nlet q = *p;\n```\n\nHere, we are still borrowing `foo()`, but as the borrow is assigned directly\ninto a variable, the temporary will not be dropped until the end of the\nenclosing block. Similar rules apply when temporaries are stored into aggregate\nstructures like a tuple or struct:\n\n```\n// Here, two temporaries are created, but\n// as they are stored directly into `value`,\n// they are not dropped until the end of the\n// enclosing block.\nfn foo() -> i32 { 22 }\nlet value = (&foo(), &foo());\n```\n"
+      }
+    }
+  }
+]

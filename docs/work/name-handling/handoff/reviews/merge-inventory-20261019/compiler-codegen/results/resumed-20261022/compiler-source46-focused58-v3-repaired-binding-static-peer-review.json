@@ -1,0 +1,25 @@
+{
+  "Cargo_executed": false,
+  "checks": [
+    "actual approved HEAD897b4f9b/tree0b11e3a0 matches repaired identity",
+    "all46 integration rows equal repaired map f7568b84, including sole E0716 afterhash15ee53b3",
+    "future eight-package v9 plan983d3418 and runner inputs1b16beb7 required with PASS0W final receipt at root GO",
+    "all scripts identical to v2 except immutable BASE and v9 refusal wording",
+    "original selector rows, artifact builds, Rust+Tcl5 environment and budgets unchanged",
+    "all15 runner inputs match, Python AST and no-GO launcher/direct suite refusal pass"
+  ],
+  "pins": {
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py": "7b75aa0ee199ef00409f77e68ccaa1354e98d557d606a255977c9f8401ade5a5",
+    "plan.json": "620a4a21238c6de04b5dd22d875e9a0e43d6971d6afd81510bf99f13e1050b11",
+    "run.sh": "e2ab85652f9c12eef41ce8dd79dc3d352ae0c911d4ac6503846c693085313eb6",
+    "runner-input-manifest.json": "fe1f1517e42f101ab10cc815ca9bcd7b17740ebcdac451d7467778a99e9c2bf0",
+    "source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "suite.py": "9d0173319e7c6904499e99ffe436552546d49e20da7a78bf56a09b5d161c9eb3"
+  },
+  "prior_v2_review_sha256": "f1f75fded35062fedc76a39d7e77ff08908326dee277f611363d695319c17f5e",
+  "reviewed_utc": "2026-10-23T05:24:07.498789+00:00",
+  "scope": "v2\u2192v3 repaired source46 binding-only delta; original v1 lifecycle and v2 Tcl5 reviews retained",
+  "selector_executed": false,
+  "status": "BOUNDED_STATIC_CLEAR_UNRUN"
+}

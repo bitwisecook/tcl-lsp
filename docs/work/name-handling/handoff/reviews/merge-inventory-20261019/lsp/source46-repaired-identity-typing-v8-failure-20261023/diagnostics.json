@@ -1,0 +1,16 @@
+{
+  "build_finished_events": [
+    false
+  ],
+  "build_script_warnings": [],
+  "compiler_messages": [
+    {
+      "level": "error",
+      "line": 614,
+      "message": "temporary value dropped while borrowed"
+    }
+  ],
+  "non_json_stdout_lines": [],
+  "stderr_warning_lines": [],
+  "stdout_warning_lines": []
+}

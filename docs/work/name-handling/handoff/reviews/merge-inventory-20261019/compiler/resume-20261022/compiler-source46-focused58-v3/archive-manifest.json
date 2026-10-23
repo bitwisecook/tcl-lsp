@@ -1,0 +1,23 @@
+{
+  "archive_sha256": "6e24e02cbab71638aecb8883260c454d885ed46cd5b469ffc4a46ac03ae418d4",
+  "files": {
+    "compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "guarded-cargo.py": "49e5c367401805245957246bb57ff85263c57b7f46c6788c13652fb95045ef60",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch-preflight-refusal.json": "2e76439bd3fa130a40bd3a876d505a7ebec1aeec387c27df1348c8296408d241",
+    "launch.py": "7b75aa0ee199ef00409f77e68ccaa1354e98d557d606a255977c9f8401ade5a5",
+    "plan.json": "620a4a21238c6de04b5dd22d875e9a0e43d6971d6afd81510bf99f13e1050b11",
+    "preflight-refusal.json": "594a6aa0be50b612f2b5ee9ce607feff8a3fd13314101ad1d9355f6dc2ebf1ef",
+    "readiness.json": "d24b583d5c302a3a363ee44f7b819570366a475bea4c979ece307be92f8be8db",
+    "run.sh": "e2ab85652f9c12eef41ce8dd79dc3d352ae0c911d4ac6503846c693085313eb6",
+    "runner-input-manifest.json": "fe1f1517e42f101ab10cc815ca9bcd7b17740ebcdac451d7467778a99e9c2bf0",
+    "source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "suite.py": "9d0173319e7c6904499e99ffe436552546d49e20da7a78bf56a09b5d161c9eb3",
+    "typecheck8-plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "typecheck8-runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40"
+  },
+  "status": "prepared binding-only v3; peer pending; noGO/Cargo"
+}

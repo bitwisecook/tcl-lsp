@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T04:55:37.371749+00:00
+Last updated: 2026-10-23T05:25:37.106616+00:00
 
 ## In progress
 
@@ -536,3 +536,11 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - Four-originalG4 supplement866d2893 completesall8originalG4 alongside newConditionalcontrol; combinedcompiler35filters58tests, zerooverlapLSP23/Jim7. Native15source46v10 staticpeerCLEAR; CCG3templatepeerpending. Total intended focused106cases before any further productmutation, actualsource46binding/typing allpending.
 - Current Spec66 partial 2026-10-23T04:54:38.968446+00:00: 64 observed 49PASS/15FAIL; fullphaseguard/closure pending, allsix completedtargetarchives independently verified/published. Jim34=21/13 (original15/11+added6/2),ownsurface11=9/2,roster4=4/0,generation3=3/0,seed1=1/0,EDAloadables8=8/0; targetguards0W. Finalenvironment5 stillrunning.
 - Freshcomplete CI5206 31-job roster at04:53 byte-identical prior04:18:7success19failure3running2skip, rawD2unchanged, no newlog/outcome claims. ExternalBIGIP18:08/perf21:00/reviewtriage19:57:30 remain>60min stale; usernotified/no takeover; triage roledeclaresCOMPLETE.
+
+### Current cycle and routing (05:25 UTC)
+
+- The04:55 cycle was written on time and pushed931cd6de2. Source30 Spec66 then closed04:59:18 with51PASS/15FAIL/66, zero warnings and all guards valid; root verified its complete388-payload archive. All13 EDA cases pass; Jim and own-surface failures remain open.
+- Reviewed source46 was committed425bd8b and published44238b2ea with evidence4b38606ec at05:06:16 after bounded fresh fetch/rebase. Its eight-package check v8 closed05:14:22 with Cargo101: one E0716 in a new BPF refusal test, zero warnings. Source/provider/process/launcher seals were valid; aggregate acceptance correctly failed.
+- The minimal test-only fix names the foreign registry through the closure call. All five assertions and production code are unchanged. Committed repaired product897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30; root independently verified all46 actual Git blobs and sole changed after-hash. New mapf7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.
+- Eight-package v9 was launched05:23:27 on the actual repaired tuple, plan983d3418, runner inputs1b16beb7 and rootGOfe533d5d. Compilation is running; no PASS is inferred. Compiler58/Jim7 v3 and CCGdirect3 v6 successors are frozen for peer review; LSP23/Native15 successors are in preparation. Runtime allocation still requires actual v9 PASS/zero warnings.
+- Fresh depth1 work fetch confirmed external tip4b38606ec with no new changes. BIGIP18:08, perf21:00 and completed review-triage19:57:30 headers remain over60 minutes old. No duplicate or takeover. Full authenticated perf equivalence, strict checks, hosts, all sectionF and exact zero-P2F remain open.

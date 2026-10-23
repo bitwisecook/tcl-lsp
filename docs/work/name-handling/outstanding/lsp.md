@@ -1,6 +1,7 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T05:08:48Z: source46 ACTUAL product `425bd8bd0360294bc5929a39e814fe555ed9b07c`/tree `5bc79699ab0b53026d71ca7fe37972bfdb990c07` integrated04:59 after valid Spec66 closure51PASS15FAIL. Eight-package v8 source46 typecheck ACTIVE since05:00:06, no verdict/PASSreceipt fabricated; SOURCE/PROVIDER HOLD. LSP23 runnable v4 `/tmp/lsp-quote-body-finite-v4-source46-direct23` plan28dac95b/suite1e4fd52f/inputs0a54cb72 dual staticCLEAR Names+CCG; Native15 runnable v13 `/tmp/lsp-native-protocol-v13-source46-direct15` plana95ce333/suite14cc038e/inputsaf169c2a dual staticCLEAR. Both exactrootactualtuple+full46, explicit8env/override/toolhash +5TCLprovider paths, strictname/count/status/exit/currentCargoartifacts/direct88125/budgets/fullseals/docsonlymonotonicHEAD-finalrecheck. Actual8PASS0W receipt SHA binds onlyatrootallocation; no GO/queue/Cargo/provider/source/Git byLSP. Inventory23 remains22097938, zero exact/substring overlap compiler58+Jim7 f37fa50c. All23/all15runtimeUNRUN; no allD/D6/host/shipping/releaseclaim.
+Current status 2026-10-23T05:22:25Z: actual eight-package v8 on425bd8bd CLOSED05:14:22 FAIL cargo101, one E0716 temporary-borrow error, zero warnings; source/provider/GO seals stable and docs-only HEADvalid (guard_validfalse includesCargo101). Tiny test-only repair integrated actual `897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6`/tree `0b11e3a05ee26ca70bbe001244d05c5ab9004f30`; repaired46 mapf7568b84 keeps exact46paths and changes only source_bpf_command.rs after15ee53b3. Retry8v9 preparing/PENDING, no PASS fabricated. LSP preparing immutable23v4/Native15v13 successors on repairedactualtuple/map+v9 prerequisites once Namesfreezes exactplan. Oldrunnables immutable/unrun; all selectors/assertions/budgets/env/Tcl5/tools/fullseals/docsonlyfinalHEAD guards preserved. No GO/Cargo/provider/source/Git byLSP; no runtime/releaseclaim.
+
 
 
 
@@ -62,13 +63,14 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T05:08:48Z
+Last updated: 2026-10-23T05:22:25Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T05:08:48Z: read `lsp/quote-body23-v4-source46-runnable-20261023/status.json` and `lsp/native15-v13-source46-runnable-20261023/status.json` first. Root source46 eighttypecheck active; actual425bd/tree5bc7 immutable; no product/source/provider edits. Both runnable successors staticCLEAR only: GO must bind actual finished8PASS0W receipt path/SHA afterverdict, not futurepath or fictionpass. OldNativev10→12 and LSPv2→3 remain immutablehistorical; inheritedenv/provider/finalHEAD gaps corrected only in currentv4/v13. Native15 priorreport14FAIL is hash-only context; own15measurement stillunrun. Preserve original23/15 assertions/refusals, user2231 opaque clear/break, corebodyNative/sourcepurpose separation, and finite20 missingfinalproviderseal; no release/zeroP2Fclaim.
+Latest resume pointer 2026-10-23T05:22:25Z: read `lsp/source46-repaired-identity-typing-v8-failure-20261023/scope.json` first. Actualtypingv8FAIL1E0716/0W is preserved, notgreen. Repairedactual897b4f9b/tree0b11e3a0/mapf7568b84 has no newtyping/runtime verdict. Await Names8v9 exactpath/plan before freezing versionedLSP23/Native15 successors; bind actualPASS0W receiptSHA onlyatrootGO afterrealretry. Preserve priorimmutableplan/receipts, alloriginalassertions/guards, user2231 opaque stop; no release/zeroP2Fclaim.
+
 
 
 

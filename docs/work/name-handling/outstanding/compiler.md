@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T05:15:56.153229+00:00 (actual8 source46 FAIL soleE0716/0W; tinytestfixb9747a9a prepared; runtimev2 blocked)
+Last updated: 2026-10-23T05:23:38.462513+00:00 (repairedsource46 actual897b4f9b; runtimev3/compiler58+Jim7 frozen; actualv9PASS pending)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Repaired source46 runtimev3 readiness:** Root integrated tiny test-only E0716 fix into actual897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30. Full46 manifestf7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7 differs only source_bpf_command after15ee53b3, pathcount/beforepins unchanged. Explicit immutable compiler58v3 plan620a4a21238c6de04b5dd22d875e9a0e43d6971d6afd81510bf99f13e1050b11 / runnerfe1f1517e42f101ab10cc815ca9bcd7b17740ebcdac451d7467778a99e9c2bf0 and Jim7v3 planed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c / runner4ab415b101889ee2401f1d34f80f6d0b2c242742686e4b680ca7b6de662913a5 bind newactualtuple/map and exact Names v9 typecheckplan983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e / inputs1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40. Same original35/58+7/7 roster/assertions/envTcl5/process/source/provider/artifact/count/budget/failedvalid49 guards; no silent v2refresh. AST4/actual noGO launcher+directsuite refusalPASS. CCG delta peer pending. Matching owned archive folders include explicit allocation schemas; actual v9 PASS0W final+launcher bytes supplied only after rootobservedclosure, no fabricated path/outcome. V8 actualFAIL soleE0716/0W remains historical; postrepairtyping/runtime unrun here. No source/Cargo/Git.
 
 **Actual eight-package source46 FAIL, no runtime allocation:** Root closed v8 at05:14:22Z, sole E0716 at ir/source_bpf_command673, zero warnings/Cargo101; raw process complete/noStop and source/provider/GO/docsHEAD stable. This is compile failure, not runtime assertion failure; current runtimev2 typecheckPASS prerequisite remains blocked. Tiny off-tree test-only patch `/tmp/compiler-bpf-foreign-registry-lifetime-v1/proposal.patch` SHAb9747a9ab12a6eb195ccee50b6828f60c02d4f19e1a3a4070375b052f03803d3 binds same fresh foreign_registry immediately before original negative assertion, preserving all five assertions/order and production bytes. Before65f11ee047a6603f6c55b5395cbafd474c414ae4d1613577536770aac61f2494→final15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca. Exactcurrent/dryrun0/pinnedfmtPASS; CCG peer pending; no Cargo/source/Git. Archive bpf-foreign-registry-lifetime-v1. Root must integrate newactualHEAD/tree/map then explicit protocol successors; oldv1/v2 remain immutable, no silentpin refresh.
 

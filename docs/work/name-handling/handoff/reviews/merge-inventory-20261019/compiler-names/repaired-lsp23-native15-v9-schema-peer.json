@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-23T05:25:34.107355+00:00",
+  "status": "CLEAR focused exact v9 finalreceipt acceptance schema only; VM owns separate broader product/prerequisite review",
+  "v9_plan_sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+  "v9_GO_schema_sha256": "d5190ea8a490c6154b92f8b7f229f8d5e88e90b2646ba8a00cd06109c691705a",
+  "v9_source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "runners": [
+    {
+      "path": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23",
+      "pins": {
+        "plan.json": "96b709baa854a1a28d4d84c93773642cd2766dacf0f056ffbd6f5984538bd13b",
+        "suite.py": "cd5d40ff424df2bd02a1335f02eda07ac7189963039e86d2f18698e8d8187b98",
+        "runner-input-manifest.json": "7209ba50c7b913137b577cb55db4202ee9235b5bd61144d0a5c656ba8644ad73"
+      }
+    },
+    {
+      "path": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15",
+      "pins": {
+        "plan.json": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+        "suite.py": "4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+        "runner-input-manifest.json": "71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65"
+      }
+    }
+  ],
+  "schema_checks": [
+    "Actual rootGO future evidence object must name existing actual finalreceipt path and matching SHA; no receiptpath or pass fabricated now.",
+    "Finalreceipt must be statusPASS, overall_exit0, cargo_exit_code0 with guard_valid/warning_free_json_stderr_stdout/source_stable/providers_stable/root_go_stable/head_docs_descendant_valid alltrue.",
+    "Exact plan983d3418, approved product897b4f9b/tree0b11e3a0 and exact same8package vector rejoined; source46 mapf7568b84 pinned separately.",
+    "Exact current runner input hashes independently verified; source_view AST inspected for each criterion.",
+    "Old v8FAIL and its different plan5b60 cannot satisfy new prerequisite. Both runtime rootGO files absent during review."
+  ],
+  "limits": [
+    "No Cargo/build/Git/provider/canonical source/GO actions; actual v9 running, no PASS claim.",
+    "Focused schema review does not supersede VM product/prereq peer or prior lifecycle/env reviews."
+  ]
+}

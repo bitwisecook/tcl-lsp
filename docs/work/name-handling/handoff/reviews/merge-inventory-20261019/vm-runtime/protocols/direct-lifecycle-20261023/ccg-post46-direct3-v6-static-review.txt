@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T05:24:08.772783+00:00",
+  "verdict": "CLEAR bounded repaired source46/v9 binding delta; future actual8PASS0W stillmandatory beforeGO",
+  "pins": {
+    "plan.json": "8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34",
+    "suite.py": "2c278dd13e98e4fac66b3da5771ca29bbb578f34a5553f60ea17dad5895a4885",
+    "runner-input-manifest.json": "10fa392a3c45b10abc300ff0e253920bf223f1d0452d20d0f629d292f5e77884",
+    "source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "preparation-receipt.json": "11d9b8aa7aabc99d254e72ed9ba0bd1ce97b96be0669dabb173feba358a5da69"
+  },
+  "approved_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "checks": [
+    "all18owninputs+alltransitivev9inputs hashes and AST; GOabsent",
+    "actualrepairedidentity/mapf756/head897b/tree0b11 joined;46currentafterbytes match; no Git invoked",
+    "exact3/5producerpins/buildargv/diagnostic/provider/actualtool records unchanged",
+    "Rust+5Tcl env/tool/PATH/refusal contract unchanged except pinnedv9typeplan dependency",
+    "source_view prelock/perphase exact approvedHEAD/tree/identity/46current+approved+base joins and GOsource46; v9fullmanifest recursively checked",
+    "sameapprovedproduct actual8pkgPASS/guard_valid/zeroW pinnedv9plan remains prerequisite; priorreport14FAIL contextonly",
+    "inherited lifecycle88125/limits/artifact/provider/finalseals unchanged in bounded delta"
+  ],
+  "limitations": [
+    "v8 actualFAIL1E0716 remains historical; repairedtuple not admitted typed by this review",
+    "no diagnostics/runtime/wholeN17/family acceptance",
+    "staticreview only; no launcher/runner/provider/Git/Cargo/lock/source actions"
+  ]
+}

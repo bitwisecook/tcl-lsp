@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T05:22:04.619488+00:00",
+  "identity": {
+    "utc": "2026-10-23T05:17:37.960371+00:00",
+    "approved_integrated_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+    "approved_integrated_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+    "source46_manifest_path": "/tmp/naming-source46-repaired-manifest.json",
+    "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "path_count": 46,
+    "typing": false,
+    "runtime_tested": false
+  },
+  "independently_verified_actual_git_blob_count": 46,
+  "predecessor_map_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "changed_rows": [
+    "rust/tcl-compiler/src/ir/source_bpf_command.rs"
+  ],
+  "source_worktree_matches_committed": true,
+  "typecheck_pass": false,
+  "runtime_claim": false
+}

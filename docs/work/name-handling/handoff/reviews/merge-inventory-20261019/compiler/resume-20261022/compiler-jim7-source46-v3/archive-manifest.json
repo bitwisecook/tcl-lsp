@@ -1,0 +1,23 @@
+{
+  "archive_sha256": "aa6af7bc685a308f254ce67466ecd93c4a856d3b622cfc7729e71d100a224a0f",
+  "files": {
+    "compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "guarded-cargo.py": "3fe52bb5a5d6aa97f42fe9b177758bba52995144183cb9a1574aabd31d4a4af5",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch-preflight-refusal.json": "22f1f987a74f279d7950f8b66de9bf597b0de1c6b69a36832324292c02dc83c1",
+    "launch.py": "d1cb5e2af243f08bb7ce76bbc5e83a5d493693b0455aeb716ba5e7af5d8493b2",
+    "plan.json": "ed19181d6d1c7c62c5069c69459810fcb70a4563fe3993f2c223a39c6a1f256c",
+    "preflight-refusal.json": "e4f2cb37c11e1caaae5b7869e6c8aa8ac669121b35319bc552de1e8108e20992",
+    "readiness.json": "9cb81e0a4de4899a674c0bdf653a687919ffe7098bcee1219bf5e125bdb134f4",
+    "run.sh": "b45b098f5f7362835fb7461ff0ac4bf34c5388a493ce557d48ee68ffdfb5662e",
+    "runner-input-manifest.json": "4ab415b101889ee2401f1d34f80f6d0b2c242742686e4b680ca7b6de662913a5",
+    "source46-manifest.json": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+    "suite.py": "d966d10eff4adba149d030b7c8db7c41f268a0eb44b56d97a9c63c64baecfb86",
+    "typecheck8-plan.json": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+    "typecheck8-runner-input-manifest.json": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40"
+  },
+  "status": "prepared binding-only v3; peer pending; noGO/Cargo"
+}
