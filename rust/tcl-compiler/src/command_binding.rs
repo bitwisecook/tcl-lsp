@@ -25372,5 +25372,3 @@ mod original_compiled_list_owner_join_tests {
         );
     }
 }
-
-// Temporary bounded original-g4 attribution. Existing assertions remain exact.
