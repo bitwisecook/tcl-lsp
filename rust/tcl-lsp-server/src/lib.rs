@@ -38000,6 +38000,26 @@ fn workspace_source_edges(
     index.resolved_source_edges()
 }
 
+fn indexed_package_requirement_advice(
+    index: &core_workspace_index::WorkspaceIndex,
+    default_prefer: tcl_lsp_core::package_resolver::PackagePrefer,
+) -> HashMap<String, Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice>> {
+    let mut advice: HashMap<String, Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice>> =
+        HashMap::new();
+    for required in index.package_requires() {
+        let default = if index.source_ancestor_prefers_latest_from_resolved(&required.uri) {
+            tcl_lsp_core::package_resolver::PackagePrefer::Latest
+        } else {
+            default_prefer
+        };
+        advice
+            .entry(required.uri.clone())
+            .or_default()
+            .push(required.original_advice(default));
+    }
+    advice
+}
+
 /// Everything the `source` graph says about `uri` — both directions plus the
 /// abstention flag.  Operates on an already-locked
 /// index so the push and pull paths share it.
@@ -38035,19 +38055,7 @@ fn compute_source_inheritance(
     } else {
         default_prefer
     };
-    let mut advice: HashMap<String, Vec<tcl_lsp_core::package_resolver::PackageRequirementAdvice>> =
-        HashMap::new();
-    for required in index.package_requires() {
-        let default = if index.source_ancestor_prefers_latest_from_resolved(&required.uri) {
-            tcl_lsp_core::package_resolver::PackagePrefer::Latest
-        } else {
-            default_prefer
-        };
-        advice
-            .entry(required.uri.clone())
-            .or_default()
-            .push(required.original_advice(default));
-    }
+    let advice = indexed_package_requirement_advice(index, default_prefer);
     let original_ambient =
         original_ambient_requirements(index, uri, entry_points, folder_root, &advice);
     // This document's *own* `source` statements come from the analysis in
@@ -39005,22 +39013,26 @@ fn build_server_capabilities(
         // didRename so the editor consults us before/after a `.tcl`
         // rename — the willRename handler rewrites dependents' `source`
         // literals, the didRename handler reindexes the moved file.
-        workspace: Some(WorkspaceServerCapabilities {
-            // Advertise multi-root support and ask the client to send
-            // `workspace/didChangeWorkspaceFolders` so folders added or removed
-            // mid-session update the index and configuration (the
-            // `did_change_workspace_folders` handler), not just at startup.
-            workspace_folders: Some(WorkspaceFoldersServerCapabilities {
-                supported: Some(true),
-                change_notifications: Some(OneOf::Left(true)),
-            }),
-            file_operations: Some(WorkspaceFileOperationsServerCapabilities {
-                will_rename: Some(rename_file_operation_options()),
-                did_rename: Some(rename_file_operation_options()),
-                ..WorkspaceFileOperationsServerCapabilities::default()
-            }),
-        }),
+        workspace: Some(server_workspace_capabilities()),
         ..ServerCapabilities::default()
+    }
+}
+
+fn server_workspace_capabilities() -> WorkspaceServerCapabilities {
+    WorkspaceServerCapabilities {
+        // Advertise multi-root support and ask the client to send
+        // `workspace/didChangeWorkspaceFolders` so folders added or removed
+        // mid-session update the index and configuration (the
+        // `did_change_workspace_folders` handler), not just at startup.
+        workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+            supported: Some(true),
+            change_notifications: Some(OneOf::Left(true)),
+        }),
+        file_operations: Some(WorkspaceFileOperationsServerCapabilities {
+            will_rename: Some(rename_file_operation_options()),
+            did_rename: Some(rename_file_operation_options()),
+            ..WorkspaceFileOperationsServerCapabilities::default()
+        }),
     }
 }
 
@@ -42071,6 +42083,10 @@ info exists ::N::v\uD800";
         assert!(body_change.moved_workspace_facts());
     }
 
+    fn diagnostic_tcl_document(source: &str) -> DocumentState {
+        DocumentState::new(source.to_owned(), "tcl8.6".to_owned())
+    }
+
     #[test]
     fn original_diagnostic_invalidation_keeps_opaque_dependencies_and_foreign_surfaces_separate() {
         // Implementation contract: naming.editor.original-diagnostic-invalidation
@@ -42116,18 +42132,9 @@ info exists ::N::v\uD800";
         assert!(change.command_names.is_empty());
         assert!(change.original_changed && change.moved_workspace_facts());
         let mut docs = HashMap::from([
-            (
-                library.clone(),
-                DocumentState::new(after_source.to_owned(), "tcl8.6".to_owned()),
-            ),
-            (
-                caller.clone(),
-                DocumentState::new(caller_source.to_owned(), "tcl8.6".to_owned()),
-            ),
-            (
-                sibling.clone(),
-                DocumentState::new(sibling_source.to_owned(), "tcl8.6".to_owned()),
-            ),
+            (library.clone(), diagnostic_tcl_document(after_source)),
+            (caller.clone(), diagnostic_tcl_document(caller_source)),
+            (sibling.clone(), diagnostic_tcl_document(sibling_source)),
             (
                 javascript.clone(),
                 DocumentState::new(caller_source.to_owned(), "unknown-js".to_owned())
