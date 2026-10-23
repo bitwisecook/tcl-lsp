@@ -1332,11 +1332,14 @@ fn native_dispatch_bootstrap_wat(query: &str, minimum: i32) -> String {
 /// shared table, declares exactly that many functions for `ref.func`, and
 /// calls the definition ABI at least once.
 fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+    // This fixture exercises native table installation under the same genuine
+    // whole-program owner as the native-i64 driver; it never executes a preload.
+    let fixture = native_whole_program_fixture(program);
+    let registry = fixture.context.commands();
+    let unit = &fixture.unit;
     let mut output = compile_wasm(
-        &unit,
-        &registry,
+        unit,
+        registry,
         WasmCompileOptions::runtime_linked().native_tier(),
     );
     assert!(

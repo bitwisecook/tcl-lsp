@@ -223,6 +223,45 @@ impl SourceInvocationBinding {
             && self.unobserved_native_dispatch()
     }
 
+    /// Source-semantic absence for a separately sealed future fresh allocation.
+    /// This does not borrow or manufacture a physical Native token ledger row.
+    pub(crate) fn original_fresh_procedure_unobserved_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        target: &super::SourceCommandTarget,
+    ) -> bool {
+        if tokens.source_binding.as_ref() != Some(self)
+            || self.original_lexer_config_for_tokens(tokens).is_none()
+            || self.entered_execution_observer.observed()
+            || self.proved_execution_target() != Some(target)
+            || self.proved_target() != Some(target)
+            || self.direct_procedure_target(&target.command) != Some(target)
+        {
+            return false;
+        }
+        let Some(head) = self.original_head_name_input(tokens) else {
+            return false;
+        };
+        let Some(snapshot) = self.lookup_state.as_ref() else {
+            return false;
+        };
+        let Some(site) = self.invocation_site() else {
+            return false;
+        };
+        let Some(allocation) = target.implementation_allocation.as_ref() else {
+            return false;
+        };
+        snapshot.state.current_source_origin.as_ref() == Some(&site.source)
+            && snapshot.state.variable_frame == self.variable_frame
+            && head.is_current(&self.variable_context)
+            && snapshot
+                .state
+                .command_observers
+                .fresh_procedures
+                .get(allocation)
+                .is_some_and(|receipt| receipt.admits(&snapshot.state, target))
+    }
+
     /// Whether this point belongs to original authored document bytes.
     #[must_use]
     pub fn is_authored_source(&self) -> bool {
