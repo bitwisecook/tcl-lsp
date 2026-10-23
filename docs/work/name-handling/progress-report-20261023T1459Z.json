@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T14:59:22.287686+00:00",
+  "scheduled_report_utc": "2026-10-23T14:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T15:25:37+00:00",
+  "change_since_previous_report": [
+    "Published Native declaration geometry fix, two runtime capability fixture corrections and durable capability gate docs on work; selectively carried to release branch.",
+    "Actual current server DEV compilation passed with zero warnings. Cold semanticTokens failed ContentModified at final epoch/factory gate despite unchanged document; preserved complete sealed run. Published bounded recapture/recompute fix for fresh client rerun.",
+    "Independent review caught eight real trace test setup calls removed by release cleanup; restored exact calls and original mutable setup. Additional cleanup removes only unused pure observers and addresses lint warnings.",
+    "Compiler 55-file batch and VM 25-file batch independently composed and ready for controlled integration; actual typing, lint and runtime results still pending.",
+    "Six-hour deadline passed without a clean PR. Required CI, exact baseline comparison, Tcl corpus performance and section F remain open. No PR opened."
+  ],
+  "committed": [
+    "b2b012fab9afe1451a3757ba32f1190ce31044f2"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Rerun unchanged native client on bounded server recapture fix.",
+    "Integrate reviewed compiler/VM warning fixes on work, carry to release, rerun all required CI checks.",
+    "Resolve actual WASM/native trace, browser host, SpecTcl and corpus performance failures; retain original assertions and all fail-closed guards."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T14:17:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or validated-count changes. Actual selected DEV server build passed zero warnings, but original client still failed. All shipping release gates remain open.",
+  "disk_free_bytes": 3532812288,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

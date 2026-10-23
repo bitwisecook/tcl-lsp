@@ -1,0 +1,19 @@
+{
+  "work": {
+    "path": "runtime/rust/src/typed_value.rs",
+    "before_sha256": "f8e7a0b06c05ab17a3a23a1cdcd090658edd1ac75baa43c0d9d581822cd447a5",
+    "after_sha256": "93caa4bf68867e555d77a904c204a1ba4b6459f3d797adc7c0941020f579976c",
+    "patch_sha256": "c7690b407a71e3251e160f7b9aa63f1e22153198f3b084638f5ef12261b3557d",
+    "copyapply0_nooffset": true,
+    "rustfmt2021": "PASS"
+  },
+  "candidate": {
+    "path": "runtime/rust/src/typed_value.rs",
+    "before_sha256": "8019cbee013b29eca1f32bc0b66d39b1679182ec96e1147e68f4a4fbe296712d",
+    "after_sha256": "0555469f3bf67c66ed0e2210acff3da8329c4483071527124eec05080130de43",
+    "patch_sha256": "151b7c2e2cf8dee3a5c8c6d2d5ddaeebe41c48998c78ca495e2db35f594a99f0",
+    "copyapply0_nooffset": true,
+    "rustfmt2021": "PASS"
+  },
+  "scope": "Two existing test fixtures only; genuine existing default Host numeric environment; original scalar row values/assertions unchanged; exact C5 Unicode expected residency correction"
+}

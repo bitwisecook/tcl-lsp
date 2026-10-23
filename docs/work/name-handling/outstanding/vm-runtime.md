@@ -2,11 +2,23 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T14:23:44.503490+00:00 (fresh NoTom15PASS2FAIL; C5 cacheoracle correction peer pending; gate docs static CLEAR)
+Last updated: 2026-10-23T14:47:08.009991+00:00 (combined2NoTomfixtures LSP STATIC CLEAR; VM43 safev3/storagev2/valuev3 peer CLEAR; runtime pending)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Combined two actualNoTom fixture corrections frozen at
+`/workspace/naming-proof-storage/vm-notom-capability-fixtures-v1/`:
+WORKc7690b40/candidate151b7c2e, LSP STATIC CLEAR886754ff. Original command-cache
+rows now use independently supplied actual defaultHost numeric environment and
+existing with_environment getter, as existing primitiveboolean fixture does;
+no productionfallback or changedrowexpectations. C5exact Unicode residency
+correction included; allcount/units/origin/duplicate controls preserved. Both
+actualbefore/copyapply0/finals/fmt verified. No sourceapply/Cargo/runtimeclaim.
+VM43 independent peers: safev3 atomic12externalcallerclosure CLEAR399ebb36;
+storagev2 CLEARb6d881c4; valuev3 CLEAR5258c44e. Earlier safev2 integrationHOLD
+resolved only successorv3; child9 not reviewed by VM. Root integrates/validates.
 
 Fresh095f strict NoTom capability CI120463034154 actually15PASS2FAIL;
 full semantic step not reached. Native string-count cache failure is an exact

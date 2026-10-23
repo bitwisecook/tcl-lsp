@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T14:46:37.268729+00:00",
+  "decision": "BOUNDED STATIC CLEAR",
+  "manifest_sha256": "1d81db8a5e674a54dead0b58a029f4825809cc857b6180879393e03dfcbef180",
+  "work_patch_sha256": "c7690b407a71e3251e160f7b9aa63f1e22153198f3b084638f5ef12261b3557d",
+  "candidate_patch_sha256": "151b7c2e2cf8dee3a5c8c6d2d5ddaeebe41c48998c78ca495e2db35f594a99f0",
+  "inherited_c5_peer_sha256": "835dd52cfaca4eb94ee51f1ca24541fe5d75ec997cab6b6d10521c8a6359fdec",
+  "checks": [
+    "both currentbefore/patchpins/copyapply0-nooffset/finalpins",
+    "pinnedrustfmt2021PASS",
+    "only newdelta default_host actual numeric_environment provided to same existinggetter for three scalarstages",
+    "same actualHost pattern as primitiveBoolean fixture1400",
+    "same rowvalues/assertions/stageorder/cache controls; no productionchange or Tommath forcing"
+  ],
+  "cargo_native_runtime": "UNRUN"
+}

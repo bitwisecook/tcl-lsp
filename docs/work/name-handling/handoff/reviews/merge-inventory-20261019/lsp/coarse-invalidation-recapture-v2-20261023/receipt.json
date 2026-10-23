@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T14:52:40.411798+00:00",
+  "proposal": "/tmp/lsp-coarse-invalidation-recapture-v2",
+  "patch_sha256": "44bc8b0913c3e3f5a4cea1af3b3a8fd860273c2e0ff1f37bf0d7fb9c79e38126",
+  "archive_sha256": "74dec65f73515d80a604c2f7d56b7bac891988979ab5e2455cc1aa83d35c7ec5",
+  "scope": "OFFTREE; Names substantive static CLEAR and CCG production static CLEAR; no typing/runtime/application; existing publication guards retained",
+  "names_peer_sha256": "2b3d5aa5621fca73afc8291c9c4c5f725162ea0c226eb4225710449cc1dc80d1"
+}

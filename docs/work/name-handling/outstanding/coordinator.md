@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T14:26:14.731239+00:00
+Last updated: 2026-10-23T14:59:22.179424+00:00
 
 ## In progress
 
@@ -47,10 +47,10 @@ Last updated: 2026-10-23T14:26:14.731239+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (14:25 UTC)
+### Current cycle and routing (14:55 UTC)
 
-- Published actualVMtypingfixes0747a2a5a afterfreshdepth1fetch/rebase; activea03 productequivalence verified. Release095f carriesallknown minimaltypingrepairs plus51tracecleanup/11commentcleanup andonePrettierblankline; normalpush confirmed.
-- FreshshippingCI39967894177 on095f: actualstrictClippy323 compiler280+VM43; strictNoTom15P2F (fullTomunreached); WASM18P7F. Thesearecurrentfailures, notgreenstaticreview.
-- FreshfullSHApairedTclcorpus39968061509 running/queued. AccidentalshortSHA39967905570 failedcheckoutbeforebuild/harness; separateinvalidattemptretained, no acceptedmeasurement.
-- Newactualserverdiagnostic141535 sourcea03 running90581 withoriginalsemantics/executor88125/pinnedproviders/fullsourceguards; noextra lintrefactors. Earlier140102 Cargo101/groupempty, rootTERMsubsequentlyinterruptedfinalseals; originalfalseguardrecordpreserved.
-- SeparateBIGIPstatus13:17 COMPLETEOWNED over60minutes reportedtouser; perf14:17fresh/proofsactive, reviewtriagecompletedhistorical. No duplicateexternalrolesstarted.
+- Published Native declaration geometry fix, two runtime capability fixture corrections and durable capability gate docs on work; selectively carried to release branch.
+- Actual current server DEV compilation passed with zero warnings. Cold semanticTokens failed ContentModified at final epoch/factory gate despite unchanged document; preserved complete sealed run. Published bounded recapture/recompute fix for fresh client rerun.
+- Independent review caught eight real trace test setup calls removed by release cleanup; restored exact calls and original mutable setup. Additional cleanup removes only unused pure observers and addresses lint warnings.
+- Compiler 55-file batch and VM 25-file batch independently composed and ready for controlled integration; actual typing, lint and runtime results still pending.
+- Six-hour deadline passed without a clean PR. Required CI, exact baseline comparison, Tcl corpus performance and section F remain open. No PR opened.

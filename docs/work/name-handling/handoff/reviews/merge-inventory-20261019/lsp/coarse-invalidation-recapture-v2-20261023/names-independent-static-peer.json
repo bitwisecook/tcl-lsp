@@ -1,0 +1,14 @@
+{
+  "verdict": "STATIC_CLEAR bounded authority/type-access/effect-order review",
+  "patch_sha256": "44bc8b0913c3e3f5a4cea1af3b3a8fd860273c2e0ff1f37bf0d7fb9c79e38126",
+  "checks": [
+    "Independent actual two WORK before pins, zero-fuzz/no-offset copied application, exact finals and pinned rustfmt pass",
+    "One bounded fresh capture and token recomputation is permitted only after actual epoch/factory advancement plus exact held-document/configuration/URI/source-analysis/provider-admission checks",
+    "Old seed epoch/factory values are used only to authenticate the original held analysis while the transaction itself checks current epoch/factory; this never authorizes publishing old tokens",
+    "New capture obtains its own current complete analysis; final token cache/response transaction and all existing publication guards are unchanged",
+    "Every document/config/provider/URI change still prevents reuse/publication; second invalidation remains subject to original final refusal",
+    "Additive genuine backend test checks old-publication refusal, eligible recomputation, current fresh capture and version-change refusal; existing assertions untouched",
+    "No actual causal/runtime closure claim: fresh cold-token and test execution required"
+  ],
+  "limits": "No Cargo, Git, source writes, actual typing/Clippy or runtime; root owns application and validation"
+}

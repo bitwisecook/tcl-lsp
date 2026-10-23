@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T14:36:32Z",
+  "archive_sha256": "86d41abf4fed5fbb36bb31ed71ac384f726eb75de3a5e0809f0f263ded56a791",
+  "members": {
+    "proposal.patch": "22ea85f68f0f1c73d86d08ea40644c1a278c17049a9b93923c65c7a9d21a6d35",
+    "manifest.json": "2f49dfc5947489caf6f006c194ed05c125a718c972d4a711c558cb50e8d8ca1e",
+    "names-static-peer.json": "accb12ef29be2748c5f787114d439b17873e053bd08384f4e94479b9f373037f",
+    "rustfmt.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apply-check.txt": "45ebad360420d56d06259e594f6fd287e754183b125245d2f4cf7f11cac6863f"
+  },
+  "roundtrip": true,
+  "scope": "offtree staticpeer only; no typing/Clippy/runtime/application"
+}
