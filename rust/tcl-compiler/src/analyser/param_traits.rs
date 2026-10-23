@@ -824,7 +824,7 @@ fn scan_segment<'p>(
             })
             .flatten()
         {
-            for word in words.iter() {
+            for word in &words {
                 let arena = word.executable_parts();
                 let mut bodies: Vec<_> = arena
                     .all_parts()

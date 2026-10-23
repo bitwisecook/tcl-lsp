@@ -59,7 +59,7 @@ impl OriginalSourcePointAdviceGraph {
                 graph.c_source_namespace = Some(path);
             }
             AdviceNamingPolicy::Logical(_) => graph.logical_namespace = Some(path),
-            _ => return None,
+            AdviceNamingPolicy::Native(_) => return None,
         }
         Some(Arc::new(Self { graph }))
     }

@@ -1409,25 +1409,7 @@ fn registered_compiler_selection(
     let original =
         original_registered_compiler_preparation(spec, selected, state, context, argument_offset);
     let admission = original.as_ref().map_or_else(
-        || {
-            if original_named_selection_is_closed(selected, facts, state, context) {
-                spec.select_for_original_facts(
-                    invocation,
-                    shapes,
-                    facts,
-                    state.baseline.compilation_dialect(),
-                    context.compilation,
-                )
-            } else {
-                spec.select_for_facts(
-                    invocation,
-                    shapes,
-                    facts,
-                    state.baseline.compilation_dialect(),
-                    context.compilation,
-                )
-            }
-        },
+        || registered_fallback_admission(spec, selected, facts, state, context, invocation),
         |(selection, _)| *selection,
     );
     let dependencies = compiler_dependencies(spec, target, state, context);
@@ -1477,6 +1459,34 @@ fn registered_compiler_selection(
         switch,
         structured,
     })
+}
+
+fn registered_fallback_admission(
+    spec: tcl_registry::native_compilation::NativeCompilationSpec,
+    selected: CompilerInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+    invocation: tcl_registry::InvocationWords<'_>,
+) -> NativeCompilationSelection {
+    let shapes = selected.shapes;
+    if original_named_selection_is_closed(selected, facts, state, context) {
+        spec.select_for_original_facts(
+            invocation,
+            shapes,
+            facts,
+            state.baseline.compilation_dialect(),
+            context.compilation,
+        )
+    } else {
+        spec.select_for_facts(
+            invocation,
+            shapes,
+            facts,
+            state.baseline.compilation_dialect(),
+            context.compilation,
+        )
+    }
 }
 
 /// Whether the retained original command may select a named ensemble

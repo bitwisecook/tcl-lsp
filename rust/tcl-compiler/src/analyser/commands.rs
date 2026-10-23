@@ -207,6 +207,19 @@ fn is_dynamic_eval_body(view: &crate::registry_invocation::InvocationBodyAssista
         })
 }
 
+fn body_written_effective_index(
+    words: Option<&crate::registry_invocation::source_structure::OriginalRegistryWords>,
+    written: usize,
+) -> Option<usize> {
+    words?
+        .origins()
+        .iter()
+        .position(|origin| {
+            *origin == crate::registry_invocation::InvocationWordOrigin::Written(written + 1)
+        })
+        .and_then(|index| index.checked_sub(1))
+}
+
 impl Analyser {
     fn emit_body_depth_limit_if_exceeded(&mut self, span: tcl_lexer::Span) -> bool {
         if !MAX_BODY_DEPTH.exceeded(self.body_depth) {
@@ -1006,20 +1019,8 @@ impl Analyser {
             // Re-entering the same lexical vector through an ordinary handler
             // walk must preserve its already sealed full source ancestry. This
             // is source membership only; no parent lookup is transplanted.
-            let body_origin = body_origin.or_else(|| {
-                let head = native.first()?;
-                let occurrence = self
-                    .result
-                    .original_vendor_source_names
-                    .get(&head.span())?
-                    .as_ref()?;
-                (occurrence.original_words() == native.as_slice()
-                    && occurrence.name_input().original_word() == head
-                    && occurrence.site().source.source_image() == &image
-                    && occurrence.name_input().lexer_config() == config)
-                    .then(|| occurrence.retained_body_origin())
-                    .flatten()
-            });
+            let body_origin =
+                self.retained_original_source_body_origin(&native, body_origin, &image, config);
             self.retain_original_static_source_vector(&native, body_origin.as_ref());
             if let Some(words) =
                 self.original_readonly_vendor_source_vector(&native, body_origin.as_ref())
@@ -1080,6 +1081,29 @@ impl Analyser {
                 }
             }
         }
+    }
+
+    fn retained_original_source_body_origin(
+        &self,
+        native: &[tcl_lexer::NativeWord],
+        body_origin: Option<Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>>,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceScriptBodyOrigin>> {
+        body_origin.or_else(|| {
+            let head = native.first()?;
+            let occurrence = self
+                .result
+                .original_vendor_source_names
+                .get(&head.span())?
+                .as_ref()?;
+            (occurrence.original_words() == native
+                && occurrence.name_input().original_word() == head
+                && occurrence.site().source.source_image() == image
+                && occurrence.name_input().lexer_config() == config)
+                .then(|| occurrence.retained_body_origin())
+                .flatten()
+        })
     }
 
     /// Seal authored hosted roles for a genuine lexical vector. Unreached
@@ -1684,7 +1708,8 @@ impl Analyser {
             presubstituted_args: false,
         };
         let original = self.original_diagnostic_invocation(&site)?;
-        let transitions = original.with_schema(|schema| schema.state_transitions())?;
+        let transitions = original
+            .with_schema(crate::registry_invocation::source_schema_queries::state_transitions)?;
         let mut values = Vec::new();
         let mut tokens = Vec::new();
         for index in 0..original.words().arguments().len() {
@@ -2805,6 +2830,56 @@ impl Analyser {
         self.emit_w003_dialect_invalid_expr_words(site.args, site.arg_tokens, &site.args.join(" "));
     }
 
+    fn define_clause_loop_variables(
+        &mut self,
+        plan: &tcl_registry::clause_grammar::ClausePlan,
+        words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+        scope_path: &[usize],
+    ) {
+        for clause in &plan.clauses {
+            for index in clause.operands(ArgRole::LoopVarList) {
+                let Some(text) = words
+                    .arguments()
+                    .get(index)
+                    .and_then(|word| word.literal_bytes())
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                else {
+                    continue;
+                };
+                let Some(token) = words
+                    .operands()
+                    .get(index)
+                    .and_then(Option::as_ref)
+                    .and_then(|operand| operand.word())
+                    .and_then(|word| word.tokens().first())
+                    .copied()
+                else {
+                    continue;
+                };
+                self.define_vars_from_list(text, token, scope_path);
+            }
+        }
+    }
+
+    fn prepare_body_clause_variables(
+        &mut self,
+        words: Option<&crate::registry_invocation::source_structure::OriginalRegistryWords>,
+        generation: &tcl_registry::model::ContextRegistry,
+        scope_path: &[usize],
+    ) -> Option<tcl_registry::clause_grammar::ClausePlan> {
+        let words = words?;
+        let plan = words
+            .with_source_schema(
+                generation,
+                crate::registry_invocation::source_schema_queries::clause_plan,
+            )
+            .flatten();
+        if let Some(plan) = plan.as_ref() {
+            self.define_clause_loop_variables(plan, words, scope_path);
+        }
+        plan
+    }
+
     /// Generic body recursion via the command registry's
     /// `ArgRole::Body`, including `if`, `when`, `eval`, and every other
     /// registry-owned body. Sets event / conditional context and emits W105
@@ -2886,53 +2961,18 @@ impl Analyser {
                 &self.result,
                 &tokens,
             );
-        let plan = source_words.as_ref().and_then(|words| {
-            words
-                .with_source_schema(generation.as_ref(), |schema| schema.clause_plan())
-                .flatten()
-        });
-        if let (Some(plan), Some(words)) = (plan.as_ref(), source_words.as_ref()) {
-            for clause in &plan.clauses {
-                for index in clause.operands(ArgRole::LoopVarList) {
-                    let Some(text) = words
-                        .arguments()
-                        .get(index)
-                        .and_then(|word| word.literal_bytes())
-                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                    else {
-                        continue;
-                    };
-                    let Some(token) = words
-                        .operands()
-                        .get(index)
-                        .and_then(Option::as_ref)
-                        .and_then(|operand| operand.word())
-                        .and_then(|word| word.tokens().first())
-                        .copied()
-                    else {
-                        continue;
-                    };
-                    self.define_vars_from_list(text, token, scope_path);
-                }
-            }
-        }
+        let plan = self.prepare_body_clause_variables(
+            source_words.as_ref(),
+            generation.as_ref(),
+            scope_path,
+        );
         for idx in body_indices {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
                 self.retain_body_event_declaration(entered_event, tokens.argv.first(), body_tok);
-                let effective = source_words
-                    .as_ref()
-                    .and_then(|words| {
-                        words.origins().iter().position(|origin| {
-                            *origin
-                                == crate::registry_invocation::InvocationWordOrigin::Written(
-                                    idx + 1,
-                                )
-                        })
-                    })
-                    .and_then(|index| index.checked_sub(1));
+                let effective = body_written_effective_index(source_words.as_ref(), idx);
                 let (conditional, control_flow) = body_depths(
-                    effective.and_then(|_| plan.as_ref()),
+                    effective.and(plan.as_ref()),
                     effective.unwrap_or(idx),
                     logical_traits,
                 );
@@ -3879,90 +3919,12 @@ impl Analyser {
                 )
             });
         if let Some(source_aliases) = source_aliases {
-            let input = self.resolved_analysis_input();
-            let logical_declarations = source_aliases
-                .logical_declarations(&input, &self.head_identities)
-                .unwrap_or_default();
-            if let Some(spans) =
-                source_aliases.unresolved_logical_name_spans(&input, &self.head_identities)
-            {
-                for span in spans {
-                    if !self.result.original_variable_name_unknowns.contains(&span) {
-                        self.result.original_variable_name_unknowns.push(span);
-                    }
-                }
-            }
-            for &(local, target, purpose) in source_aliases.operands() {
-                let operand = (invocation_offset, local, target, purpose);
-                if !self
-                    .result
-                    .original_variable_alias_operands
-                    .contains(&operand)
-                {
-                    self.result.original_variable_alias_operands.push(operand);
-                }
-            }
-            if !self
-                .result
-                .original_variable_alias_source_operands
-                .contains(&source_aliases)
-            {
-                self.result
-                    .original_variable_alias_source_operands
-                    .push(source_aliases);
-            }
-            for declaration in logical_declarations {
-                let (local, word) = declaration.local();
-                let Some(&token) = word.tokens().first() else {
-                    continue;
-                };
-                self.define_var(local, token, scope_path, false, None);
-                let Some(target) = declaration.target() else {
-                    continue;
-                };
-                let Some(target_input) =
-                    self.original_qualified_variable_input(target.span(), false)
-                else {
-                    continue;
-                };
-                let purpose = crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                    &input, self.source_analysis_entry.as_deref(), target_input.policy(),
-                );
-                let Some(original) = declaration.target_occurrence(&input, target_input, purpose)
-                else {
-                    continue;
-                };
-                if self
-                    .result
-                    .original_variable_symbol_conflicts
-                    .contains(&target.span())
-                {
-                    continue;
-                }
-                if let Some(existing) = self
-                    .result
-                    .original_variable_symbols
-                    .iter_mut()
-                    .find(|site| site.span() == target.span())
-                {
-                    if !existing.merge_declaration(&original) {
-                        self.result
-                            .original_variable_symbol_conflicts
-                            .push(target.span());
-                        continue;
-                    }
-                } else {
-                    self.result.original_variable_symbols.push(original.clone());
-                }
-                self.define_original_namespace_alias_target(&original);
-                // The link's display is attached only after actual original
-                // target geometry. It never supplies symbol identity.
-                if let Some(report) = declaration.alias().and_then(|alias| {
-                    self.alias_target_report(&alias.target, &tokens.argv_texts[1..], scope_path)
-                }) {
-                    self.set_var_link_report(local, scope_path, report, target.span());
-                }
-            }
+            self.retain_original_variable_aliases(
+                source_aliases,
+                invocation_offset,
+                &tokens,
+                scope_path,
+            );
         }
         let writes = if self.selected_logical_declaration_advice() {
             crate::registry_invocation::logical_source_variable_write_advice(
@@ -4020,6 +3982,101 @@ impl Analyser {
             scope_path,
             assistance,
         );
+    }
+
+    fn retain_original_variable_aliases(
+        &mut self,
+        source_aliases: crate::registry_invocation::OriginalSourceVariableAliasOperands,
+        invocation_offset: u32,
+        tokens: &crate::ir::CommandTokens,
+        scope_path: &[usize],
+    ) {
+        let input = self.resolved_analysis_input();
+        let logical_declarations = source_aliases
+            .logical_declarations(&input, &self.head_identities)
+            .unwrap_or_default();
+        if let Some(spans) =
+            source_aliases.unresolved_logical_name_spans(&input, &self.head_identities)
+        {
+            for span in spans {
+                if !self.result.original_variable_name_unknowns.contains(&span) {
+                    self.result.original_variable_name_unknowns.push(span);
+                }
+            }
+        }
+        for &(local, target, purpose) in source_aliases.operands() {
+            let operand = (invocation_offset, local, target, purpose);
+            if !self
+                .result
+                .original_variable_alias_operands
+                .contains(&operand)
+            {
+                self.result.original_variable_alias_operands.push(operand);
+            }
+        }
+        if !self
+            .result
+            .original_variable_alias_source_operands
+            .contains(&source_aliases)
+        {
+            self.result
+                .original_variable_alias_source_operands
+                .push(source_aliases);
+        }
+        for declaration in logical_declarations {
+            let (local, word) = declaration.local();
+            let Some(&token) = word.tokens().first() else {
+                continue;
+            };
+            self.define_var(local, token, scope_path, false, None);
+            let Some(target) = declaration.target() else {
+                continue;
+            };
+            let Some(target_input) = self.original_qualified_variable_input(target.span(), false)
+            else {
+                continue;
+            };
+            let purpose =
+                crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                    &input,
+                    self.source_analysis_entry.as_deref(),
+                    target_input.policy(),
+                );
+            let Some(original) = declaration.target_occurrence(&input, target_input, purpose)
+            else {
+                continue;
+            };
+            if self
+                .result
+                .original_variable_symbol_conflicts
+                .contains(&target.span())
+            {
+                continue;
+            }
+            if let Some(existing) = self
+                .result
+                .original_variable_symbols
+                .iter_mut()
+                .find(|site| site.span() == target.span())
+            {
+                if !existing.merge_declaration(&original) {
+                    self.result
+                        .original_variable_symbol_conflicts
+                        .push(target.span());
+                    continue;
+                }
+            } else {
+                self.result.original_variable_symbols.push(original.clone());
+            }
+            self.define_original_namespace_alias_target(&original);
+            // The link's display is attached only after actual original
+            // target geometry. It never supplies symbol identity.
+            if let Some(report) = declaration.alias().and_then(|alias| {
+                self.alias_target_report(&alias.target, &tokens.argv_texts[1..], scope_path)
+            }) {
+                self.set_var_link_report(local, scope_path, report, target.span());
+            }
+        }
     }
 
     fn retain_variable_declaration_receivers(
@@ -4893,6 +4950,28 @@ impl Analyser {
         }
     }
 
+    fn dispatch_nested_package_hook(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        match self.resolve_analyser_hook(cmd_name, args) {
+            Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
+                self.handle_package_require(cmd_name, cmd_tok, args, arg_tokens);
+            }
+            Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
+                self.handle_package_provide(cmd_tok, args, arg_tokens);
+            }
+            Some(tcl_registry::hooks::AnalyserHookId::Catch) => {
+                self.handle_var_binding_command(cmd_tok, arg_tokens, scope_path);
+            }
+            _ => {}
+        }
+    }
+
     /// Run the full per-command diagnostic dispatch on one command
     /// descended from a ``[…]`` substitution: the syntactic emitters
     /// ([`Self::emit_dispatch_site_diagnostics`]) plus the EXPR-argument
@@ -5001,18 +5080,7 @@ impl Analyser {
         // any-require-seen gate never engages.  Only the two `package`
         // hooks run here — the substitution path deliberately dispatches
         // no other handler family.
-        match self.resolve_analyser_hook(&cmd_name, args) {
-            Some(tcl_registry::hooks::AnalyserHookId::PackageRequire) => {
-                self.handle_package_require(&cmd_name, cmd_tok, args, arg_tokens);
-            }
-            Some(tcl_registry::hooks::AnalyserHookId::PackageProvide) => {
-                self.handle_package_provide(cmd_tok, args, arg_tokens);
-            }
-            Some(tcl_registry::hooks::AnalyserHookId::Catch) => {
-                self.handle_var_binding_command(cmd_tok, arg_tokens, scope_path);
-            }
-            _ => {}
-        }
+        self.dispatch_nested_package_hook(&cmd_name, cmd_tok, args, arg_tokens, scope_path);
         // A definition command (`proc`, a class definer, `oo::define`) or an
         // `apply` lambda nested inside a substitution — the feature-detection
         // idiom `if {![catch {oo::configurable create Greeter {…}}]} {…}`, or

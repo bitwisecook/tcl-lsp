@@ -56,6 +56,38 @@ pub(super) struct VariableLinkTarget {
         crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
 }
 
+fn original_dictionary_key_spans(
+    value: &str,
+    original: Option<Span>,
+) -> HashMap<String, Option<Span>> {
+    let mut original_keys = std::collections::HashMap::new();
+    if let Some(content) = original {
+        let mut offset = 0;
+        let mut ordinal = 0;
+        while let Ok(Some(element)) = tcl_syntax::list::find_element(value, offset) {
+            if ordinal % 2 == 0 && element.literal {
+                let key = &value[element.value.clone()];
+                let span = u32::try_from(element.value.start)
+                    .ok()
+                    .zip(u32::try_from(element.value.end).ok())
+                    .and_then(|(start, end)| {
+                        Some(Span::new(
+                            content.start().checked_add(start)?,
+                            content.start().checked_add(end)?,
+                        ))
+                    });
+                original_keys
+                    .entry(key.to_owned())
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(span);
+            }
+            ordinal += 1;
+            offset = element.next;
+        }
+    }
+    original_keys
+}
+
 /// Ancestor path enumerator: yields the active scope's path and
 /// each of its proper ancestors back to the root, longest first.
 ///
@@ -2186,31 +2218,7 @@ impl Analyser {
                 let content = word.content_span().ok()?;
                 (image.bytes().get(content.as_range()) == Some(value.as_bytes())).then_some(content)
             });
-        let mut original_keys = std::collections::HashMap::new();
-        if let Some(content) = original {
-            let mut offset = 0;
-            let mut ordinal = 0;
-            while let Ok(Some(element)) = tcl_syntax::list::find_element(value, offset) {
-                if ordinal % 2 == 0 && element.literal {
-                    let key = &value[element.value.clone()];
-                    let span = u32::try_from(element.value.start)
-                        .ok()
-                        .zip(u32::try_from(element.value.end).ok())
-                        .and_then(|(start, end)| {
-                            Some(Span::new(
-                                content.start().checked_add(start)?,
-                                content.start().checked_add(end)?,
-                            ))
-                        });
-                    original_keys
-                        .entry(key.to_owned())
-                        .and_modify(|entry| *entry = None)
-                        .or_insert(span);
-                }
-                ordinal += 1;
-                offset = element.next;
-            }
-        }
+        let original_keys = original_dictionary_key_spans(value, original);
         let declarations = elements
             .as_chunks::<2>()
             .0
@@ -2734,6 +2742,21 @@ impl Analyser {
             let ns = self.command_resolution_namespace(scope_path);
             crate::naming::qualify(&ns, base_name)
         };
+        self.retain_qualified_variable_reference(
+            qualified,
+            span,
+            original_name_input,
+            original_namespace,
+        );
+    }
+
+    fn retain_qualified_variable_reference(
+        &mut self,
+        qualified: String,
+        span: Span,
+        original_name_input: Option<crate::signature_scan::scope::SignatureSourceNameInput>,
+        original_namespace: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
+    ) {
         if let Some(last) = self
             .result
             .qualified_var_refs
@@ -3082,39 +3105,15 @@ impl Analyser {
         if let Some(source_input) = self.result.resolved_input.as_ref()
             && source_input.has_logical_source_name_context()
         {
-            let image = tcl_lexer::SourceImage::document(&self.source);
-            let scope = self.head_identities.original_logical_variable_scope_at(
+            return self.original_logical_variable_occurrence(
                 source_input,
-                &image,
-                span,
-                &input,
-            )?;
-            let mut aliases = self
-                .result
-                .original_variable_alias_receipts
-                .iter()
-                .filter(|alias| scope.matches_alias_template(span, &input, receiver, alias));
-            if let Some(alias) = aliases.next() {
-                if aliases.any(|other| other != alias) {
-                    return None;
-                }
-                return SignatureSourceVariableOccurrence::from_logical_alias_input(
-                    span,
-                    input,
-                    receiver,
-                    alias.clone(),
-                    scope,
-                );
-            }
-            return SignatureSourceVariableOccurrence::from_logical_source(
                 span,
                 input,
                 receiver,
                 declaration,
-                scope,
-                &self.result.original_variable_alias_receipts,
             );
         }
+
         if let Some(namespace) = &namespace
             && let Some(site) = SignatureSourceVariableOccurrence::from_original_input(
                 span,
@@ -3158,6 +3157,49 @@ impl Analyser {
                 receiver,
                 declaration,
             ),
+        )
+    }
+
+    fn original_logical_variable_occurrence(
+        &self,
+        source_input: &super::ResolvedAnalysisInput,
+        span: Span,
+        input: crate::signature_scan::scope::SignatureSourceNameInput,
+        receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver,
+        declaration: bool,
+    ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence> {
+        use crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let scope = self.head_identities.original_logical_variable_scope_at(
+            source_input,
+            &image,
+            span,
+            &input,
+        )?;
+        let mut aliases = self
+            .result
+            .original_variable_alias_receipts
+            .iter()
+            .filter(|alias| scope.matches_alias_template(span, &input, receiver, alias));
+        if let Some(alias) = aliases.next() {
+            if aliases.any(|other| other != alias) {
+                return None;
+            }
+            return SignatureSourceVariableOccurrence::from_logical_alias_input(
+                span,
+                input,
+                receiver,
+                alias.clone(),
+                scope,
+            );
+        }
+        SignatureSourceVariableOccurrence::from_logical_source(
+            span,
+            input,
+            receiver,
+            declaration,
+            scope,
+            &self.result.original_variable_alias_receipts,
         )
     }
 

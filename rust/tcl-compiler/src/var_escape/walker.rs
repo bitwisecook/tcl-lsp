@@ -407,23 +407,10 @@ fn escape_assign_or_incr(
         return true;
     }
     match stmt {
-        Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
-            if name.is_empty() || is_dynamic_token(name) {
-                state.mark_pessimistic();
-                return true;
-            }
-            state.escape(name);
-            true
-        }
-        Statement::AssignExpr { name, .. } => {
-            if name.is_empty() || is_dynamic_token(name) {
-                state.mark_pessimistic();
-                return true;
-            }
-            state.escape(name);
-            true
-        }
-        Statement::Incr { name, .. } => {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => {
             if name.is_empty() || is_dynamic_token(name) {
                 state.mark_pessimistic();
                 return true;
@@ -456,8 +443,7 @@ fn escape_call_or_barrier(
             handle_barrier(stmt, args, state, registry);
             true
         }
-        Statement::Return { .. } => true,
-        Statement::ExprEval { .. } => true,
+        Statement::Return { .. } | Statement::ExprEval { .. } => true,
         _ => false,
     }
 }
@@ -488,13 +474,9 @@ fn escape_structural(
             escape_every_name_touched(next, state, registry);
             escape_every_name_touched(body, state, registry);
         }
-        Statement::While { body, .. } => {
-            escape_every_name_touched(body, state, registry);
-        }
-        Statement::Foreach { body, .. } => {
-            escape_every_name_touched(body, state, registry);
-        }
-        Statement::Catch { body, .. } => {
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => {
             escape_every_name_touched(body, state, registry);
         }
         Statement::Try {
@@ -615,15 +597,7 @@ fn walk_assign_or_incr(
             }
             true
         }
-        Statement::AssignExpr { name, .. } => {
-            if is_dynamic_name(name) {
-                walk_dynamic_name_escape(state, name);
-            } else {
-                state.invalidate_literal(name);
-            }
-            true
-        }
-        Statement::Incr { name, .. } => {
+        Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
             if is_dynamic_name(name) {
                 walk_dynamic_name_escape(state, name);
             } else {
@@ -694,8 +668,7 @@ fn walk_statement(
             state.record_fallback();
             handle_uplevel(&args, state, registry);
         }
-        Statement::Return { .. } => {}
-        Statement::ExprEval { .. } => {}
+        Statement::Return { .. } | Statement::ExprEval { .. } => {}
         _ => walk_structured_statement(stmt, state, depth, registry),
     }
 }
@@ -725,13 +698,9 @@ fn walk_structured_statement(
             walk(next, state, nested_depth, registry);
             walk(body, state, nested_depth, registry);
         }
-        Statement::While { body, .. } => {
-            walk(body, state, nested_depth, registry);
-        }
-        Statement::Foreach { body, .. } => {
-            walk(body, state, nested_depth, registry);
-        }
-        Statement::Catch { body, .. } => {
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => {
             walk(body, state, nested_depth, registry);
         }
         Statement::Try {

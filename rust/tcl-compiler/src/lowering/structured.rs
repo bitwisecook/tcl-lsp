@@ -1535,18 +1535,14 @@ impl Lowerer<'_> {
                 }))
     }
 
-    /// Lower the executed operand value in its retained source instance.
-    /// Escapes and substitutions never receive estimated document offsets.
-    pub(super) fn lower_body_from_tok(
-        &mut self,
-        text: &str,
-        tok: Option<&tcl_lexer::Token>,
-        _namespace: &str,
-    ) -> Script {
-        let Some(tok) = tok else {
-            return Script::new();
-        };
-        let authored_child = if let Some(scope) = self.authored_source_scope.clone() {
+    fn authored_child_for_token(
+        &self,
+        tok: &tcl_lexer::Token,
+    ) -> Option<(
+        std::sync::Arc<crate::registry_invocation::OriginalAuthoredSourceBodyScope>,
+        tcl_lexer::NativeWord,
+    )> {
+        if let Some(scope) = self.authored_source_scope.clone() {
             self.structured_source_parent.as_deref().and_then(|parent| {
                 let original = scope.original_words(parent, self.registry)?;
                 let body = original
@@ -1565,7 +1561,21 @@ impl Lowerer<'_> {
             })
         } else {
             None
+        }
+    }
+
+    /// Lower the executed operand value in its retained source instance.
+    /// Escapes and substitutions never receive estimated document offsets.
+    pub(super) fn lower_body_from_tok(
+        &mut self,
+        text: &str,
+        tok: Option<&tcl_lexer::Token>,
+        _namespace: &str,
+    ) -> Script {
+        let Some(tok) = tok else {
+            return Script::new();
         };
+        let authored_child = self.authored_child_for_token(tok);
         if let Some((child, body)) = authored_child {
             let Some(span) = crate::registry_invocation::original_written_script_body_span(&body)
             else {

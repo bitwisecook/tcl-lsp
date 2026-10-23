@@ -112,7 +112,7 @@ fn list_indices(
             let Ok(index) = usize::try_from(index) else {
                 return Vec::new();
             };
-            list = values[index].clone();
+            list.clone_from(&values[index]);
         }
     }
     Vec::new()

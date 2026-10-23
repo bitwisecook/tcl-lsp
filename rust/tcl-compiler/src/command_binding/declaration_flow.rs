@@ -2187,6 +2187,15 @@ impl Builder<'_> {
             &accumulator_paths,
             &accumulators,
         );
+        self.record_warning_observations(&mut report, &warning_paths);
+        report
+    }
+
+    fn record_warning_observations(
+        &self,
+        report: &mut DeclarationFlowReport,
+        warning_paths: &[Option<State>],
+    ) {
         for (id, store) in &self.conditional_overwrites {
             if !report.unknown_reads
                 && !report.aliases.contains(&store.name)
@@ -2248,7 +2257,6 @@ impl Builder<'_> {
                 }
             }
         }
-        report
     }
 
     fn initial_state(&self) -> State {

@@ -945,7 +945,7 @@ impl LogicalBodyWalk<'_, '_> {
             .push(SourceCommandTransitionObligation::DeferredLogicalBodyApplicability);
         self.context
             .retain_authored_command_prefix(tape, invocation, graph, schema, Some(&advice));
-        self.retain_advice(tape, &advice);
+        Self::retain_advice(tape, &advice);
         self.context
             .retain_logical_math_functions(tape, graph, &advice, schema);
         self.context
@@ -983,7 +983,6 @@ impl LogicalBodyWalk<'_, '_> {
 
     #[inline(never)]
     fn retain_advice(
-        &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         advice: &OriginalSourceCommandTransitionAdvice,
     ) {

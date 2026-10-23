@@ -358,23 +358,10 @@ fn tree_assign_or_incr(
         return true;
     }
     match stmt {
-        Statement::AssignConst { name, .. } | Statement::AssignValue { name, .. } => {
-            if name.is_empty() || is_dynamic_name(name) {
-                state.mark_pessimistic();
-                return true;
-            }
-            state.escape(name, defs);
-            true
-        }
-        Statement::AssignExpr { name, .. } => {
-            if name.is_empty() || is_dynamic_name(name) {
-                state.mark_pessimistic();
-                return true;
-            }
-            state.escape(name, defs);
-            true
-        }
-        Statement::Incr { name, .. } => {
+        Statement::AssignConst { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => {
             if name.is_empty() || is_dynamic_name(name) {
                 state.mark_pessimistic();
                 return true;
@@ -426,8 +413,7 @@ fn tree_call_or_barrier(
             }
             true
         }
-        Statement::Return { .. } => true,
-        Statement::ExprEval { .. } => true,
+        Statement::Return { .. } | Statement::ExprEval { .. } => true,
         _ => false,
     }
 }
@@ -456,13 +442,9 @@ fn tree_structural(
             escape_every_name_touched_tree(next, state, defs, registry);
             escape_every_name_touched_tree(body, state, defs, registry);
         }
-        Statement::While { body, .. } => {
-            escape_every_name_touched_tree(body, state, defs, registry);
-        }
-        Statement::Foreach { body, .. } => {
-            escape_every_name_touched_tree(body, state, defs, registry);
-        }
-        Statement::Catch { body, .. } => {
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => {
             escape_every_name_touched_tree(body, state, defs, registry);
         }
         Statement::Try {
@@ -584,8 +566,7 @@ fn handle_stmt_call_or_barrier(
             }
             true
         }
-        Statement::Return { .. } => true,
-        Statement::ExprEval { .. } => true,
+        Statement::Return { .. } | Statement::ExprEval { .. } => true,
         _ => false,
     }
 }
@@ -658,15 +639,7 @@ fn handle_stmt_assign_or_incr(
             }
             true
         }
-        Statement::AssignExpr { name, .. } => {
-            if is_dynamic_name(name) {
-                dynamic_name_escape(state, defs, name);
-            } else {
-                state.invalidate_literal(name);
-            }
-            true
-        }
-        Statement::Incr { name, .. } => {
+        Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
             if is_dynamic_name(name) {
                 dynamic_name_escape(state, defs, name);
             } else {
@@ -715,8 +688,6 @@ fn handle_statement(
     }
     // Structured statements: recurse via the tree walker.
     match stmt {
-        Statement::Return { .. } => {}
-        Statement::ExprEval { .. } => {}
         // Structured statements appear in the SSA stream as flat
         // statements after CFG lowering — but they may still be
         // present for non-flattened compound shapes. Recurse into
@@ -738,13 +709,9 @@ fn handle_statement(
             escape_every_name_touched_tree(next, state, defs, registry);
             escape_every_name_touched_tree(body, state, defs, registry);
         }
-        Statement::While { body, .. } => {
-            escape_every_name_touched_tree(body, state, defs, registry);
-        }
-        Statement::Foreach { body, .. } => {
-            escape_every_name_touched_tree(body, state, defs, registry);
-        }
-        Statement::Catch { body, .. } => {
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Catch { body, .. } => {
             escape_every_name_touched_tree(body, state, defs, registry);
         }
         Statement::Try {

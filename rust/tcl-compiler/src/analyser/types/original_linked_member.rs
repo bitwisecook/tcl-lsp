@@ -181,9 +181,7 @@ fn scope_links(
     let registry = input.context_registry();
     let mut links = Vec::new();
     for command in commands {
-        let Some(head) = command.words.first() else {
-            return None;
-        };
+        let head = command.words.first()?;
         let Some(invocation) = source_registry_words_at(source, analysis, head.span().start())
         else {
             continue;

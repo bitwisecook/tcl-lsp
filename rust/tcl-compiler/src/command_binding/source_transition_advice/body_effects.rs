@@ -194,11 +194,10 @@ impl AdviceInvocationContext<'_> {
         {
             graph.widen(invocation.native);
         }
-        self.apply_source_lookup_residual_effects(graph, invocation, schema);
+        Self::apply_source_lookup_residual_effects(graph, invocation, schema);
     }
 
     pub(super) fn apply_source_lookup_residual_effects(
-        &self,
         graph: &mut AdviceGraph,
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
@@ -1092,12 +1091,11 @@ impl BodyWalk<'_, '_> {
                     .checked_add(command.end())?
                     .checked_sub(1)?;
                 let threaded;
-                let base = match &original {
-                    Some(original) => original,
-                    None => {
-                        threaded = graph.clone();
-                        &threaded
-                    }
+                let base = if let Some(original) = &original {
+                    original
+                } else {
+                    threaded = graph.clone();
+                    &threaded
                 };
                 let mut branch = base.clone();
                 let parent_catalogue = self.catalogue_body.clone();
@@ -1490,13 +1488,10 @@ impl BodyWalk<'_, '_> {
     ) {
         // The independent readonly catalogue owns Jim source syntax even when
         // this walk has no execution/mutation-completeness inventory.
-        let jim_parent = self
-            .source_body
-            .as_ref()
-            .or_else(|| match &self.catalogue_body {
-                Some(super::OriginalSourceCatalogueBody::Script(body)) => Some(body),
-                _ => None,
-            });
+        let jim_parent = self.source_body.as_ref().or(match &self.catalogue_body {
+            Some(super::OriginalSourceCatalogueBody::Script(body)) => Some(body),
+            _ => None,
+        });
         let authored_jim = jim_parent.and_then(|body| {
             self.context
                 .authored_jim_class_source(graph, invocation, schema, Some(body))
@@ -1659,7 +1654,7 @@ impl BodyWalk<'_, '_> {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;
             Self::retain_source_body(self.context.policy, &mut advice, body);
             if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
-                advice.logical_scope = self.logical_scope.clone();
+                advice.logical_scope.clone_from(&self.logical_scope);
             }
             Some(advice)
         } else {
@@ -1697,7 +1692,7 @@ impl BodyWalk<'_, '_> {
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
         Self::retain_source_body(self.context.policy, &mut advice, body);
         if matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
-            advice.logical_scope = self.logical_scope.clone();
+            advice.logical_scope.clone_from(&self.logical_scope);
         }
         if let Some(previous) = tape.advice.get(&advice.site.offset) {
             if previous != &advice {

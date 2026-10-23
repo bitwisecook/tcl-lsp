@@ -1387,10 +1387,10 @@ fn collect_original_expression_body_writes(
         for nested in crate::word_subst::checked_lifted_calls(&original, semantics.lexer_config)
             .unwrap_or_default()
         {
-            if let Some(nested) = nested.tokens {
-                if let Some(head) = nested.argv.first() {
-                    collect_original_command_writes(head.start(), semantics, metadata, out);
-                }
+            if let Some(nested) = nested.tokens
+                && let Some(head) = nested.argv.first()
+            {
+                collect_original_command_writes(head.start(), semantics, metadata, out);
             }
         }
         collect_original_command_writes(head.start(), semantics, metadata, out);

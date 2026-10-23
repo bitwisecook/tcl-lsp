@@ -50,7 +50,7 @@ impl SourceConditionalContext {
             source_purpose: self.source_purpose,
             body_entry: super::SourceBodyEntryPurpose::Conditional,
             realm: self.realm,
-            compilation: Default::default(),
+            compilation: tcl_registry::native_compilation::NativeCompilationContext::default(),
             compilation_snapshot: None,
             selected_compilation: None,
             original_variable_compilation: None,
@@ -185,8 +185,8 @@ impl SourceConditionalKernel {
         };
         // Every observation participates, including unavailable/rejected ones.
         // A later positive cannot renew a withdrawn same-site continuation.
-        if self.plans.contains_key(&site) {
-            self.plans.insert(site, None);
+        if let Some(plan) = self.plans.get_mut(&site) {
+            *plan = None;
             return;
         }
         self.plans.insert(site.clone(), None);
@@ -417,6 +417,8 @@ impl super::SourceCommandBindings {
         child: &crate::analyser::AnalysisResult,
         conditional_outcome: Option<&OriginalSourceConditionalOutcome>,
     ) -> Option<OriginalSourceConditionalContinuation> {
+        type Memo = std::collections::HashMap<u64, Vec<Weak<SourceConditionalContinuationPayload>>>;
+        static MEMO: OnceLock<Mutex<Memo>> = OnceLock::new();
         use std::hash::{Hash, Hasher};
         use std::sync::{Mutex, OnceLock, Weak};
         point.matches_parent_analysis(parent).then_some(())?;
@@ -462,8 +464,6 @@ impl super::SourceCommandBindings {
             dialect,
             grammar,
         };
-        type Memo = std::collections::HashMap<u64, Vec<Weak<SourceConditionalContinuationPayload>>>;
-        static MEMO: OnceLock<Mutex<Memo>> = OnceLock::new();
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         payload.point.hash(&mut hasher);
         let mut memo = MEMO
@@ -624,7 +624,7 @@ impl super::SourceCommandBindings {
             .is_some_and(|observations| {
                 observations.iter().any(|observation| {
                     observation.frame.is_some()
-                        || &observation.source.origin != &parent.source
+                        || observation.source.origin != parent.source
                         || observation.source.base() != content.start()
                         || bytes != Some(observation.source.text.bytes())
                 })

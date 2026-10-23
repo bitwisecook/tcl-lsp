@@ -267,11 +267,14 @@ impl SourceCommandBindings {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum OriginalNativeProcedureRecipe {
-    ReadFlow {
-        declaration: super::declaration_preview::DeclaredProcedureBody,
-        read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
-    },
+    ReadFlow(Box<OriginalNativeProcedureReadFlow>),
     Source(std::sync::Arc<super::source_transition_advice::OriginalNativeSourceDeclaration>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalNativeProcedureReadFlow {
+    declaration: super::declaration_preview::DeclaredProcedureBody,
+    read_flow: super::declaration_preview::OriginalProcedureReadFlowEntry,
 }
 
 /// Original Native-name procedure syntax under its authentic source body owner.
@@ -287,25 +290,19 @@ pub struct OriginalNativeProcedureBody {
 impl OriginalNativeProcedureBody {
     pub(crate) fn site(&self) -> &super::CommandAllocationSite {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { declaration, .. } => {
-                declaration.declaration_site()
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => flow.declaration.declaration_site(),
             OriginalNativeProcedureRecipe::Source(source) => source.site(),
         }
     }
     pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                &read_flow.header.namespace
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => &flow.read_flow.header.namespace,
             OriginalNativeProcedureRecipe::Source(source) => source.namespace(),
         }
     }
     pub(crate) fn source_slot(&self) -> &tcl_core_types::ByteCommandSlot {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                &read_flow.header.source_slot
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => &flow.read_flow.header.source_slot,
             OriginalNativeProcedureRecipe::Source(source) => source.declaration_slot(),
         }
     }
@@ -313,9 +310,7 @@ impl OriginalNativeProcedureBody {
         &self,
     ) -> &crate::signature_scan::scope::SignatureSourceNameInput {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                &read_flow.header.name_input
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => &flow.read_flow.header.name_input,
             OriginalNativeProcedureRecipe::Source(source) => source.name_input(),
         }
     }
@@ -324,40 +319,34 @@ impl OriginalNativeProcedureBody {
     }
     pub(crate) fn reporting_label(&self) -> Option<String> {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { declaration, .. } => {
-                declaration.command_label()
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => flow.declaration.command_label(),
             OriginalNativeProcedureRecipe::Source(source) => source.label(),
         }
     }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                &read_flow.header.parameters
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => &flow.read_flow.header.parameters,
             OriginalNativeProcedureRecipe::Source(source) => source.parameters(),
         }
     }
     pub(crate) fn parameters_text(&self) -> Option<&str> {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                read_flow.read.parameters_text()
-            }
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => flow.read_flow.read.parameters_text(),
             OriginalNativeProcedureRecipe::Source(source) => source.parameters_text(),
         }
     }
     pub(crate) fn body_span(&self) -> Option<tcl_lexer::Span> {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                read_flow.read.original_body_span()
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => {
+                flow.read_flow.read.original_body_span()
             }
             OriginalNativeProcedureRecipe::Source(source) => Some(source.body_span()),
         }
     }
     pub(crate) fn body_text(&self) -> Option<&str> {
         match &self.recipe {
-            OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
-                read_flow.read.original_body_text()
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => {
+                flow.read_flow.read.original_body_text()
             }
             OriginalNativeProcedureRecipe::Source(source) => source.body_text(),
         }
@@ -369,7 +358,7 @@ impl OriginalNativeProcedureBody {
     {
         match &self.recipe {
             OriginalNativeProcedureRecipe::Source(source) => source.children(bindings, &self.input),
-            OriginalNativeProcedureRecipe::ReadFlow { .. } => None,
+            OriginalNativeProcedureRecipe::ReadFlow(_) => None,
         }
     }
     pub(crate) fn owns_source_declaration(
@@ -413,19 +402,17 @@ impl OriginalNativeProcedureBody {
         }
         match &self.recipe {
             OriginalNativeProcedureRecipe::Source(source) => source.matches_source(image, input),
-            OriginalNativeProcedureRecipe::ReadFlow {
-                declaration,
-                read_flow,
-            } => {
-                read_flow.read.original_image() == image
-                    && read_flow.header.declaration == *self.site()
-                    && read_flow.header.namespace == declaration.namespace
-                    && read_flow.header.parameters == declaration.parameters
-                    && read_flow.header.original_parameters == declaration.original_parameters
-                    && read_flow.header.frame == declaration.frame
-                    && declaration.source.origin == self.site().source
+            OriginalNativeProcedureRecipe::ReadFlow(flow) => {
+                flow.read_flow.read.original_image() == image
+                    && flow.read_flow.header.declaration == *self.site()
+                    && flow.read_flow.header.namespace == flow.declaration.namespace
+                    && flow.read_flow.header.parameters == flow.declaration.parameters
+                    && flow.read_flow.header.original_parameters
+                        == flow.declaration.original_parameters
+                    && flow.read_flow.header.frame == flow.declaration.frame
+                    && flow.declaration.source.origin == self.site().source
                     && self.body_span().is_some_and(|span| {
-                        read_flow.read.owns_original_read(span)
+                        flow.read_flow.read.owns_original_read(span)
                             && image.bytes().get(span.as_range()).is_some()
                     })
             }
@@ -520,10 +507,12 @@ impl SourceCommandBindings {
                 let read_flow =
                     self.original_procedure_read_flow_entry(&tokens, registry, input)?;
                 let card = OriginalNativeProcedureBody {
-                    recipe: OriginalNativeProcedureRecipe::ReadFlow {
-                        declaration,
-                        read_flow,
-                    },
+                    recipe: OriginalNativeProcedureRecipe::ReadFlow(Box::new(
+                        OriginalNativeProcedureReadFlow {
+                            declaration,
+                            read_flow,
+                        },
+                    )),
                     input: input.clone(),
                     lowered_body: None,
                     module_entry: None,

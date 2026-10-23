@@ -17,6 +17,8 @@ use tcl_registry::{Traits, arg_role::ArgRole};
 fn interpreter_script_arguments(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
 ) -> Option<(&'static str, Vec<usize>, bool)> {
+    use tcl_registry::resolved_invocation::AuthoredSourceOptionBoundary as Boundary;
+
     let selected = schema.authored_source_descriptors();
     let member = selected.subcommand?;
     if !selected
@@ -66,7 +68,6 @@ fn interpreter_script_arguments(
     {
         return None;
     }
-    use tcl_registry::resolved_invocation::AuthoredSourceOptionBoundary as Boundary;
     let command = match scan.boundary {
         // A computed boundary retains the possibility of a command operand;
         // it does not prove that an earlier option loop accepts this value.

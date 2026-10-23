@@ -125,6 +125,7 @@ pub(crate) use source_scoped_body::{
     OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,
     original_source_scoped_bodies, original_written_script_body_is_empty,
 };
+pub(crate) mod source_schema_queries;
 mod source_taint;
 mod source_taint_arguments;
 pub use source_taint::HostedSourceTaintContext;

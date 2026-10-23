@@ -467,11 +467,11 @@ fn original_empty_dictionary_body(
                 || access.mode == EffectAccessMode::Clobber
                 || (access.domain != WorldStateDomain::VariableStore
                     && access.mode != EffectAccessMode::Read)
-                || !matches!(
+                || !(matches!(
                     access.domain,
                     WorldStateDomain::VariableStore | WorldStateDomain::VariableTraces
-                ) && !(access.domain == WorldStateDomain::InterpreterPolicy
-                    && access.mode == EffectAccessMode::Read)
+                ) || (access.domain == WorldStateDomain::InterpreterPolicy
+                    && access.mode == EffectAccessMode::Read))
         })
     {
         return None;

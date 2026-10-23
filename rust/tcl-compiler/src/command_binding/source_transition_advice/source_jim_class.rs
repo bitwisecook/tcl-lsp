@@ -328,16 +328,15 @@ impl AdviceInvocationContext<'_> {
             return None;
         }
         let parent_body = parent.or(graph.procedure_body.as_ref());
-        if let Some(body) = parent_body {
-            if !body.matches_source(self.origin.source_image(), self.config)
+        if let Some(body) = parent_body
+            && (!body.matches_source(self.origin.source_image(), self.config)
                 || !body.matches_context(self.context)
                 || invocation.native.iter().any(|word| {
                     word.span().start() < body.content_span().start()
                         || word.span().end() > body.content_span().end()
-                })
-            {
-                return None;
-            }
+                }))
+        {
+            return None;
         }
         let mut factory = self.schema_advice(invocation, graph, schema)?;
         if parent_body.is_some() {
@@ -420,19 +419,23 @@ pub struct OriginalAuthoredJimClassCall {
 }
 impl OriginalAuthoredJimClassCall {
     /// Complete original call words, retaining their image, grouping and grammar.
+    #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {
         &self.original
     }
     /// Authentic conditional source class selected by this original graph lookup.
+    #[must_use]
     pub fn class(&self) -> &OriginalAuthoredJimClass {
         &self.class
     }
     /// Whether earlier unknown effects remain an explicit applicability debt.
+    #[must_use]
     pub fn has_earlier_unknown_mutations(&self) -> bool {
         self.obligations
             .contains(&super::SourceCommandTransitionObligation::UnknownEarlierMutation)
     }
     /// Unresolved source and execution premises; no successful dispatch is implied.
+    #[must_use]
     pub fn obligations(&self) -> &[super::SourceCommandTransitionObligation] {
         &self.obligations
     }

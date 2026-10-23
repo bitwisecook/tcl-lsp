@@ -8,7 +8,10 @@ use super::{
     Arc, BodyProofScope, ModuleCommandBindings, Script, SourceInvocationBinding, SourceOriginId,
 };
 use crate::registry_invocation::{OwnedInvocationMetadataContext, RegistryInvocationShape};
-use tcl_registry::CommandRegistry;
+use tcl_registry::{
+    CommandRegistry,
+    world_effect::{CallbackKinds, WorldStateDomain},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct OriginalRegistryDependency {
@@ -176,57 +179,14 @@ impl ModuleCommandBindings {
         let mut projection = body.clone();
         let mut relocation = crate::var_resolve::VariableProofRelocation::default();
         let mut dependencies = std::collections::BTreeMap::new();
-        let mut valid = true;
-        crate::ir::for_each_script_mut(&mut projection, &mut |script| {
-            valid &= script.implicit_math_invocations.is_empty()
-                && script.expression_preparations.is_empty()
-                && script.native_compilation_failure.is_none();
-            for statement in &script.statements {
-                let tokens = statement.tokens().or_else(|| {
-                    script
-                        .command_binding_sites
-                        .iter()
-                        .find(|site| site.span.start() == statement.span().start())
-                        .and_then(|site| site.source_tokens.as_deref())
-                });
-                let Some(tokens) = tokens else {
-                    valid = false;
-                    continue;
-                };
-                valid &= collect_registry_dependencies(
-                    tokens,
-                    scope,
-                    self,
-                    registry,
-                    &mut dependencies,
-                    &mut relocation,
-                )
-                .is_some();
-            }
-            for site in script.command_binding_sites.iter() {
-                if let Some(tokens) = &site.source_tokens {
-                    valid &= collect_registry_dependencies(
-                        tokens,
-                        scope,
-                        self,
-                        registry,
-                        &mut dependencies,
-                        &mut relocation,
-                    )
-                    .is_some();
-                } else {
-                    valid = false;
-                }
-                super::body_template::collect_body_offset(
-                    &mut relocation,
-                    scope,
-                    site.span.start(),
-                );
-                if let Some(context) = &site.variable_context {
-                    super::body_template::collect_body_activation(&mut relocation, context);
-                }
-            }
-        });
+        let valid = collect_analytical_projection_dependencies(
+            &mut projection,
+            scope,
+            self,
+            registry,
+            &mut dependencies,
+            &mut relocation,
+        );
         if !valid || relocation.activations.len() > 1 || relocation.inverse().is_none() {
             return None;
         }
@@ -396,59 +356,15 @@ impl ModuleCommandBindings {
         let mut projection = body.clone();
         let mut relocation = crate::var_resolve::VariableProofRelocation::default();
         let mut dependencies = std::collections::BTreeMap::new();
-        let mut valid = true;
-        crate::ir::for_each_script_mut(&mut projection, &mut |script| {
-            valid &= script.implicit_math_invocations.is_empty()
-                && script.expression_preparations.is_empty()
-                && script.native_compilation_failure.is_none();
-            for statement in &script.statements {
-                let tokens = statement.tokens().or_else(|| {
-                    script
-                        .command_binding_sites
-                        .iter()
-                        .find(|site| site.span.start() == statement.span().start())
-                        .and_then(|site| site.source_tokens.as_deref())
-                });
-                let Some(tokens) = tokens else {
-                    valid = false;
-                    continue;
-                };
-                valid &= collect_readonly_source_registry_dependencies(
-                    tokens,
-                    scope,
-                    self,
-                    owner,
-                    registry,
-                    &mut dependencies,
-                    &mut relocation,
-                )
-                .is_some();
-            }
-            for site in script.command_binding_sites.iter() {
-                if let Some(tokens) = &site.source_tokens {
-                    valid &= collect_readonly_source_registry_dependencies(
-                        tokens,
-                        scope,
-                        self,
-                        owner,
-                        registry,
-                        &mut dependencies,
-                        &mut relocation,
-                    )
-                    .is_some();
-                } else {
-                    valid = false;
-                }
-                super::body_template::collect_body_offset(
-                    &mut relocation,
-                    scope,
-                    site.span.start(),
-                );
-                if let Some(context) = &site.variable_context {
-                    super::body_template::collect_body_activation(&mut relocation, context);
-                }
-            }
-        });
+        let valid = collect_readonly_projection_dependencies(
+            &mut projection,
+            scope,
+            self,
+            owner,
+            registry,
+            &mut dependencies,
+            &mut relocation,
+        );
         if !valid || relocation.activations.len() > 1 || relocation.inverse().is_none() {
             return None;
         }
@@ -560,6 +476,140 @@ fn collect_registry_dependencies(
     Some(())
 }
 
+fn collect_analytical_projection_dependencies(
+    projection: &mut Script,
+    scope: BodyProofScope<'_>,
+    bindings: &ModuleCommandBindings,
+    registry: &CommandRegistry,
+    dependencies: &mut std::collections::BTreeMap<u32, AnalyticalCommandDependency>,
+    relocation: &mut crate::var_resolve::VariableProofRelocation,
+) -> bool {
+    let mut valid = true;
+    crate::ir::for_each_script_mut(projection, &mut |script| {
+        valid &= script.implicit_math_invocations.is_empty()
+            && script.expression_preparations.is_empty()
+            && script.native_compilation_failure.is_none();
+        for statement in &script.statements {
+            let tokens = statement.tokens().or_else(|| {
+                script
+                    .command_binding_sites
+                    .iter()
+                    .find(|site| site.span.start() == statement.span().start())
+                    .and_then(|site| site.source_tokens.as_deref())
+            });
+            let Some(tokens) = tokens else {
+                valid = false;
+                continue;
+            };
+            valid &= collect_registry_dependencies(
+                tokens,
+                scope,
+                bindings,
+                registry,
+                dependencies,
+                relocation,
+            )
+            .is_some();
+        }
+        for site in script.command_binding_sites.iter() {
+            if let Some(tokens) = &site.source_tokens {
+                valid &= collect_registry_dependencies(
+                    tokens,
+                    scope,
+                    bindings,
+                    registry,
+                    dependencies,
+                    relocation,
+                )
+                .is_some();
+            } else {
+                valid = false;
+            }
+            super::body_template::collect_body_offset(relocation, scope, site.span.start());
+            if let Some(context) = &site.variable_context {
+                super::body_template::collect_body_activation(relocation, context);
+            }
+        }
+    });
+    valid
+}
+
+fn collect_readonly_projection_dependencies(
+    projection: &mut Script,
+    scope: BodyProofScope<'_>,
+    bindings: &ModuleCommandBindings,
+    owner: ReadonlySourceBody<'_>,
+    registry: &CommandRegistry,
+    dependencies: &mut std::collections::BTreeMap<u32, AnalyticalCommandDependency>,
+    relocation: &mut crate::var_resolve::VariableProofRelocation,
+) -> bool {
+    let mut valid = true;
+    crate::ir::for_each_script_mut(projection, &mut |script| {
+        valid &= script.implicit_math_invocations.is_empty()
+            && script.expression_preparations.is_empty()
+            && script.native_compilation_failure.is_none();
+        for statement in &script.statements {
+            let tokens = statement.tokens().or_else(|| {
+                script
+                    .command_binding_sites
+                    .iter()
+                    .find(|site| site.span.start() == statement.span().start())
+                    .and_then(|site| site.source_tokens.as_deref())
+            });
+            let Some(tokens) = tokens else {
+                valid = false;
+                continue;
+            };
+            valid &= collect_readonly_source_registry_dependencies(
+                tokens,
+                scope,
+                bindings,
+                owner,
+                registry,
+                dependencies,
+                relocation,
+            )
+            .is_some();
+        }
+        for site in script.command_binding_sites.iter() {
+            if let Some(tokens) = &site.source_tokens {
+                valid &= collect_readonly_source_registry_dependencies(
+                    tokens,
+                    scope,
+                    bindings,
+                    owner,
+                    registry,
+                    dependencies,
+                    relocation,
+                )
+                .is_some();
+            } else {
+                valid = false;
+            }
+            super::body_template::collect_body_offset(relocation, scope, site.span.start());
+            if let Some(context) = &site.variable_context {
+                super::body_template::collect_body_activation(relocation, context);
+            }
+        }
+    });
+    valid
+}
+
+fn supported_dependency_world_domain(domain: WorldStateDomain) -> bool {
+    matches!(
+        domain,
+        WorldStateDomain::VariableStore
+            | WorldStateDomain::VariableTraces
+            | WorldStateDomain::InterpreterResult
+            | WorldStateDomain::CompletionState
+            | WorldStateDomain::LegacyExternal(
+                tcl_registry::side_effects::SideEffectTarget::ChannelIo
+                    | tcl_registry::side_effects::SideEffectTarget::FileIo
+                    | tcl_registry::side_effects::SideEffectTarget::LogIo
+            )
+    )
+}
+
 fn original_registry_dependency(
     tokens: &crate::ir::CommandTokens,
     scope: BodyProofScope<'_>,
@@ -619,7 +669,6 @@ fn original_registry_dependency(
         shape.with_source_schema(registry, metadata, tokens, |schema| {
             let (effects, transitions) =
                 schema.authored_source_effects_and_state_transitions(source_dialect);
-            use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
             let callbacks = effects.callback().kinds;
             let trace_free = !proof.variable_context.dynamic_traces
                 && proof.variable_context.traced.is_empty()
@@ -630,20 +679,10 @@ fn original_registry_dependency(
                 && schema.semantics.body_execution.is_none()
                 && schema.semantics.frame_effect.is_none()
                 && transitions.facts().is_empty()
-                && effects.accesses().iter().all(|access| {
-                    matches!(
-                        access.domain,
-                        WorldStateDomain::VariableStore
-                            | WorldStateDomain::VariableTraces
-                            | WorldStateDomain::InterpreterResult
-                            | WorldStateDomain::CompletionState
-                            | WorldStateDomain::LegacyExternal(
-                                tcl_registry::side_effects::SideEffectTarget::ChannelIo
-                                    | tcl_registry::side_effects::SideEffectTarget::FileIo
-                                    | tcl_registry::side_effects::SideEffectTarget::LogIo
-                            )
-                    )
-                });
+                && effects
+                    .accesses()
+                    .iter()
+                    .all(|access| supported_dependency_world_domain(access.domain));
             permitted.then_some(())
         })?;
         let mut effective = tokens.clone();
@@ -879,7 +918,6 @@ fn original_native_source_registry_dependency(
         shape.with_source_schema(registry, metadata, tokens, |schema| {
             let (effects, transitions) =
                 schema.authored_source_effects_and_state_transitions(source_dialect);
-            use tcl_registry::world_effect::{CallbackKinds, WorldStateDomain};
             let callbacks = effects.callback().kinds;
             let trace_inventory_empty = proof.variable_context.traced.is_empty()
                 && proof.variable_context.trace_registrations.is_empty()
@@ -889,20 +927,10 @@ fn original_native_source_registry_dependency(
                 && schema.semantics.body_execution.is_none()
                 && schema.semantics.frame_effect.is_none()
                 && transitions.facts().is_empty()
-                && effects.accesses().iter().all(|access| {
-                    matches!(
-                        access.domain,
-                        WorldStateDomain::VariableStore
-                            | WorldStateDomain::VariableTraces
-                            | WorldStateDomain::InterpreterResult
-                            | WorldStateDomain::CompletionState
-                            | WorldStateDomain::LegacyExternal(
-                                tcl_registry::side_effects::SideEffectTarget::ChannelIo
-                                    | tcl_registry::side_effects::SideEffectTarget::FileIo
-                                    | tcl_registry::side_effects::SideEffectTarget::LogIo
-                            )
-                    )
-                });
+                && effects
+                    .accesses()
+                    .iter()
+                    .all(|access| supported_dependency_world_domain(access.domain));
             permitted.then_some(())
         })?;
         let mut effective = tokens.clone();
@@ -1013,20 +1041,10 @@ fn original_native_source_schema_dependency(
             && schema.semantics.body_execution.is_none()
             && schema.semantics.frame_effect.is_none()
             && transitions.facts().is_empty()
-            && effects.accesses().iter().all(|access| {
-                matches!(
-                    access.domain,
-                    WorldStateDomain::VariableStore
-                        | WorldStateDomain::VariableTraces
-                        | WorldStateDomain::InterpreterResult
-                        | WorldStateDomain::CompletionState
-                        | WorldStateDomain::LegacyExternal(
-                            tcl_registry::side_effects::SideEffectTarget::ChannelIo
-                                | tcl_registry::side_effects::SideEffectTarget::FileIo
-                                | tcl_registry::side_effects::SideEffectTarget::LogIo
-                        )
-                )
-            }))
+            && effects
+                .accesses()
+                .iter()
+                .all(|access| supported_dependency_world_domain(access.domain)))
         .then_some(())
     })??;
     Some(NativeSourceSchemaDependency {

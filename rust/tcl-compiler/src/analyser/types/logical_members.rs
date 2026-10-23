@@ -1025,7 +1025,6 @@ impl AnalysisResult {
         }
         match selected.as_slice() {
             [class] => Some(*class),
-            [] => None,
             _ => None,
         }
     }

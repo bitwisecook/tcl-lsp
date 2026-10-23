@@ -75,6 +75,181 @@ impl AdviceGraph {
         }
     }
 
+    fn apply_source_namespace_export(
+        &mut self,
+        receipt: &Arc<OriginalSourceCommandTransition>,
+        namespace: &NamespaceTransitionTarget,
+        patterns: &[tcl_registry::TransitionSubject],
+    ) -> Option<()> {
+        let namespace = self.source_transition_namespace(receipt, namespace)?;
+        let clear = match &self.policy {
+            AdviceNamingPolicy::Logical(_) => {
+                NamespaceTransition::export_pattern_operands(patterns)?.0
+            }
+            AdviceNamingPolicy::Native(policy) => {
+                let inputs = patterns
+                    .iter()
+                    .map(|subject| {
+                        receipt
+                            .input(subject)?
+                            .native_input()
+                            .filter(|input| input.policy() == *policy)
+                            .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes)
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                NamespaceTransition::export_pattern_byte_operands(&inputs, *policy)?.0
+            }
+        };
+        let patterns = patterns[usize::from(clear)..]
+            .iter()
+            .map(|subject| {
+                let (source, pattern) = self.source_namespace_pattern(
+                    &namespace,
+                    receipt.input(subject)?,
+                    NativeNamePurpose::NamespaceExportPattern,
+                )?;
+                source.is_none().then_some(pattern)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        if clear {
+            self.namespace_exports.insert(namespace.clone(), patterns);
+            self.unknown_exports.remove(&namespace);
+        } else {
+            self.namespace_exports
+                .entry(namespace)
+                .or_default()
+                .extend(patterns);
+        }
+        Some(())
+    }
+
+    fn apply_source_namespace_import(
+        &mut self,
+        receipt: &Arc<OriginalSourceCommandTransition>,
+        namespace: &NamespaceTransitionTarget,
+        force: Option<bool>,
+        patterns: &[tcl_registry::TransitionSubject],
+    ) -> Option<()> {
+        let namespace = self.source_transition_namespace(receipt, namespace)?;
+        let force = force?;
+        for pattern in patterns {
+            let (source, pattern) = self.source_namespace_pattern(
+                &namespace,
+                receipt.input(pattern)?,
+                NativeNamePurpose::NamespaceImportPattern,
+            )?;
+            let source = source?;
+            if source == namespace || !self.namespaces.contains(&source) {
+                return None;
+            }
+            let exports = self
+                .namespace_exports
+                .get(&source)
+                .map_or(&[][..], Vec::as_slice);
+            let mut matches = Vec::new();
+            for (slot, cell) in &self.cells {
+                if slot.namespace != source
+                    || matches!(cell, AdviceCell::Deleted)
+                    || !self.source_namespace_match(
+                        NativeNameGlobPurpose::ImportSearch,
+                        pattern.as_bytes(),
+                        slot.simple.as_bytes(),
+                    )?
+                {
+                    continue;
+                }
+                let mut exported = false;
+                for pattern in exports {
+                    exported |= self.source_namespace_match(
+                        NativeNameGlobPurpose::ExportFilter,
+                        pattern.as_bytes(),
+                        slot.simple.as_bytes(),
+                    )?;
+                }
+                if exported {
+                    matches.push((slot.clone(), cell.clone()));
+                }
+            }
+            for (source, cell) in matches {
+                let destination = ByteCommandSlot::new(namespace.clone(), source.simple.clone());
+                let origin = self
+                    .namespace_imports
+                    .get(&source)
+                    .unwrap_or(&source)
+                    .clone();
+                if origin == destination {
+                    return None;
+                }
+                if self.namespace_imports.get(&destination) == Some(&origin) {
+                    continue;
+                }
+                if !force
+                    && self
+                        .cells
+                        .get(&destination)
+                        .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+                {
+                    return None;
+                }
+                self.remove_namespace_import_origin(&destination);
+                let imported = match cell {
+                    AdviceCell::Descriptor(command, mut lineage) => {
+                        lineage.push(Arc::clone(receipt));
+                        AdviceCell::Descriptor(command, lineage)
+                    }
+                    _ => AdviceCell::Shadowed,
+                };
+                self.namespace_imports.insert(destination.clone(), origin);
+                self.cells.insert(destination, imported);
+            }
+        }
+        Some(())
+    }
+
+    fn apply_source_namespace_forget(
+        &mut self,
+        receipt: &Arc<OriginalSourceCommandTransition>,
+        namespace: &NamespaceTransitionTarget,
+        patterns: &[tcl_registry::TransitionSubject],
+    ) -> Option<()> {
+        let namespace = self.source_transition_namespace(receipt, namespace)?;
+        for pattern in patterns {
+            let (holder, pattern) = self.source_namespace_pattern(
+                &namespace,
+                receipt.input(pattern)?,
+                NativeNamePurpose::NamespaceForgetPattern,
+            )?;
+            let mut removed = Vec::new();
+            for (slot, source) in &self.namespace_imports {
+                if slot.namespace != namespace {
+                    continue;
+                }
+                let matched = if let Some(holder) = &holder {
+                    source.namespace == *holder
+                        && self.source_namespace_match(
+                            NativeNameGlobPurpose::ForgetOriginFilter,
+                            pattern.as_bytes(),
+                            source.simple.as_bytes(),
+                        )?
+                } else {
+                    self.source_namespace_match(
+                        NativeNameGlobPurpose::ForgetOwnSearch,
+                        pattern.as_bytes(),
+                        slot.simple.as_bytes(),
+                    )?
+                };
+                if matched {
+                    removed.push(slot.clone());
+                }
+            }
+            for slot in removed {
+                self.namespace_imports.remove(&slot);
+                self.cells.insert(slot, AdviceCell::Deleted);
+            }
+        }
+        Some(())
+    }
+
     pub(super) fn apply_source_namespace(
         &mut self,
         receipt: &Arc<OriginalSourceCommandTransition>,
@@ -88,165 +263,20 @@ impl AdviceGraph {
                 namespace,
                 patterns,
             } => {
-                let namespace = self.source_transition_namespace(receipt, namespace)?;
-                let clear = match &self.policy {
-                    AdviceNamingPolicy::Logical(_) => {
-                        NamespaceTransition::export_pattern_operands(patterns)?.0
-                    }
-                    AdviceNamingPolicy::Native(policy) => {
-                        let inputs = patterns
-                            .iter()
-                            .map(|subject| {
-                                receipt
-                                    .input(subject)?
-                                    .native_input()
-                                    .filter(|input| input.policy() == *policy)
-                                    .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes)
-                            })
-                            .collect::<Option<Vec<_>>>()?;
-                        NamespaceTransition::export_pattern_byte_operands(&inputs, *policy)?.0
-                    }
-                };
-                let patterns = patterns[usize::from(clear)..]
-                    .iter()
-                    .map(|subject| {
-                        let (source, pattern) = self.source_namespace_pattern(
-                            &namespace,
-                            receipt.input(subject)?,
-                            NativeNamePurpose::NamespaceExportPattern,
-                        )?;
-                        source.is_none().then_some(pattern)
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                if clear {
-                    self.namespace_exports.insert(namespace.clone(), patterns);
-                    self.unknown_exports.remove(&namespace);
-                } else {
-                    self.namespace_exports
-                        .entry(namespace)
-                        .or_default()
-                        .extend(patterns);
-                }
+                self.apply_source_namespace_export(receipt, namespace, patterns)?;
             }
             NamespaceTransition::Import {
                 namespace,
                 force,
                 patterns,
             } => {
-                let namespace = self.source_transition_namespace(receipt, namespace)?;
-                let force = (*force)?;
-                for pattern in patterns {
-                    let (source, pattern) = self.source_namespace_pattern(
-                        &namespace,
-                        receipt.input(pattern)?,
-                        NativeNamePurpose::NamespaceImportPattern,
-                    )?;
-                    let source = source?;
-                    if source == namespace || !self.namespaces.contains(&source) {
-                        return None;
-                    }
-                    let exports = self
-                        .namespace_exports
-                        .get(&source)
-                        .map_or(&[][..], Vec::as_slice);
-                    let mut matches = Vec::new();
-                    for (slot, cell) in &self.cells {
-                        if slot.namespace != source
-                            || matches!(cell, AdviceCell::Deleted)
-                            || !self.source_namespace_match(
-                                NativeNameGlobPurpose::ImportSearch,
-                                pattern.as_bytes(),
-                                slot.simple.as_bytes(),
-                            )?
-                        {
-                            continue;
-                        }
-                        let mut exported = false;
-                        for pattern in exports {
-                            exported |= self.source_namespace_match(
-                                NativeNameGlobPurpose::ExportFilter,
-                                pattern.as_bytes(),
-                                slot.simple.as_bytes(),
-                            )?;
-                        }
-                        if exported {
-                            matches.push((slot.clone(), cell.clone()));
-                        }
-                    }
-                    for (source, cell) in matches {
-                        let destination =
-                            ByteCommandSlot::new(namespace.clone(), source.simple.clone());
-                        let origin = self
-                            .namespace_imports
-                            .get(&source)
-                            .unwrap_or(&source)
-                            .clone();
-                        if origin == destination {
-                            return None;
-                        }
-                        if self.namespace_imports.get(&destination) == Some(&origin) {
-                            continue;
-                        }
-                        if !force
-                            && self
-                                .cells
-                                .get(&destination)
-                                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
-                        {
-                            return None;
-                        }
-                        self.remove_namespace_import_origin(&destination);
-                        let imported = match cell {
-                            AdviceCell::Descriptor(command, mut lineage) => {
-                                lineage.push(Arc::clone(receipt));
-                                AdviceCell::Descriptor(command, lineage)
-                            }
-                            _ => AdviceCell::Shadowed,
-                        };
-                        self.namespace_imports.insert(destination.clone(), origin);
-                        self.cells.insert(destination, imported);
-                    }
-                }
+                self.apply_source_namespace_import(receipt, namespace, *force, patterns)?;
             }
             NamespaceTransition::Forget {
                 namespace,
                 patterns,
             } => {
-                let namespace = self.source_transition_namespace(receipt, namespace)?;
-                for pattern in patterns {
-                    let (holder, pattern) = self.source_namespace_pattern(
-                        &namespace,
-                        receipt.input(pattern)?,
-                        NativeNamePurpose::NamespaceForgetPattern,
-                    )?;
-                    let mut removed = Vec::new();
-                    for (slot, source) in &self.namespace_imports {
-                        if slot.namespace != namespace {
-                            continue;
-                        }
-                        let matched = if let Some(holder) = &holder {
-                            source.namespace == *holder
-                                && self.source_namespace_match(
-                                    NativeNameGlobPurpose::ForgetOriginFilter,
-                                    pattern.as_bytes(),
-                                    source.simple.as_bytes(),
-                                )?
-                        } else {
-                            self.source_namespace_match(
-                                NativeNameGlobPurpose::ForgetOwnSearch,
-                                pattern.as_bytes(),
-                                slot.simple.as_bytes(),
-                            )?
-                        };
-                        if matched {
-                            removed.push(slot.clone());
-                        }
-                    }
-                    for slot in removed {
-                        self.namespace_imports.remove(&slot);
-                        self.cells.insert(slot, AdviceCell::Deleted);
-                    }
-                }
+                self.apply_source_namespace_forget(receipt, namespace, patterns)?;
             }
             NamespaceTransition::SetPath { namespace, path } => {
                 if self

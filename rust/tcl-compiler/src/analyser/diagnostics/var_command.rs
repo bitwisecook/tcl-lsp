@@ -1696,8 +1696,7 @@ impl Analyser {
                     }
                     // This typed provider has no complete public method
                     // inventory here; its absence is never fabricated.
-                    Target::Registry => return None,
-                    Target::External(_) => return None,
+                    Target::Registry | Target::External(_) => return None,
                 }
             }
             let index = if let Some(index) = relations
@@ -1904,10 +1903,7 @@ impl Analyser {
             Some(crate::analyser::types::Diagnostic::new(
                 DiagCode::W250,
                 span,
-                format!(
-                    "Instantiating abstract class '{}' — use a concrete subclass",
-                    class_name
-                ),
+                format!("Instantiating abstract class '{class_name}' — use a concrete subclass"),
                 super::types::Severity::Warning,
             ))
         };
