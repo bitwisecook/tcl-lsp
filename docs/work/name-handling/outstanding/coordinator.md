@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T12:55:37.183517+00:00
+Last updated: 2026-10-23T13:26:57.366657+00:00
 
 ## In progress
 
@@ -47,8 +47,9 @@ Last updated: 2026-10-23T12:55:37.183517+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (12:55 UTC)
+### Current cycle and routing (13:25 UTC)
 
-- WORK32a4 runtimefixes published12:40 afterfreshfetch preservingexternal2a5; fourreviewedcomponents no originalassertionsweakened. Newnativeprojection867/traceapprovedd190/lintmetadata+mechanical publicationinprogress.
-- Recorded user decisions20261023T124104Z: fullTomsemantic +strictnoTomcapability gates, traceexactregistrytableplusactualruntime-refusal; implementationunderpeer.
-- Actualshippinglatencyv2 firstbaseline failedprepareRenamerange, no acceptedperfclaim. Preservefailedcapture;triageprotocolvsbaselinecontract. LargeClippybacklog is criticalreleaseblocker; reviewedhelperextractionsinparallel.
+- 13:25 cycle: fresh depth1 fetch attempted; workspace GitHub credentials still require refresh before publication. Last confirmed pushed checkpoint5a359cf61; local functional fixes remain reviewable on work, no push claim.
+- Local release projection e4757cfe:126 carried paths, clean workspace/runtime formatting and3292 required-input staging closure. Evidence and process files excluded; full tests, perf and baseline equality remain open.
+- Actual Mac medium baseline97.385s green; candidate scan failed120.096s, open4docs34.902s/~2787MiB, edit.tokens exceeded1800s, cleanup PermissionError. Incomplete result is not accepted performance or exact assertion outcome.
+- All unfinished owner files are fresh; remote perf13:16 and BIG-IP13:17 verified through authenticated connector. Review-triage completed status retains historical timestamp, no duplicate role started.

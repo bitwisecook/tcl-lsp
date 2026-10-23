@@ -1,0 +1,84 @@
+{
+  "utc": "2026-10-23T13:27:46.392235+00:00",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "last_updated": "2026-10-23T13:17:00+00:00",
+      "age_minutes": 10.773203916666667,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "Authenticated connector remote read13:20"
+    },
+    {
+      "role": "compiler-codegen",
+      "last_updated": "2026-10-23T13:13:56.934143+00:00 (ACTIVE; current CI eight full logs diagnosed; WASM Native-body v2 peerCLEAR; WIP4 awaits new actual source identity)",
+      "age_minutes": 13.824301533333333,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md"
+    },
+    {
+      "role": "compiler-names",
+      "last_updated": "2026-10-23T13:19:59.413620+00:00",
+      "age_minutes": 7.782976916666667,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md"
+    },
+    {
+      "role": "compiler",
+      "last_updated": "2026-10-23T12:30:57.126341+00:00 (ABI2 actual failure triage; stringowner peer CLEAR; env10 static peer complete; NoTom decision pending)",
+      "age_minutes": 56.82109823333334,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md"
+    },
+    {
+      "role": "coordinator",
+      "last_updated": "2026-10-23T13:26:57.366657+00:00",
+      "age_minutes": 0.8170929666666668,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md"
+    },
+    {
+      "role": "lsp",
+      "last_updated": "2026-10-23T13:23:04Z",
+      "age_minutes": 4.70653725,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md"
+    },
+    {
+      "role": "perf",
+      "last_updated": "2026-10-23T13:16:00+00:00",
+      "age_minutes": 11.773203916666667,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "Authenticated connector remote read13:20"
+    },
+    {
+      "role": "review-triage",
+      "last_updated": "2026-10-22T19:57:30Z",
+      "age_minutes": 1050.2732039166667,
+      "stale_over60": true,
+      "finished_exception": true,
+      "provenance": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md"
+    },
+    {
+      "role": "vm-runtime",
+      "last_updated": "2026-10-23T13:21:23.155925+00:00 (VM styles integrated rootlineage; fatal fixture CLEAR; WASM body CLEAR/counter witness CLEAR, actualWIP4/WIP5 pending)",
+      "age_minutes": 6.387271833333333,
+      "stale_over60": false,
+      "finished_exception": false,
+      "provenance": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md"
+    }
+  ],
+  "publication": "BLOCKED: fresh depth1 fetch rejects expired GH_TOKEN",
+  "last_pushed": "5a359cf616b8d1c658e96240fe6d8e5cf49e917c",
+  "remote_source_confirmation": "Connected role reads available, Git fetch/push unavailable",
+  "disk": {
+    "/workspace": 6438211584,
+    "/tmp": 2150494208
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T13:17:27.732584+00:00",
+  "patch_sha256": "2ee8a4f9c9b3e6484aa4da8040de3a91e211eb73591f57382b9640708ebdc2d2",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+      "before_sha256": "4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15",
+      "after_sha256": "830f15703c99a7378ea3266ce67d71ca7c5cffeb2b4306124bd38a71049996ff"
+    }
+  ],
+  "scope": "WORK-only diagnostic after actual original allocation assertion process fails; original_start and allassertions unchanged; separatefreshinstance returns original first/second/third residual +frames/doubles; no Guest/getter source probes or production change",
+  "limits": "No Cargo/runtime run; temporary witness excluded releasecandidate. Added process runs only on failure, original test remainsfailed."
+}

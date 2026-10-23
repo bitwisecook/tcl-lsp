@@ -1,0 +1,11 @@
+{
+  "verdict": "CLEAR bounded explicit physical array element fixture API",
+  "patch_sha256": "955173ff57d85e6dd511a5d9a4814305b02f2d3ba39c9afaa76a6f11a76f619f",
+  "checks": [
+    "exact current/copyapply0/nooffset/finalSHA",
+    "setup now genuine array a element k; callback a unused element written through same typed API",
+    "root shell callback branch identical; no arbitrary combined-name reparsing or production change",
+    "original assertions/refcounts/modes/callbackconditions retained"
+  ],
+  "limits": "No Cargo/typecheck/runtime"
+}

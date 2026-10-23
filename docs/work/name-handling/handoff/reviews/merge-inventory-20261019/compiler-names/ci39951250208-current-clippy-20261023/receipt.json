@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-23T13:09:41.099255+00:00",
+  "archive_sha256": "9993cbcc3ec6af4530a0a2d34fb4274cfa477f9a4f31ea076fb0e035a9baf574",
+  "scope": "Off-tree currentCI Names preparation and independent bounded static peers; root solely integrates/builds",
+  "inventory_sha256": "4d78cf057611514531179de5dcdf5226fb4a681b740704ec70e91337b89a49cf",
+  "verdict": "No actual type/Clippy/runtime PASS claim; WORK-only pure world probe excluded from shipping candidate"
+}

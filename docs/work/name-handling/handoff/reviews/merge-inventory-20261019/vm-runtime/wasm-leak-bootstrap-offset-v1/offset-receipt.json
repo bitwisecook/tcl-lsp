@@ -1,0 +1,127 @@
+{
+  "utc": "2026-10-23T13:12:17.601783+00:00",
+  "scope": "Static exactoriginalbootstrap WAT compilation exploration ONLY; no imported runtime/user module instantiated, no Guest code run, no Cargo",
+  "wasmtime_path": "/workspace/naming-toolchains/wasmtime-49.0.3/wasmtime",
+  "wasmtime_sha256": "b213b0678c0afc807c53130e5b7ca357f0307c1f8deb18cac35fcc65480b9c85",
+  "bootstrap_sha256": "6cf8acca191df4f05427d3efe178756e21d87962c61d2229b9f2ed218aeb48b5",
+  "explore_sha256": "7b224a5da965db51128a7808951c3da7ea83dd8fe0362958612a3128afa669b4",
+  "actual_CI_trap_wasm_offset": 299,
+  "mapped_predicate": "i64.ne(call residual, local before): residual allocation count changed after two additional top calls",
+  "trap_mappings": [
+    {
+      "wasm_offset": null,
+      "address": 314,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    },
+    {
+      "wasm_offset": 273,
+      "address": 316,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    },
+    {
+      "wasm_offset": 286,
+      "address": 318,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    },
+    {
+      "wasm_offset": 299,
+      "address": 320,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    },
+    {
+      "wasm_offset": 308,
+      "address": 322,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    },
+    {
+      "wasm_offset": 317,
+      "address": 324,
+      "bytes": [
+        15,
+        11
+      ],
+      "mnemonic": "ud2",
+      "operands": ""
+    }
+  ],
+  "wat_neighborhood": [
+    {
+      "wasm_offset": 290,
+      "wat": "    call $top\n"
+    },
+    {
+      "wasm_offset": 292,
+      "wat": "    call $top\n"
+    },
+    {
+      "wasm_offset": 294,
+      "wat": "    call $residual\n"
+    },
+    {
+      "wasm_offset": 296,
+      "wat": "    local.get $before\n"
+    },
+    {
+      "wasm_offset": 298,
+      "wat": "    i64.ne\n"
+    },
+    {
+      "wasm_offset": 299,
+      "wat": "    if ;; label = @1\n"
+    },
+    {
+      "wasm_offset": 301,
+      "wat": "      unreachable\n"
+    },
+    {
+      "wasm_offset": 302,
+      "wat": "    end\n"
+    },
+    {
+      "wasm_offset": 303,
+      "wat": "    call $doubles\n"
+    },
+    {
+      "wasm_offset": 305,
+      "wat": "    i64.const 0\n"
+    },
+    {
+      "wasm_offset": 307,
+      "wat": "    i64.ne\n"
+    },
+    {
+      "wasm_offset": 308,
+      "wat": "    if ;; label = @1\n"
+    },
+    {
+      "wasm_offset": 310,
+      "wat": "      unreachable\n"
+    }
+  ],
+  "limit": "Does not supply actual before/after counts, direction or first allocation owner; cannot yet call production leak vs retained cache."
+}

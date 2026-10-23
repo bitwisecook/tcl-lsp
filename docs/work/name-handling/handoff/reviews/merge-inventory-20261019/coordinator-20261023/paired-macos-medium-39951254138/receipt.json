@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T13:15:21.510982+00:00",
+  "run_id": 39951254138,
+  "job_id": 120406000169,
+  "artifact_id": 12502998015,
+  "artifact_sha256": "83b56f71890be5ee1fc5f29fa36ab41ae526268fefc4db50e20b332ac7823377",
+  "baseline_head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "candidate_head": "a6fab9240dcdeca7536973fb01d32680f4286726",
+  "baseline": {
+    "elapsed_s": 97.385,
+    "failed_checks": [],
+    "result_valid": true
+  },
+  "candidate": {
+    "cold_scan_s": 120.096,
+    "cold_scan": "FAILED",
+    "open4docs_s": 34.902,
+    "rss_after_open_MiB": 2787.1,
+    "last_phase": "check4 edit.tokens",
+    "last_request_id": 60,
+    "deadline_s": 1800,
+    "process_receipt": "missing after PermissionError during cleanup",
+    "result": "INCOMPLETE"
+  },
+  "verdict": "No release acceptance or completed paired slowdown ratio; severe observed Tcl availability/performance blocker",
+  "routing": "LSP native first-refusal/currentness and performance owner; external perf patches remain unproven"
+}

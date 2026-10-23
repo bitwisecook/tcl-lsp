@@ -2,11 +2,55 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T12:52:41.849403+00:00 (env/OO/ABI/regex peers ready; exclusive tcl-vm interp lint cluster frozen, peer pending; native1 root HOLD)
+Last updated: 2026-10-23T13:21:23.155925+00:00 (VM styles integrated rootlineage; fatal fixture CLEAR; WASM body CLEAR/counter witness CLEAR, actualWIP4/WIP5 pending)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root reports allVM5 style groups Luna235cd3 integrated12e8e29 andnamespaceaa761;
+interpV4 atomic callers checked. No duplicate stylepeer needed; actualClippy/
+typing/runtime follow rootallocation. Fatal trace-shell fixture955173 Names
+STATIC CLEAR58758f59; exact physical var_set_elem setup/callback repair,
+all assertions/refcounts/modes retained. Eligible but no runtimePASS inferred.
+WASM18PASS7FAIL currentCI split: bounded generic singleinvoke staging correctly
+rejects non-tail CompletionSwitch; do not weaken ReturnCompletion predicate.
+CCGauthentic Native body compile-only v2 bb6a9c27 boundedVMpeer1d45b262;
+no publication/direct/entry grant; actual five native-table cases stillunrun.
+Sealed i64 genuineWholeModule fixture separate CCGcomponent/userapproved.
+Seventh abort-loop0x12b statically mapped to residual-count inequality, not
+frame/doublefree. Static offsetreceipt6db826a4 durable. Actualcount direction/
+owner stillmissing; deferred native private-to-public errorpublication is
+candidate only, no productionreset allowed without actual witness+oracle.
+WORK-only counterwitness2ee8 CCGstaticCLEAR24e6a407, original_start/asserts
+unchanged; failure-onlyfreshinstance reports3residualsamples+frames+doubles.
+CCGcomposing with samefile sealedfixture078; root explicitWIP5separateprotocol
+required, never mutatefrozenWIP4. Rootsourcefreeze~13:22 thenWIP4/servercold,
+WIP5actualcounter later. No VM Cargo/Git/GO/sourcewrites/runtimeclaim.
+
+
+Current eligible interp style v4 a8393c0c, Names STATIC CLEAR73ae5793:
+/tmp/vm-interp-clippy-current-v4/proposal.patch finalbfc5aa00. Full exact
+before/copyapply/fmt/semantic review; two extracted early-return distinctions
+repaired explicitly (trace GuestBreak, expression earlyissuer vs reachedgetter).
+Original25 lint targets addressed statically; actualClippy/typing/runtime UNRUN.
+Atomic LSP interface component mandatory. Earlier v1/v2/v3 HELD historical.
+New actualCI39951250208 fatal trace-shell fixture firstcause root-only
+var_set(a(k)) instead of explicit element setter; off-tree fixturev2
+955173ff preserves all assertions/refcounts/callbacks and shell-root path,
+uses var_set_elem for setup a/k and mode3 a/unused. Compiler peer pending.
+No canonicalsource/Cargo/Git/GO writes; root native1 ownership/HOLD retained.
+
+
+Current interp frozen successor v3 SHA122f33ab76b5dc795afd2b57bfbf8e34adf36385228ea4491188af452e3d88bb,
+/tmp/vm-interp-clippy-current-v3/proposal.patch, final3b2f1d65. v1/v2 historical:
+owner review removed3 redundant extracted-helper borrows, then restored op
+binding still required by original trace-group selection. fmt2024/exactcopy
+apply/final PASS; Names peer pending. No typing/Clippy/runtime claim.
+User-approved runtime gate split v2 2e132d28 VMstaticCLEARd8e36d48:
+FullTom alloriginalsemantic suite retained;17originalcachecontrols+1exact
+missingbackend refusal separate. Ownedhide restore safe; actualCI unrun.
+
 
 Current exclusive ownership: rust/tcl-vm/src/interp.rs only; LSP owns otherVM.
 Frozen off-tree lint cluster /tmp/vm-interp-clippy-current-v1/proposal.patch

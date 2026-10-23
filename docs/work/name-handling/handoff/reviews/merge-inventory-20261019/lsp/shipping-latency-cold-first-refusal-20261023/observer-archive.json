@@ -1,0 +1,15 @@
+{
+  "actual_utc": "2026-10-23T13:10:05.611620+00:00",
+  "status": "Names bounded STATIC CLEAR; typing/runtime UNRUN; WORK-only observers MUST NOT carry into release",
+  "archive_sha256": "93825171b2ca18eec450285e2d9df545160268b56ffe980340f20b6e5116d660",
+  "roundtrip_members": 6,
+  "files": {
+    "lsp-coarse-token-first-gates-v1/proposal.patch": "fb635009ea2071d1da92cc0af462d96379080e5bff44e3c687f176a1878b60c7",
+    "lsp-coarse-token-first-gates-v1/manifest.json": "2527b5a2588c45836b30c0271157f7970d54d4c1e00692c6e6e7c12137031bf2",
+    "lsp-coarse-token-first-gates-v1/names-static-peer.json": "a32e82e863a13b28932250224b37d4c6198103cc471a63558ebc35b3781da35d",
+    "lsp-rename-world-document-observer-v1/proposal.patch": "4c88dfeb8a0be5f430bfdae4d0ced5017d29c6384d0f56552ed5e2859569544d",
+    "lsp-rename-world-document-observer-v1/manifest.json": "59f65248f1959d581092d5f3a4089d0d6aeb614d79e9552f3157d4eb7ace84fb",
+    "lsp-rename-world-document-observer-v1/names-static-peer.json": "82ef74c725f1e030246368ee97ac82fa9042e42611ec8c803929320125e05bc6"
+  },
+  "next": "Root actual instrumented native build with TCL_LSP_TRACE_COARSE_SOURCE=1; Names producer separate pending component."
+}

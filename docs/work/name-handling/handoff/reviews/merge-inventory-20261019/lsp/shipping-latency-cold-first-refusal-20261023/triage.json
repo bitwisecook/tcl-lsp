@@ -1,0 +1,43 @@
+{
+  "actual_utc": "2026-10-23T13:08:24.975167+00:00",
+  "observation": "First cold didOpen to semanticTokens/full failed ContentModified; no edits or later measurement phases executed",
+  "run_pair": {
+    "baseline": 39949992948,
+    "candidate": 39951250208
+  },
+  "candidate_head": "a6fab9240dcdeca7536973fb01d32680f4286726",
+  "raw": {
+    "/workspace/naming-release-measurement-artifacts/latency-typical-v3/pair0-candidate/measurement.json": "db764eb5f2915a877fe1a6a7a0a28dd4035f52d5df8129b8baf8fdaf90a0c3bf",
+    "/workspace/naming-release-measurement-artifacts/latency-typical-v3/pair0-candidate/server.stdout.frames": "361d414d8950b6b2ba7176932684bfc654c692e00eb690f4298d3f3a13bfc9a8",
+    "/workspace/naming-release-measurement-artifacts/latency-typical-v3/pair0-candidate/server.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "exact_event": {
+    "event": "cold-first-tokens",
+    "elapsed_ms": 539.37673,
+    "outcome": "error",
+    "error": "LSP error -32801: Coarse semantic token source or configured input changed"
+  },
+  "actual_gate": "UNKNOWN: same error shared by capture, configured source check and final publication/cache gates",
+  "guard_locations": {
+    "capture": "readonly_reference_reports.rs capture_coarse_semantic_source/capture_fresh_source_analysis",
+    "configured": "lib.rs configured_coarse_semantic_tokens",
+    "publication": "readonly_reference_reports.rs with_current_readonly_source_state/WorkspaceSymbolSourceAnalysis::matches_current_state",
+    "cache": "lib.rs semantic_tokens_full/delta coarse final closure"
+  },
+  "static_hypotheses_NOT_findings": [
+    "Try-lock failure returns None and is mapped to ContentModified even without source change.",
+    "Outer global epoch/factory sample precedes actual fresh-driver stable input capture; those distinct receipts may differ during startup.",
+    "Initial configuration/dialect generation can genuinely change after request capture; strict rejection is then correct."
+  ],
+  "work_only_observers": [
+    {
+      "path": "/tmp/lsp-coarse-token-first-gates-v1/proposal.patch",
+      "sha256": "fb635009ea2071d1da92cc0af462d96379080e5bff44e3c687f176a1878b60c7"
+    },
+    {
+      "path": "/tmp/lsp-rename-world-document-observer-v1/proposal.patch",
+      "sha256": "4c88dfeb8a0be5f430bfdae4d0ced5017d29c6384d0f56552ed5e2859569544d"
+    }
+  ],
+  "action": "Await independent peer and root instrumented build/allocation; no functional guard changes, inline retries, budget increase, or admission."
+}

@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T13:20:31.218039+00:00",
+  "role": "compiler-codegen",
+  "status": "BOUNDED_STATIC_CLEAR_WORK_ONLY",
+  "patch_sha256": "2ee8a4f9c9b3e6484aa4da8040de3a91e211eb73591f57382b9640708ebdc2d2",
+  "actual_before_pin": true,
+  "copy_apply_zero_fuzz_no_offset": true,
+  "exact_final_pin": true,
+  "original_start_instructions_and_assertions_exact": true,
+  "semantics": "Only failure branch launches separate fresh Wasmtime instance selecting additive diagnostic_counts export; original process status/assertion remains authoritative. Original imports and _start instructions unchanged. Three actual residual counters plus frames/doubles reported without replacing result. Under enclosing original180s/20MiB owned-group budget; no new process budget.",
+  "limits": "No actual guest/Cargo/runtime execution by reviewer. Static owner WATparsecompile receipt only; witness must remain Work-only and be excluded release candidate."
+}

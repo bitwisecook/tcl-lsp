@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T13:20:02.294160+00:00",
+  "archive_sha256": "ee083e63b018d419f07d38faf0128aecd2b9ac18500088b1faa95531a1dd3d9e",
+  "scope": "Immutable addendum: current publisher composed producer probe v2/full source copies and independent review receipts. Prior archive unchanged. All static-only; no source/Git/Cargo/admission/runtime acceptance.",
+  "items": [
+    "/tmp/compiler-names-completed-world-first-refusal-v2",
+    "/tmp/compiler-clippy-peer-completed-world-v2/receipt.json",
+    "/tmp/lsp-coarse-token-first-gates-v2/names-static-peer.json",
+    "/tmp/lsp-rename-world-document-observer-v1/names-static-peer.json",
+    "/tmp/compiler-clippy-metadata-places-current-v2/names-static-peer.json",
+    "/tmp/compiler-clippy-metadata-analysis/names-static-peer.json",
+    "/tmp/compiler-clippy-expression-style/names-static-peer.json"
+  ]
+}

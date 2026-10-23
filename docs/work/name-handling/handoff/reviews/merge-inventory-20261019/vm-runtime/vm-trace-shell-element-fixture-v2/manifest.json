@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T13:01:18.298853+00:00",
+  "patch_sha256": "955173ff57d85e6dd511a5d9a4814305b02f2d3ba39c9afaa76a6f11a76f619f",
+  "files": [
+    {
+      "path": "runtime/rust/src/frame/trace_shell/tests.rs",
+      "before_sha256": "eb6eb2187f1c21a61ce201059207f5b7956a9f4a3e0404e32898946459d9a8f2",
+      "after_sha256": "2be53ffa7f32d820bf8f36e374f89a41bf672f4d6109502be63b365f9d9850bb"
+    }
+  ],
+  "scope": "Actual CI fatal trace-shell fixture uses physical root-only setter with combined a(k); use explicit element setter in setup and mode3 callback. Shell root branch unchanged, every original assertion/refcount/callback/mode retained. No production change/reparse.",
+  "limits": "Typing/runtime unrun; same explicit element API contract as approved alias fixture.",
+  "predecessor_patch_sha256": "da8e29811a368b8ca6cf0e9e75ef745a619dcbd768aa8885463b15b720294b89",
+  "delta": "Only pinned rustfmt wraps setup setter expression; v1 frozenhistorical"
+}

@@ -1,0 +1,52 @@
+{
+  "actual_utc": "2026-10-23T13:09:41.039591+00:00",
+  "status": "Off-tree queued style components; no functional/source integration or actual Clippy success claimed",
+  "archive_sha256": "1b88f36e599ed638b7bac53258fac7fb5aadb3a0a49bde1086c599ec8e1c76c7",
+  "roundtrip_members": 16,
+  "rows": [
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-v1",
+      "patch_sha256": "bdc7e70c6409608a7ba3c1c18a57aa6fecbc46af16071819497fa1aafa277f3e",
+      "paths": 11,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-structure-v1",
+      "patch_sha256": "1c49467426d698c0b555f22581733d4223e87f83634598274e7b25de12749abc",
+      "paths": 6,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-native-structure-v1",
+      "patch_sha256": "5f26cd40ca8c12b987cbe74e8c7fd2259c0ecedd1bc273c5b322957000f7854d",
+      "paths": 4,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-borrows-v1",
+      "patch_sha256": "f435883da6ebc5ee3377cbb740eb1f373a9df1f5b9b7945b1d2f7fea65b200af",
+      "paths": 6,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-variable-scopes-v1",
+      "patch_sha256": "dfeb73204fa0eaa0ba413954147f1edb5645ae25c90d02471c374a7a0e4af13a",
+      "paths": 2,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-control-stages-v1",
+      "patch_sha256": "98c7fa7b21d5a20eb0bc2146bb10a1d4ccb58f57d88ca779c2af41d6d28268c9",
+      "paths": 3,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    },
+    {
+      "directory": "/tmp/lsp-tcl-vm-clippy-namespace-stages-v1",
+      "patch_sha256": "56c5fc3e0b71a04aaa951a7a4ae3e67687e52c47adcac939476acc9eca853577",
+      "paths": 1,
+      "status": "STATIC PREPARATION; Cargo/Clippy/runtime UNRUN; only specific peer receipts convey bounded review"
+    }
+  ],
+  "cross_component_required": "VM interpV4 atomic associatedensemble call, ImportPattern borrow, five traceValueError &error, two expressionresult &value; no interp.rs edits in these components",
+  "priority": "Further style work paused by root for actual cold-token/WASM/WASI first-refusal diagnosis"
+}

@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T13:19:22.787495+00:00",
+  "exact_copy_apply_final": true,
+  "original_wat_start_bytes_unchanged": true,
+  "original_failure_assertion_bytes_unchanged": true,
+  "pinned_rustfmt2024": "PASS",
+  "pinned_wasmtime49_static_WAT_validation": "PASS, no imports instantiated/Guest execution",
+  "actual_Cargo_or_runtime_run": false
+}

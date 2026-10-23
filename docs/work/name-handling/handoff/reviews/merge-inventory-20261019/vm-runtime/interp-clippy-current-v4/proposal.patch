@@ -1,0 +1,3074 @@
+--- a/rust/tcl-vm/src/interp.rs
++++ b/rust/tcl-vm/src/interp.rs
+@@ -40,6 +40,7 @@
+ use tcl_bytecode::{FunctionAsm, ModuleAsm};
+ use tcl_core_types::{NameBytes, RecursionLimit};
+ use tcl_platform::Host;
++use tcl_registry::native_alias_registration::NativeAliasRegistrationTable;
+ use tcl_runtime_api::completion_options::ControlOptionPolicy;
+ use tcl_runtime_api::error_stack::validate_error_stack;
+ use tcl_runtime_api::guard::{
+@@ -1090,6 +1091,56 @@
+ pub(crate) struct NativeUsageScope {
+     previous: Vec<crate::command::NativeArgumentUsageRewrite>,
+     revision: u64,
++}
++
++#[derive(Default)]
++struct InterpreterDebugHooks {
++    /// Optional debug hook fired once per source command (the execution-control
++    /// seam a step debugger drives). `None` in normal runs — the only
++    /// per-instruction cost is an `Option` check.
++    debug_hook: Option<crate::debug::DebugHook>,
++    /// Optional shared cell tracking the source line of the instruction being
++    /// dispatched — the lightweight sibling of the debug hook, for an embedder
++    /// that needs "what line is the interpreter on" (the `SpecTcl`
++    /// pack-evaluation loader attributes captured registrations with it)
++    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
++    /// `None` in normal runs — one `Option` check per instruction.
++    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
++    /// The `(line, span-start)` key of the last command the debug hook fired
++    /// for, so it fires once per source command rather than per instruction
++    /// (`startCommand` is emitted only conditionally, so it cannot be the
++    /// boundary marker).
++    last_debug_key: Option<u64>,
++}
++
++struct InterpreterCounters {
++    /// Monotonic counter for minting fresh channel ids.
++    chan_counter: u32,
++    /// Monotonic counter minting auto-generated child names (`interp0`, …).
++    interp_counter: u64,
++    /// Commands dispatched by this interp since the last
++    /// [`Vm::reset_command_count`] — the counter the `commands` limit is
++    /// charged against, and the fuel gauge an embedder reads
++    /// ([`Vm::commands_run`]). Free-running: an interp with no limit set still
++    /// counts, because the count costs one increment and answers "how much did
++    /// that body cost" without arming anything.
++    commands_run: u64,
++    /// Free-running counter that throttles wall-clock polling for the `time`
++    /// limit (see [`Vm::limit_check_tick`]). Vm-scoped, not per-activation, so
++    /// it accumulates across the short-lived activations a command-driven loop
++    /// (`$while {1} {…}`) spins through.
++    limit_tick: u32,
++}
++
++impl Default for InterpreterCounters {
++    fn default() -> Self {
++        Self {
++            chan_counter: 2,
++            interp_counter: 0,
++            commands_run: 0,
++            limit_tick: 0,
++        }
++    }
+ }
+ 
+ struct FreshSemanticEnvironment {
+@@ -1646,22 +1697,8 @@
+     /// which hides nothing; `set_runtime_version` pins the matching plain-Tcl
+     /// profile and `set_dialect_profile` pins a vendor one.
+     pin: tcl_registry::model::PinnedContext,
+-    /// Optional debug hook fired once per source command (the execution-control
+-    /// seam a step debugger drives). `None` in normal runs — the only
+-    /// per-instruction cost is an `Option` check.
+-    debug_hook: Option<crate::debug::DebugHook>,
+-    /// Optional shared cell tracking the source line of the instruction being
+-    /// dispatched — the lightweight sibling of the debug hook, for an embedder
+-    /// that needs "what line is the interpreter on" (the `SpecTcl`
+-    /// pack-evaluation loader attributes captured registrations with it)
+-    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
+-    /// `None` in normal runs — one `Option` check per instruction.
+-    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
+-    /// The `(line, span-start)` key of the last command the debug hook fired
+-    /// for, so it fires once per source command rather than per instruction
+-    /// (`startCommand` is emitted only conditionally, so it cannot be the
+-    /// boundary marker).
+-    last_debug_key: Option<u64>,
++    /// Source-command debug hook and its once-per-command delivery state.
++    debug_hooks: InterpreterDebugHooks,
+     /// Set by the `exit` command to the requested process code. The VM library
+     /// never terminates the process itself — a standalone driver (the `tclvm`
+     /// CLI) translates this into `std::process::exit`, while an embedder (the
+@@ -1709,8 +1746,6 @@
+     /// predefined `stdin`/`stdout`/`stderr` are not stored here; commands
+     /// special-case those names.
+     channels: HashMap<String, crate::cmd_chan::Channel>,
+-    /// Monotonic counter for minting fresh channel ids.
+-    chan_counter: u32,
+     /// Stack of file paths currently being evaluated by `source`. The top is
+     /// what `info script` returns; empty when not inside a `source`.
+     script_stack: Vec<String>,
+@@ -1754,10 +1789,10 @@
+     /// Per-interp recursion bound (`interp recursionlimit`), default
+     /// [`RECURSION_LIMIT`]. A child carries its own, independent of the parent's.
+     recursion_limit: usize,
++    /// Interpreter-local allocation and execution polling counters.
++    counters: InterpreterCounters,
+     /// Hidden token, allocation and import state owned by this interpreter.
+     hidden: HiddenCommandState,
+-    /// Monotonic counter minting auto-generated child names (`interp0`, …).
+-    interp_counter: u64,
+     /// `interp debug -frame` — a one-way switch (once on, stays on).
+     debug_frame: bool,
+     /// `interp bgerror` — the background-error handler command prefix.
+@@ -1765,18 +1800,6 @@
+     /// `interp limit` configuration. Both limit types are enforced: `time`
+     /// by [`Vm::limit_check_tick`], `commands` by [`Vm::charge_command`].
+     limits: LimitSet,
+-    /// Commands dispatched by this interp since the last
+-    /// [`Vm::reset_command_count`] — the counter the `commands` limit is
+-    /// charged against, and the fuel gauge an embedder reads
+-    /// ([`Vm::commands_run`]). Free-running: an interp with no limit set still
+-    /// counts, because the count costs one increment and answers "how much did
+-    /// that body cost" without arming anything.
+-    commands_run: u64,
+-    /// Free-running counter that throttles wall-clock polling for the `time`
+-    /// limit (see [`Vm::limit_check_tick`]). Vm-scoped, not per-activation, so
+-    /// it accumulates across the short-lived activations a command-driven loop
+-    /// (`$while {1} {…}`) spins through.
+-    limit_tick: u32,
+     /// The `TclOO` object system's runtime state — the class/object registries,
+     /// the active method-call stack (for `self`/`my`/`next`), and the current
+     /// definition target (`oo::define`/`oo::objdefine`). See [`crate::cmd_oo`].
+@@ -3653,9 +3676,7 @@
+             native_c_result: RefCell::new(None),
+             native_execution_booleans: None,
+             jim_teardown_started: false,
+-            native_operation_context: Rc::new(
+-                native_operation_currency::NativeOperationContext::default(),
+-            ),
++            native_operation_context: Rc::default(),
+             logical_providers: LogicalProviders::default(),
+             observed_names: None,
+             observed_frame_storage: None,
+@@ -3673,8 +3694,7 @@
+             const_vars: HashSet::new(),
+             commands: HashMap::new(),
+             name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
+-            alias_registrations:
+-                tcl_registry::native_alias_registration::NativeAliasRegistrationTable::default(),
++            alias_registrations: NativeAliasRegistrationTable::default(),
+             fixed_math: FixedMathTable::default(),
+             module_procs: HashMap::new(),
+             resolution_stacks: NamespaceResolutionStacks::default(),
+@@ -3714,9 +3734,7 @@
+             compiler: None,
+             pack_facts: Vec::new(),
+             pin: tcl_registry::model::PinnedContext::for_profile(environment.profile),
+-            debug_hook: None,
+-            line_watch: None,
+-            last_debug_key: None,
++            debug_hooks: InterpreterDebugHooks::default(),
+             pending_exit: None,
+             eval_cache: HashMap::new(),
+             eval_cache_plain: HashMap::new(),
+@@ -3724,7 +3742,6 @@
+             jim_errors: JimEvaluationState::default(),
+             native_invocation: NativeInvocationState::default(),
+             channels: HashMap::new(),
+-            chan_counter: 2,
+             script_stack: Vec::new(),
+             recursion_depth: 0,
+             oo_dispatch_depth: 0,
+@@ -3732,13 +3749,11 @@
+             children: HashMap::new(),
+             is_safe: false,
+             recursion_limit: RECURSION_LIMIT,
++            counters: InterpreterCounters::default(),
+             hidden: HiddenCommandState::default(),
+-            interp_counter: 0,
+             debug_frame: false,
+             bgerror_handler: Value::string("::tcl::Bgerror"),
+             limits: LimitSet::default(),
+-            commands_run: 0,
+-            limit_tick: 0,
+             rand_seed: 1,
+             oo: crate::cmd_oo::OoState::default(),
+             coro: crate::cmd_coro::CoroSystem::default(),
+@@ -3789,7 +3804,7 @@
+         }
+         if recipe == Some(NativeTraceStateRecipe::MoveResult) {
+             self.with_native_interp_result(|_| ())
+-                .map_err(|error| self.retain_variable_trace_value_error(error))?;
++                .map_err(|error| self.retain_variable_trace_value_error(&error))?;
+             let result = self
+                 .native_c_result
+                 .replace(Some(Value::new_native_string_bytes(b"".as_slice())))
+@@ -3831,7 +3846,7 @@
+                     physical_owner,
+                 })
+             })
+-            .map_err(|error| self.retain_variable_trace_value_error(error))?;
++            .map_err(|error| self.retain_variable_trace_value_error(&error))?;
+         scope.check_native(self)?;
+         Ok(saved)
+     }
+@@ -4706,8 +4721,8 @@
+     /// Install a debug hook fired once per source command (the execution-control
+     /// seam a step debugger drives). Pass `None` to detach.
+     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
+-        self.debug_hook = hook;
+-        self.last_debug_key = None;
++        self.debug_hooks.debug_hook = hook;
++        self.debug_hooks.last_debug_key = None;
+     }
+ 
+     /// Install a shared cell the VM keeps set to the source line of the
+@@ -4716,13 +4731,13 @@
+     /// attribution (a registered command reads the cell to learn which line
+     /// invoked it). Pass `None` to detach.
+     pub fn set_line_watch(&mut self, watch: Option<std::rc::Rc<std::cell::Cell<u32>>>) {
+-        self.line_watch = watch;
++        self.debug_hooks.line_watch = watch;
+     }
+ 
+     /// Publish `line` to the line watch, when one is installed.
+     #[inline]
+     pub(crate) fn note_line(&self, line: u32) {
+-        if let Some(watch) = &self.line_watch {
++        if let Some(watch) = &self.debug_hooks.line_watch {
+             watch.set(line);
+         }
+     }
+@@ -4758,17 +4773,17 @@
+         span_start: Option<u32>,
+         cmd_text: impl AsRef<[u8]>,
+     ) -> bool {
+-        if self.debug_hook.is_none() {
++        if self.debug_hooks.debug_hook.is_none() {
+             return false;
+         }
+         let Some(start) = span_start else {
+             return false;
+         };
+         let key = (u64::from(line) << 32) | u64::from(start);
+-        if self.last_debug_key == Some(key) {
++        if self.debug_hooks.last_debug_key == Some(key) {
+             return false;
+         }
+-        self.last_debug_key = Some(key);
++        self.debug_hooks.last_debug_key = Some(key);
+         let bytes = cmd_text.as_ref();
+         let display = std::str::from_utf8(bytes).map_or_else(
+             |_| tcl_bytecode::format::esc_bytes(bytes, bytes.len()),
+@@ -4852,17 +4867,17 @@
+     /// Fire the debug hook (if installed) for the command at `line` / `cmd_text`.
+     /// Returns `true` when the hook asked to stop the run.
+     pub(crate) fn fire_debug_hook(&mut self, line: u32, cmd_text: &str) -> bool {
+-        if self.debug_hook.is_none() {
++        if self.debug_hooks.debug_hook.is_none() {
+             return false;
+         }
+         let snapshot = self.debug_snapshot(line, cmd_text);
+         // Take the hook out so the closure can borrow `self`-derived data
+         // (already captured in `snapshot`) without aliasing the field.
+-        let mut hook = self.debug_hook.take();
++        let mut hook = self.debug_hooks.debug_hook.take();
+         let action = hook
+             .as_mut()
+             .map_or(crate::debug::DebugAction::Continue, |h| h(&snapshot));
+-        self.debug_hook = hook;
++        self.debug_hooks.debug_hook = hook;
+         action == crate::debug::DebugAction::Stop
+     }
+ 
+@@ -6313,6 +6328,68 @@
+         self.register_command_in_slot_with_jim_key(slot, cmd, None)
+     }
+ 
++    fn publish_jim_command_table_key(
++        &mut self,
++        name: &str,
++        slot: &CommandSlot,
++        jim_table_key: Option<jim_table_keys::OriginalJimCommandKey>,
++    ) {
++        if let Some(key) = jim_table_key {
++            let unused = {
++                let mut world = self.name_world.borrow_mut();
++                if let Some(original) = world.jim_command_original_keys.get(slot) {
++                    let table = key
++                        .table
++                        .clone()
++                        .retain_for_replacement(Some(&original.table));
++                    world.jim_command_table_keys.insert(name.to_owned(), table);
++                    Some(key)
++                } else {
++                    world
++                        .jim_command_table_keys
++                        .insert(name.to_owned(), key.table.clone());
++                    world.jim_command_original_keys.insert((*slot).clone(), key);
++                    None
++                }
++            };
++            drop(unused);
++        }
++    }
++
++    fn finish_command_publication(
++        &mut self,
++        name: &str,
++        installed_generation: u64,
++        replaced_token: Option<CommandTokenIdentity>,
++        replacing_retained: bool,
++    ) {
++        let installed_token = CommandTokenIdentity {
++            key: CommandSidecarKey::visible(name),
++            generation: installed_generation,
++        };
++        if let Some(replaced_token) = replaced_token
++            && !replacing_retained
++        {
++            let installed = self
++                .commands
++                .get(name)
++                .expect("the command was just installed")
++                .clone();
++            self.replace_import_implementations(&replaced_token, &installed_token, &installed);
++        }
++        self.absorb_retained_binding(name);
++        if replacing_retained {
++            self.materialise_retained_binding(name);
++            if self
++                .command_token_identity(&CommandSidecarKey::visible(name))
++                .as_ref()
++                == Some(&installed_token)
++            {
++                self.retire_command_lifecycle_key(&CommandSidecarKey::visible(name));
++            }
++        }
++    }
++
+     pub(crate) fn register_command_in_slot_with_jim_key(
+         &mut self,
+         slot: CommandSlot,
+@@ -6416,26 +6493,7 @@
+         if let Some(token) = replaced_token.as_ref() {
+             self.note_jim_command_unpublished(token.generation);
+         }
+-        if let Some(key) = jim_table_key {
+-            let unused = {
+-                let mut world = self.name_world.borrow_mut();
+-                if let Some(original) = world.jim_command_original_keys.get(&slot) {
+-                    let table = key
+-                        .table
+-                        .clone()
+-                        .retain_for_replacement(Some(&original.table));
+-                    world.jim_command_table_keys.insert(name.to_owned(), table);
+-                    Some(key)
+-                } else {
+-                    world
+-                        .jim_command_table_keys
+-                        .insert(name.to_owned(), key.table.clone());
+-                    world.jim_command_original_keys.insert(slot.clone(), key);
+-                    None
+-                }
+-            };
+-            drop(unused);
+-        }
++        self.publish_jim_command_table_key(name, &slot, jim_table_key);
+         self.commands.insert(name.to_owned(), cmd);
+         self.note_command_bound(name, publishing_replacement);
+         let installed_generation = self.mint_command_generation();
+@@ -6447,31 +6505,12 @@
+         if let Some(command) = self.commands.get(name) {
+             self.note_jim_command_publication(installed_generation, command, name, &display);
+         }
+-        let installed_token = CommandTokenIdentity {
+-            key: CommandSidecarKey::visible(name),
+-            generation: installed_generation,
+-        };
+-        if let Some(replaced_token) = replaced_token
+-            && !replacing_retained
+-        {
+-            let installed = self
+-                .commands
+-                .get(name)
+-                .expect("the command was just installed")
+-                .clone();
+-            self.replace_import_implementations(&replaced_token, &installed_token, &installed);
+-        }
+-        self.absorb_retained_binding(name);
+-        if replacing_retained {
+-            self.materialise_retained_binding(name);
+-            if self
+-                .command_token_identity(&CommandSidecarKey::visible(name))
+-                .as_ref()
+-                == Some(&installed_token)
+-            {
+-                self.retire_command_lifecycle_key(&CommandSidecarKey::visible(name));
+-            }
+-        }
++        self.finish_command_publication(
++            name,
++            installed_generation,
++            replaced_token,
++            replacing_retained,
++        );
+         // Publish the fully-installed table state. Delete callbacks and import
+         // retargeting are re-entrant and may have populated resolution caches or
+         // acknowledged the pre-install deopt epoch. A retained binding has been
+@@ -7239,45 +7278,46 @@
+             .unwrap_or_else(|error| crate::command::completion_from_cmd_error(self, error))
+     }
+ 
+-    fn interp_alias_at_in_original_name(
+-        &mut self,
++    fn original_alias_command(
+         src: InterpId,
++        target: InterpId,
+         src_cmd: &Value,
++        words: &Rc<Vec<Value>>,
++        original_jim_prefix: Option<Rc<Value>>,
++        publication_name: NameBytes,
++        recipe: tcl_syntax::naming::NativeNameProtocol,
++    ) -> Command {
++        if src == target {
++            Command::Alias {
++                words: Rc::clone(words),
++                publication_name,
++                registration_name: recipe
++                    .alias_record_retains_original_registration_name()
++                    .then(|| src_cmd.clone()),
++            }
++        } else {
++            Command::CrossAlias {
++                target,
++                words: Rc::clone(words),
++                original_jim_prefix,
++                publication_name,
++                registration_name: recipe
++                    .alias_record_retains_original_registration_name()
++                    .then(|| src_cmd.clone()),
++            }
++        }
++    }
++
++    fn publish_original_alias(
++        &mut self,
++        src: InterpId,
+         target: InterpId,
+-        target_words: Vec<Value>,
+-        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
+-    ) -> Completion<Value> {
+-        if let Err(error) = original_name_scope.check(self) {
+-            return crate::command::completion_from_cmd_error(self, error);
+-        }
+-
+-        let Some(producer) = self.name_policy_protocol() else {
+-            return self.refuse_host_command("parent alias publication issuer".into());
+-        };
+-        for realm in [src, target] {
+-            let Some(receiver) = self
+-                .st_of(realm)
+-                .and_then(InterpState::name_policy_protocol)
+-            else {
+-                return self.refuse_host_command("alias interpreter publication issuer".into());
+-            };
+-            if receiver != producer {
+-                return self.refuse_host_command("alias producer realm".into());
+-            }
+-        }
+-        let (original_jim_prefix, words) = if producer.recipe().is_jim084() && src != target {
+-            match self.capture_original_jim_parent_alias_prefix(target, target_words) {
+-                Ok((prefix, words)) => (Some(prefix), words),
+-                Err(error) => return crate::command::completion_from_cmd_error(self, error),
+-            }
+-        } else {
+-            (None, Rc::new(target_words))
+-        };
+-        let original = match self.native_name_operand_bytes_checked(src_cmd) {
+-            Ok(original) => original,
+-            Err(error) => return crate::command::completion_from_cmd_error(self, error),
+-        };
+-        let src_key = self.in_interp(src, |vm| {
++        src_cmd: &Value,
++        original: &[u8],
++        words: &Rc<Vec<Value>>,
++        original_jim_prefix: Option<Rc<Value>>,
++    ) -> Result<(String, Option<CommandTokenIdentity>), tcl_cmd_core::CmdError> {
++        self.in_interp(src, |vm| {
+             let source = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+                 vm,
+                 Some(ROOT_NS),
+@@ -7292,7 +7332,7 @@
+                 let selected = recipe
+                     .child_alias_publication_input(
+                         tcl_syntax::naming::NativeNameContext::root(),
+-                        &original,
++                        original,
+                     )
+                     .map_err(|_| {
+                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+@@ -7305,28 +7345,18 @@
+                             "original alias publication policy",
+                         ),
+                     )?);
+-                let cmd = if src == target {
+-                    Command::Alias {
+-                        words: Rc::clone(&words),
+-                        publication_name,
+-                        registration_name: recipe
+-                            .alias_record_retains_original_registration_name()
+-                            .then(|| src_cmd.clone()),
+-                    }
+-                } else {
+-                    Command::CrossAlias {
+-                        target,
+-                        words: Rc::clone(&words),
+-                        original_jim_prefix,
+-                        publication_name,
+-                        registration_name: recipe
+-                            .alias_record_retains_original_registration_name()
+-                            .then(|| src_cmd.clone()),
+-                    }
+-                };
++                let cmd = Self::original_alias_command(
++                    src,
++                    target,
++                    src_cmd,
++                    words,
++                    original_jim_prefix,
++                    publication_name,
++                    recipe,
++                );
+                 let report = vm
+                     .jim_command_table_key_for_original(
+-                        &original,
++                        original,
+                         tcl_syntax::naming::NativeNamePurpose::ChildAliasPublication,
+                     )
+                     .map_err(|_| {
+@@ -7335,7 +7365,7 @@
+                         )
+                     })?;
+                 let slot = vm
+-                    .native_child_alias_publication_slot(&original)
++                    .native_child_alias_publication_slot(original)
+                     .map_err(|_| {
+                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                             "original alias publication slot",
+@@ -7368,16 +7398,137 @@
+                 Ok::<_, tcl_cmd_core::CmdError>((key, token))
+             })();
+             vm.original_name_finish(source, reached)?
+-        });
+-        let (src_key, published_token) =
+-            match self.original_name_outcome(original_name_scope, src_key) {
+-                Ok(key) => key,
+-                Err(error) => return crate::command::completion_from_cmd_error(self, error),
++        })
++    }
++
++    fn replace_c84_alias_registration(
++        &mut self,
++        src_cmd: &Value,
++        published_token: &CommandTokenIdentity,
++        scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<(), tcl_cmd_core::CmdError> {
++        loop {
++            scope.current_for_value(self, src_cmd)?;
++            let registration_name = self.native_name_operand_bytes_checked(src_cmd)?;
++            scope.check(self)?;
++            let selected = self
++                .name_policy_protocol()
++                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                    "original alias registration retry issuer",
++                ))?
++                .recipe()
++                .child_alias_publication_input(
++                    tcl_syntax::naming::NativeNameContext::root(),
++                    &registration_name,
++                )
++                .map_err(|_| {
++                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        "original alias registration retry coordinate",
++                    )
++                })?;
++            let prior = self
++                .alias_registrations
++                .prior(&selected)
++                .map_err(|_| {
++                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        "original alias registration collision",
++                    )
++                })?
++                .cloned();
++            let Some(prior) = prior else {
++                let live = self
++                    .command_token_at_generation(published_token.generation)
++                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        "original alias registration token retired",
++                    ))?;
++                self.alias_registrations
++                    .install(&selected, live)
++                    .map_err(|_| {
++                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                            "original alias registration installation",
++                        )
++                    })?;
++                scope.check(self)?;
++                return Ok(());
+             };
+-        if let Err(error) = original_name_scope.current_for_value(self, src_cmd) {
+-            return crate::command::completion_from_cmd_error(self, error);
+-        }
+-        let loops = match self.alias_chain_loops(src, &src_key) {
++            drop(selected);
++            drop(registration_name);
++            scope.check(self)?;
++            if self
++                .name_world
++                .borrow()
++                .command_deletion_active
++                .contains(&prior.generation)
++            {
++                return Err(self.retain_name_query_refusal(
++                    "alias registration collision during actual token deletion",
++                ));
++            }
++            if let Some(live) = self.command_token_at_generation(prior.generation)
++                && let Some(command) = self.command_at_sidecar_key(&live.key)
++            {
++                self.retire_registered_real_command(&live, &command);
++                scope.check(self)?;
++            } else {
++                self.alias_registrations
++                    .forget_deleted(|token| token.generation == prior.generation);
++            }
++        }
++    }
++
++    fn complete_c84_alias_registration(
++        &mut self,
++        src: InterpId,
++        src_cmd: &Value,
++        published_token: CommandTokenIdentity,
++        original: &[u8],
++    ) -> Result<Result<(), tcl_cmd_core::CmdError>, tcl_cmd_core::CmdError> {
++        self.in_interp(src, |vm| {
++            let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
++                vm,
++                Some(ROOT_NS),
++            )?;
++            let reached = (|| {
++                let selected = vm
++                    .name_policy_protocol()
++                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        "original alias registration issuer",
++                    ))?
++                    .recipe()
++                    .child_alias_publication_input(
++                        tcl_syntax::naming::NativeNameContext::root(),
++                        original,
++                    )
++                    .map_err(|_| {
++                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                            "original alias registration coordinate",
++                        )
++                    })?;
++                if selected
++                    .alias_registration_replacement_key()
++                    .map_err(|_| {
++                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                            "original alias registration purpose",
++                        )
++                    })?
++                    .is_none()
++                {
++                    return Ok::<_, tcl_cmd_core::CmdError>(());
++                }
++                drop(selected);
++                vm.replace_c84_alias_registration(src_cmd, &published_token, &scope)
++            })();
++            vm.original_name_finish(scope, reached)
++        })
++    }
++
++    fn check_published_alias_loop(
++        &mut self,
++        src: InterpId,
++        src_key: &str,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<(), Completion<Value>> {
++        let loops = match self.alias_chain_loops(src, src_key) {
+             Ok(loops) => loops,
+             Err(error) => {
+                 if let Some(first) = error.native_execution_refusal() {
+@@ -7386,36 +7537,96 @@
+                     ));
+                 }
+                 self.in_interp(src, |vm| {
+-                    vm.remove_command_exact(&src_key);
+-                    vm.drop_alias_backref(&src_key);
++                    vm.remove_command_exact(src_key);
++                    vm.drop_alias_backref(src_key);
+                 });
+                 if let Err(first) = original_name_scope.check(self) {
+-                    return crate::command::completion_from_cmd_error(self, first);
++                    return Err(crate::command::completion_from_cmd_error(self, first));
+                 }
+-                return crate::command::completion_from_cmd_error(self, error);
++                return Err(crate::command::completion_from_cmd_error(self, error));
+             }
+         };
+         if let Err(error) = original_name_scope.check(self) {
+-            return crate::command::completion_from_cmd_error(self, error);
++            return Err(crate::command::completion_from_cmd_error(self, error));
+         }
+         if loops {
+             let tail = self
+                 .st_of(src)
+-                .and_then(|state| state.command_slot(&src_key))
++                .and_then(|state| state.command_slot(src_key))
+                 .map_or_else(tcl_core_types::NameBytes::default, |slot| {
+                     slot.simple.clone()
+                 });
+             self.in_interp(src, |vm| {
+-                vm.remove_command_exact(&src_key);
+-                vm.drop_alias_backref(&src_key);
++                vm.remove_command_exact(src_key);
++                vm.drop_alias_backref(src_key);
+             });
+             if let Err(error) = original_name_scope.check(self) {
+-                return crate::command::completion_from_cmd_error(self, error);
++                return Err(crate::command::completion_from_cmd_error(self, error));
+             }
+             let mut message = Vec::from(b"cannot define or rename alias \"".as_slice());
+             message.extend_from_slice(tail.as_bytes());
+             message.extend_from_slice(b"\": would create a loop");
+-            return err(message);
++            return Err(err(message));
++        }
++        Ok(())
++    }
++
++    fn interp_alias_at_in_original_name(
++        &mut self,
++        src: InterpId,
++        src_cmd: &Value,
++        target: InterpId,
++        target_words: Vec<Value>,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Completion<Value> {
++        if let Err(error) = original_name_scope.check(self) {
++            return crate::command::completion_from_cmd_error(self, error);
++        }
++
++        let Some(producer) = self.name_policy_protocol() else {
++            return self.refuse_host_command("parent alias publication issuer".into());
++        };
++        for realm in [src, target] {
++            let Some(receiver) = self
++                .st_of(realm)
++                .and_then(InterpState::name_policy_protocol)
++            else {
++                return self.refuse_host_command("alias interpreter publication issuer".into());
++            };
++            if receiver != producer {
++                return self.refuse_host_command("alias producer realm".into());
++            }
++        }
++        let (original_jim_prefix, words) = if producer.recipe().is_jim084() && src != target {
++            match self.capture_original_jim_parent_alias_prefix(target, target_words) {
++                Ok((prefix, words)) => (Some(prefix), words),
++                Err(error) => return crate::command::completion_from_cmd_error(self, error),
++            }
++        } else {
++            (None, Rc::new(target_words))
++        };
++        let original = match self.native_name_operand_bytes_checked(src_cmd) {
++            Ok(original) => original,
++            Err(error) => return crate::command::completion_from_cmd_error(self, error),
++        };
++        let src_key = self.publish_original_alias(
++            src,
++            target,
++            src_cmd,
++            &original,
++            &words,
++            original_jim_prefix,
++        );
++        let (src_key, published_token) =
++            match self.original_name_outcome(original_name_scope, src_key) {
++                Ok(key) => key,
++                Err(error) => return crate::command::completion_from_cmd_error(self, error),
++            };
++        if let Err(error) = original_name_scope.current_for_value(self, src_cmd) {
++            return crate::command::completion_from_cmd_error(self, error);
++        }
++        if let Err(error) = self.check_published_alias_loop(src, &src_key, original_name_scope) {
++            return error;
+         }
+         if let Some(published_token) = published_token {
+             if producer.recipe()
+@@ -7429,111 +7640,8 @@
+                     Err(error) => crate::command::completion_from_cmd_error(self, error),
+                 };
+             }
+-            let registration = self.in_interp(src, |vm| {
+-                let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
+-                    vm,
+-                    Some(ROOT_NS),
+-                )?;
+-                let reached = (|| {
+-                    let selected = vm
+-                        .name_policy_protocol()
+-                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                            "original alias registration issuer",
+-                        ))?
+-                        .recipe()
+-                        .child_alias_publication_input(
+-                            tcl_syntax::naming::NativeNameContext::root(),
+-                            &original,
+-                        )
+-                        .map_err(|_| {
+-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                "original alias registration coordinate",
+-                            )
+-                        })?;
+-                    if selected
+-                        .alias_registration_replacement_key()
+-                        .map_err(|_| {
+-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                "original alias registration purpose",
+-                            )
+-                        })?
+-                        .is_none()
+-                    {
+-                        return Ok::<_, tcl_cmd_core::CmdError>(());
+-                    }
+-                    drop(selected);
+-                    loop {
+-                        scope.current_for_value(vm, src_cmd)?;
+-                        let registration_name = vm.native_name_operand_bytes_checked(src_cmd)?;
+-                        scope.check(vm)?;
+-                        let selected = vm
+-                            .name_policy_protocol()
+-                            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                "original alias registration retry issuer",
+-                            ))?
+-                            .recipe()
+-                            .child_alias_publication_input(
+-                                tcl_syntax::naming::NativeNameContext::root(),
+-                                &registration_name,
+-                            )
+-                            .map_err(|_| {
+-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                    "original alias registration retry coordinate",
+-                                )
+-                            })?;
+-                        let prior = vm
+-                            .alias_registrations
+-                            .prior(&selected)
+-                            .map_err(|_| {
+-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                    "original alias registration collision",
+-                                )
+-                            })?
+-                            .cloned();
+-                        let Some(prior) = prior else {
+-                            let live = vm
+-                                .command_token_at_generation(published_token.generation)
+-                                .ok_or(
+-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                    "original alias registration token retired",
+-                                ),
+-                            )?;
+-                            vm.alias_registrations
+-                                .install(&selected, live)
+-                                .map_err(|_| {
+-                                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                        "original alias registration installation",
+-                                    )
+-                                })?;
+-                            scope.check(vm)?;
+-                            return Ok(());
+-                        };
+-                        drop(selected);
+-                        drop(registration_name);
+-                        scope.check(vm)?;
+-                        if vm
+-                            .name_world
+-                            .borrow()
+-                            .command_deletion_active
+-                            .contains(&prior.generation)
+-                        {
+-                            return Err(vm.retain_name_query_refusal(
+-                                "alias registration collision during actual token deletion",
+-                            ));
+-                        }
+-                        if let Some(live) = vm.command_token_at_generation(prior.generation)
+-                            && let Some(command) = vm.command_at_sidecar_key(&live.key)
+-                        {
+-                            vm.retire_registered_real_command(&live, &command);
+-                            scope.check(vm)?;
+-                        } else {
+-                            vm.alias_registrations
+-                                .forget_deleted(|token| token.generation == prior.generation);
+-                        }
+-                    }
+-                })();
+-                vm.original_name_finish(scope, reached)
+-            });
++            let registration =
++                self.complete_c84_alias_registration(src, src_cmd, published_token, &original);
+             if let Err(error) = self.original_name_outcome(original_name_scope, registration) {
+                 return crate::command::completion_from_cmd_error(self, error);
+             }
+@@ -7790,7 +7898,7 @@
+         child.host = Rc::clone(&self.host);
+         child.runtime_version = self.runtime_version;
+         child.actual_engine_profile = self.actual_engine_profile;
+-        child.native_core_pin = self.native_core_pin.clone();
++        child.native_core_pin.clone_from(&self.native_core_pin);
+         if let Some(core) = &mut child.native_core_pin {
+             core.restate(&child.pack_facts);
+         }
+@@ -7832,8 +7940,8 @@
+ 
+     /// Jim's globally named zero-argument interpreter factory.
+     pub(crate) fn create_jim_child(&mut self) -> String {
+-        let name = format!("::interp.handle{}", self.interp_counter);
+-        self.interp_counter += 1;
++        let name = format!("::interp.handle{}", self.counters.interp_counter);
++        self.counters.interp_counter += 1;
+         self.create_child(Some(name), false)
+     }
+ 
+@@ -7847,8 +7955,8 @@
+     pub(crate) fn create_child(&mut self, name: Option<String>, safe: bool) -> String {
+         let safe = safe || self.state.is_safe;
+         let name = name.unwrap_or_else(|| {
+-            let n = format!("interp{}", self.interp_counter);
+-            self.interp_counter += 1;
++            let n = format!("interp{}", self.counters.interp_counter);
++            self.counters.interp_counter += 1;
+             n
+         });
+         self.create_child_named_bytes(NameBytes::from(name.as_bytes()), safe)
+@@ -7856,46 +7964,12 @@
+         name
+     }
+ 
+-    fn create_child_named_bytes(
+-        &mut self,
+-        name: NameBytes,
++    fn initialise_child_command_world(
++        &mut self,
++        id: InterpId,
+         safe: bool,
+-    ) -> Result<InterpId, NativeCommandLookupUnavailable> {
+-        let recipe = self
+-            .name_policy_protocol()
+-            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
+-            .recipe();
+-        let slot = if recipe.is_jim084() {
+-            self.native_alias_publication_slot(name.as_bytes())?
+-        } else {
+-            let path = self.namespace_path_for_token(self.current_ns_id());
+-            let selected = recipe
+-                .command_c_api_publication_projection(
+-                    tcl_syntax::naming::NativeNameContext::new(&path),
+-                    name.as_bytes(),
+-                )
+-                .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
+-            let namespace =
+-                self.materialise_native_command_projection(self.current_ns_id(), &selected);
+-            CommandSlot {
+-                namespace,
+-                simple: selected.into_slot().simple,
+-            }
+-        };
+-        let safe = safe || self.is_safe();
+-        let parent = self.cur;
+-        let child = self.fork_child_state();
+-        if let NativeBootstrapPurpose::Core { protocol, .. } = &child.bootstrap {
+-            let actual = child.actual_engine_profile.and_then(|profile| {
+-                tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
+-            });
+-            if actual != Some(*protocol) {
+-                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
+-            }
+-        }
+-        let id = self.new_interp_slot(child, parent);
+-        // The child replays its constructor's inputs in its own command world.
+-        let entered = self.in_interp(id, |vm| {
++    ) -> Result<(), tcl_runtime_api::NativeExecutionError> {
++        self.in_interp(id, |vm| {
+             let saved = vm.active_native_profile;
+             vm.active_native_profile = vm.actual_engine_profile.or(saved);
+             let entered = (|| -> Result<(), tcl_runtime_api::NativeExecutionError> {
+@@ -7962,7 +8036,49 @@
+             })();
+             vm.active_native_profile = saved;
+             entered
+-        });
++        })
++    }
++
++    fn create_child_named_bytes(
++        &mut self,
++        name: NameBytes,
++        safe: bool,
++    ) -> Result<InterpId, NativeCommandLookupUnavailable> {
++        let recipe = self
++            .name_policy_protocol()
++            .ok_or(NativeCommandLookupUnavailable::ProtocolUnavailable)?
++            .recipe();
++        let slot = if recipe.is_jim084() {
++            self.native_alias_publication_slot(name.as_bytes())?
++        } else {
++            let path = self.namespace_path_for_token(self.current_ns_id());
++            let selected = recipe
++                .command_c_api_publication_projection(
++                    tcl_syntax::naming::NativeNameContext::new(&path),
++                    name.as_bytes(),
++                )
++                .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
++            let namespace =
++                self.materialise_native_command_projection(self.current_ns_id(), &selected);
++            CommandSlot {
++                namespace,
++                simple: selected.into_slot().simple,
++            }
++        };
++        let safe = safe || self.is_safe();
++        let parent = self.cur;
++        let child = self.fork_child_state();
++        if let NativeBootstrapPurpose::Core { protocol, .. } = &child.bootstrap {
++            let actual = child.actual_engine_profile.and_then(|profile| {
++                tcl_registry::InvocationDialect::of_profile(profile).native_bootstrap_protocol()
++            });
++            if actual != Some(*protocol) {
++                return Err(NativeCommandLookupUnavailable::ProtocolUnavailable);
++            }
++        }
++        let id = self.new_interp_slot(child, parent);
++        // The child replays its constructor's inputs in its own command world.
++        let entered = self.initialise_child_command_world(id, safe);
+         if let Err(first) = entered {
+             self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first));
+             self.retire_interp(id);
+@@ -8176,9 +8292,9 @@
+         if !self.has_time_limit() {
+             return None;
+         }
+-        self.limit_tick = self.limit_tick.wrapping_add(1);
++        self.counters.limit_tick = self.counters.limit_tick.wrapping_add(1);
+         // Poll roughly every 4096 ticks (the low 12 bits clear).
+-        if self.limit_tick.trailing_zeros() >= 12 && self.time_limit_exceeded() {
++        if self.counters.limit_tick.trailing_zeros() >= 12 && self.time_limit_exceeded() {
+             return Some(self.exceed_limit_inner(LimitKind::WallClock));
+         }
+         None
+@@ -8208,13 +8324,13 @@
+     /// exactly-enforced budget is what the `SpecTcl` containment guarantee needs
+     /// from a hook body.
+     pub(crate) fn charge_command(&mut self) -> Option<Completion<Value>> {
+-        self.commands_run = self.commands_run.saturating_add(1);
++        self.counters.commands_run = self.counters.commands_run.saturating_add(1);
+         if let Some(kind) = self.limits.exceeded {
+             return Some(err(kind.message()));
+         }
+         let limit = self.limits.cmd_value?;
+         let limit = u64::try_from(limit).unwrap_or(0);
+-        (self.commands_run > limit).then(|| self.exceed_limit_inner(LimitKind::Commands))
++        (self.counters.commands_run > limit).then(|| self.exceed_limit_inner(LimitKind::Commands))
+     }
+ 
+     /// Record that the running evaluation outran `kind`, and answer its error.
+@@ -8416,13 +8532,13 @@
+ 
+     /// Commands dispatched since the counter was last reset.
+     pub(crate) fn command_count(&self) -> u64 {
+-        self.commands_run
++        self.counters.commands_run
+     }
+ 
+     /// Zero the command counter and forget a breach — an embedder's
+     /// per-invocation fuel refill.
+     pub(crate) fn reset_command_count_inner(&mut self) {
+-        self.commands_run = 0;
++        self.counters.commands_run = 0;
+         self.limits.exceeded = None;
+     }
+ 
+@@ -9869,7 +9985,7 @@
+                 Ok(names) => names,
+                 Err(error) => return self.refuse_host_command(error.to_string()),
+             };
+-            let plan = self.native_original_ensemble_table_plan(configuration, e, &exports);
++            let plan = Self::native_original_ensemble_table_plan(configuration, e, &exports);
+             let subs: Vec<_> = plan
+                 .entries
+                 .into_iter()
+@@ -9944,6 +10060,78 @@
+         let reached = self.ensemble_unknown_in_original_name(token, definition, argv, &scope);
+         self.original_name_finish(scope, reached)
+             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
++    }
++
++    fn finish_ensemble_unknown(
++        &mut self,
++        token: &tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, NameBytes>,
++        completion: Completion<Value>,
++        handler_call: &Value,
++        protocol: tcl_syntax::native_string::NativeStringProtocol,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<Option<Value>, Completion<Value>> {
++        match completion.code {
++            Code::Ok => {}
++            Code::Error => {
++                self.seed_error_info_frame(
++                    completion.result.string_bytes(),
++                    "\n    (ensemble unknown subcommand handler)",
++                );
++                return Err(completion);
++            }
++            bad_code => {
++                let name = match bad_code {
++                    Code::Return => "return".to_owned(),
++                    Code::Break => "break".to_owned(),
++                    Code::Continue => "continue".to_owned(),
++                    Code::Other(code) => code.to_string(),
++                    Code::Ok | Code::Error => unreachable!("handled above"),
++                };
++                let message = format!("unknown subcommand handler returned bad code: {name}");
++                let bytes = match self.native_name_operand_bytes_checked(handler_call) {
++                    Ok(bytes) => bytes,
++                    Err(error) => {
++                        return Err(crate::command::completion_from_cmd_error(self, error));
++                    }
++                };
++                let mut frame = b"\n    result of ensemble unknown subcommand handler: ".to_vec();
++                frame.extend_from_slice(&bytes);
++                self.seed_error_info_frame(&message, &frame);
++                return Err(err_with_code(message, "TCL ENSEMBLE UNKNOWN_RESULT"));
++            }
++        }
++        if token.is_deleted() {
++            let message = tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE;
++            self.seed_error_info_frame(message, "\n    (ensemble unknown subcommand handler)");
++            return Err(err_with_code(
++                message,
++                tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE,
++            ));
++        }
++        let reached = native_numeric_ops::OriginalNumericOps::in_original_scope(
++            self,
++            original_name_scope.operation_scope(),
++        )
++        .and_then(|ops| ops.list(&completion.result, protocol));
++        let members = match self.original_name_outcome(original_name_scope, reached) {
++            Ok(members) => members,
++            Err(error) => {
++                let failure = crate::command::completion_from_cmd_error(self, error);
++                if self.execution_refusal.is_none() {
++                    self.seed_error_info_frame(
++                        failure.result.string_bytes(),
++                        "\n    while parsing result of ensemble unknown subcommand handler",
++                    );
++                }
++                return Err(failure);
++            }
++        };
++        let nonempty = !members.is_empty();
++        drop(members);
++        original_name_scope
++            .check(self)
++            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++        Ok(nonempty.then_some(completion.result))
+     }
+ 
+     fn ensemble_unknown_in_original_name(
+@@ -10024,68 +10212,13 @@
+         original_name_scope
+             .check(self)
+             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-        match completion.code {
+-            Code::Ok => {}
+-            Code::Error => {
+-                self.seed_error_info_frame(
+-                    completion.result.string_bytes(),
+-                    "\n    (ensemble unknown subcommand handler)",
+-                );
+-                return Err(completion);
+-            }
+-            bad_code => {
+-                let name = match bad_code {
+-                    Code::Return => "return".to_owned(),
+-                    Code::Break => "break".to_owned(),
+-                    Code::Continue => "continue".to_owned(),
+-                    Code::Other(code) => code.to_string(),
+-                    Code::Ok | Code::Error => unreachable!("handled above"),
+-                };
+-                let message = format!("unknown subcommand handler returned bad code: {name}");
+-                let bytes = match self.native_name_operand_bytes_checked(&handler_call) {
+-                    Ok(bytes) => bytes,
+-                    Err(error) => {
+-                        return Err(crate::command::completion_from_cmd_error(self, error));
+-                    }
+-                };
+-                let mut frame = b"\n    result of ensemble unknown subcommand handler: ".to_vec();
+-                frame.extend_from_slice(&bytes);
+-                self.seed_error_info_frame(&message, &frame);
+-                return Err(err_with_code(message, "TCL ENSEMBLE UNKNOWN_RESULT"));
+-            }
+-        }
+-        if token.is_deleted() {
+-            let message = tcl_cmd_core::ensemble::UNKNOWN_DELETED_MESSAGE;
+-            self.seed_error_info_frame(message, "\n    (ensemble unknown subcommand handler)");
+-            return Err(err_with_code(
+-                message,
+-                tcl_cmd_core::ensemble::UNKNOWN_DELETED_ERROR_CODE,
+-            ));
+-        }
+-        let reached = native_numeric_ops::OriginalNumericOps::in_original_scope(
+-            self,
+-            original_name_scope.operation_scope(),
++        self.finish_ensemble_unknown(
++            token,
++            completion,
++            &handler_call,
++            protocol,
++            original_name_scope,
+         )
+-        .and_then(|ops| ops.list(&completion.result, protocol));
+-        let members = match self.original_name_outcome(original_name_scope, reached) {
+-            Ok(members) => members,
+-            Err(error) => {
+-                let failure = crate::command::completion_from_cmd_error(self, error);
+-                if self.execution_refusal.is_none() {
+-                    self.seed_error_info_frame(
+-                        failure.result.string_bytes(),
+-                        "\n    while parsing result of ensemble unknown subcommand handler",
+-                    );
+-                }
+-                return Err(failure);
+-            }
+-        };
+-        let nonempty = !members.is_empty();
+-        drop(members);
+-        original_name_scope
+-            .check(self)
+-            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-        Ok(nonempty.then_some(completion.result))
+     }
+ 
+     /// Dispatch a child-as-command call (`$child sub ?arg …?`): the `interp`
+@@ -10235,6 +10368,69 @@
+             .unwrap_or_else(|error| crate::command::completion_from_cmd_error(self, error))
+     }
+ 
++    fn dispatch_child_visibility(
++        &mut self,
++        name: &Value,
++        id: InterpId,
++        rest: &[Value],
++        hide: bool,
++    ) -> Completion<Value> {
++        // `$child hide   cmdName    ?hiddenCmdName?`
++        // `$child expose hiddenName ?cmdName?`
++        let (cmd, token) = match rest {
++            [cmd] => (cmd, cmd),
++            [cmd, token] => (cmd, token),
++            _ => {
++                let form = if hide {
++                    "hide cmdName ?hiddenCmdName?"
++                } else {
++                    "expose hiddenCmdName ?cmdName?"
++                };
++                return self.child_wrong_arguments(name, form.as_bytes());
++            }
++        };
++        if self.is_safe() {
++            let verb = if hide { "hide" } else { "expose" };
++            return err(format!(
++                "permission denied: safe interpreter cannot {verb} commands"
++            ));
++        }
++        let cmd = match self.native_name_operand_bytes_checked(cmd) {
++            Ok(bytes) => bytes,
++            Err(error) => return crate::command::completion_from_cmd_error(self, error),
++        };
++        let token = match self.native_name_operand_bytes_checked(token) {
++            Ok(bytes) => bytes,
++            Err(error) => return crate::command::completion_from_cmd_error(self, error),
++        };
++        match self.child_hide_by_id(id, &cmd, &token, hide) {
++            Ok(()) => ok(Value::empty()),
++            Err(problem) => problem.into_completion(),
++        }
++    }
++
++    fn child_hidden_names(&self, id: InterpId) -> Completion<Value> {
++        let mut names: Vec<NameBytes> = self
++            .st_of(id)
++            .map(|state| {
++                state
++                    .hidden
++                    .tokens_by_name
++                    .iter()
++                    .filter(|(_, key)| state.hidden.commands.contains_key(*key))
++                    .map(|(name, _)| name.clone())
++                    .collect()
++            })
++            .unwrap_or_default();
++        names.sort();
++        ok(Value::list(
++            names
++                .into_iter()
++                .map(|name| Value::from_native_string_bytes(name.as_bytes().to_vec()))
++                .collect(),
++        ))
++    }
++
+     fn dispatch_c_child_in_original_name(
+         &mut self,
+         name: &Value,
+@@ -10299,62 +10495,8 @@
+                 self.delete_interp(id);
+                 ok(Value::empty())
+             }
+-            "hidden" => {
+-                let mut names: Vec<NameBytes> = self
+-                    .st_of(id)
+-                    .map(|state| {
+-                        state
+-                            .hidden
+-                            .tokens_by_name
+-                            .iter()
+-                            .filter(|(_, key)| state.hidden.commands.contains_key(*key))
+-                            .map(|(name, _)| name.clone())
+-                            .collect()
+-                    })
+-                    .unwrap_or_default();
+-                names.sort();
+-                ok(Value::list(
+-                    names
+-                        .into_iter()
+-                        .map(|name| Value::from_native_string_bytes(name.as_bytes().to_vec()))
+-                        .collect(),
+-                ))
+-            }
+-            "hide" | "expose" => {
+-                let hide = sub == "hide";
+-                // `$child hide   cmdName    ?hiddenCmdName?`
+-                // `$child expose hiddenName ?cmdName?`
+-                let (cmd, token) = match rest {
+-                    [cmd] => (cmd, cmd),
+-                    [cmd, token] => (cmd, token),
+-                    _ => {
+-                        let form = if hide {
+-                            "hide cmdName ?hiddenCmdName?"
+-                        } else {
+-                            "expose hiddenCmdName ?cmdName?"
+-                        };
+-                        return self.child_wrong_arguments(name, form.as_bytes());
+-                    }
+-                };
+-                if self.is_safe() {
+-                    let verb = if hide { "hide" } else { "expose" };
+-                    return err(format!(
+-                        "permission denied: safe interpreter cannot {verb} commands"
+-                    ));
+-                }
+-                let cmd = match self.native_name_operand_bytes_checked(cmd) {
+-                    Ok(bytes) => bytes,
+-                    Err(error) => return crate::command::completion_from_cmd_error(self, error),
+-                };
+-                let token = match self.native_name_operand_bytes_checked(token) {
+-                    Ok(bytes) => bytes,
+-                    Err(error) => return crate::command::completion_from_cmd_error(self, error),
+-                };
+-                match self.child_hide_by_id(id, &cmd, &token, hide) {
+-                    Ok(()) => ok(Value::empty()),
+-                    Err(problem) => problem.into_completion(),
+-                }
+-            }
++            "hidden" => self.child_hidden_names(id),
++            "hide" | "expose" => self.dispatch_child_visibility(name, id, rest, sub == "hide"),
+             "marktrusted" => {
+                 if self.is_safe() {
+                     return err("permission denied: safe interpreter cannot mark trusted");
+@@ -10855,13 +10997,12 @@
+         NamespaceExecutionContext,
+     ) {
+         let name = self.ns_name_bytes(context);
+-        let previous_name = std::mem::replace(
+-            self.resolution_stacks
+-                .ns_stack
+-                .last_mut()
+-                .expect("root namespace"),
+-            Some(name),
+-        );
++        let previous_name = self
++            .resolution_stacks
++            .ns_stack
++            .last_mut()
++            .expect("root namespace")
++            .replace(name);
+         let previous_token = std::mem::replace(
+             self.resolution_stacks
+                 .ns_id_stack
+@@ -12625,13 +12766,12 @@
+             return Err("cannot replay bytecode from another namespace at global level");
+         }
+         let name = self.ns_name_bytes(id);
+-        let previous_ns = std::mem::replace(
+-            self.resolution_stacks
+-                .ns_stack
+-                .last_mut()
+-                .expect("global namespace frame exists"),
+-            Some(name),
+-        );
++        let previous_ns = self
++            .resolution_stacks
++            .ns_stack
++            .last_mut()
++            .expect("global namespace frame exists")
++            .replace(name);
+         let previous_id = std::mem::replace(
+             self.resolution_stacks
+                 .ns_id_stack
+@@ -13319,7 +13459,7 @@
+         };
+         let reached = self.import_commands_selected(
+             parts.selected.as_bytes(),
+-            selected,
++            &selected,
+             allow_overwrite,
+             &original,
+         );
+@@ -13334,7 +13474,7 @@
+     pub(crate) fn import_commands_selected(
+         &mut self,
+         pattern: &[u8],
+-        selected: tcl_cmd_core::namespace::ImportPattern,
++        selected: &tcl_cmd_core::namespace::ImportPattern,
+         allow_overwrite: bool,
+         original: &native_name_consumers::OriginalNameConsumerScope,
+     ) -> Result<Vec<NameBytes>, NamespaceImportError> {
+@@ -13566,45 +13706,11 @@
+         Ok(())
+     }
+ 
+-    pub(crate) fn import_source_names(
+-        &mut self,
+-        original: &[u8],
+-        operation: &native_operation_currency::NativeOperationScope,
+-    ) -> Completion<Value> {
+-        let context = self.current_ns_id();
+-        let Some(policy) = self.name_policy_protocol() else {
+-            return self
+-                .refuse_host_command("native Jim import name protocol is unavailable".into());
+-        };
+-        let holder =
+-            self.with_jim_namespace_at(context, |original| Ok(original.native_lifetime_lease()));
+-        if let Err(error) = operation.check(self) {
+-            return crate::command::completion_from_cmd_error(self, error);
+-        }
+-        let holder = match holder {
+-            Ok(holder) => holder,
+-            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
+-        };
+-        let namespace = tcl_syntax::value::ValueOps::native_string_bytes(self, holder.value());
+-        if let Err(error) = operation.check(self) {
+-            return crate::command::completion_from_cmd_error(self, error);
+-        }
+-        let namespace = match namespace {
+-            Ok(namespace) => namespace,
+-            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
+-        };
+-        let path = self.ns_path(context);
+-        let qualified = match policy.recipe().jim_namespace_canonical_input(
+-            tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, namespace.as_ref()),
+-            original,
+-        ) {
+-            Ok(projected) => projected.selected().to_vec(),
+-            Err(error) => {
+-                return self.refuse_host_command(format!(
+-                    "native Jim import canonicalisation unavailable: {error:?}"
+-                ));
+-            }
+-        };
++    fn jim_import_candidates(
++        &mut self,
++        policy: tcl_syntax::naming::NamePolicyProtocol,
++        qualified: &[u8],
++    ) -> Result<Vec<NameBytes>, Completion<Value>> {
+         let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
+         let mut candidates = Vec::new();
+         let keys: Vec<_> = self.commands.keys().cloned().collect();
+@@ -13614,14 +13720,75 @@
+             };
+             match matcher.match_name_pattern(
+                 tcl_syntax::native_glob::NativeNameGlobPurpose::InfoCommandsSearch,
+-                &qualified,
++                qualified,
+                 slot.simple.as_bytes(),
+             ) {
+                 Ok(true) => candidates.push(slot.simple),
+                 Ok(false) => {}
+-                Err(error) => return self.refuse_host_command(error.to_string()),
+-            }
+-        }
++                Err(error) => return Err(self.refuse_host_command(error.to_string())),
++            }
++        }
++        Ok(candidates)
++    }
++
++    fn jim_import_pattern(
++        &mut self,
++        context: NsId,
++        policy: tcl_syntax::naming::NamePolicyProtocol,
++        namespace: &[u8],
++        original: &[u8],
++    ) -> Result<Vec<u8>, Completion<Value>> {
++        let path = self.ns_path(context);
++        let qualified = match policy.recipe().jim_namespace_canonical_input(
++            tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, namespace),
++            original,
++        ) {
++            Ok(projected) => projected.selected().to_vec(),
++            Err(error) => {
++                return Err(self.refuse_host_command(format!(
++                    "native Jim import canonicalisation unavailable: {error:?}"
++                )));
++            }
++        };
++        Ok(qualified)
++    }
++
++    pub(crate) fn import_source_names(
++        &mut self,
++        original: &[u8],
++        operation: &native_operation_currency::NativeOperationScope,
++    ) -> Completion<Value> {
++        let context = self.current_ns_id();
++        let Some(policy) = self.name_policy_protocol() else {
++            return self
++                .refuse_host_command("native Jim import name protocol is unavailable".into());
++        };
++        let holder =
++            self.with_jim_namespace_at(context, |original| Ok(original.native_lifetime_lease()));
++        if let Err(error) = operation.check(self) {
++            return crate::command::completion_from_cmd_error(self, error);
++        }
++        let holder = match holder {
++            Ok(holder) => holder,
++            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
++        };
++        let namespace = tcl_syntax::value::ValueOps::native_string_bytes(self, holder.value());
++        if let Err(error) = operation.check(self) {
++            return crate::command::completion_from_cmd_error(self, error);
++        }
++        let namespace = match namespace {
++            Ok(namespace) => namespace,
++            Err(error) => return crate::command::completion_from_cmd_error(self, error.into()),
++        };
++        let qualified = match self.jim_import_pattern(context, policy, namespace.as_ref(), original)
++        {
++            Ok(qualified) => qualified,
++            Err(error) => return error,
++        };
++        let candidates = match self.jim_import_candidates(policy, &qualified) {
++            Ok(candidates) => candidates,
++            Err(error) => return error,
++        };
+         for source in candidates {
+             let holder = policy.recipe().namespace_qualifier_bytes(source.as_bytes());
+             let tail = policy.recipe().namespace_tail_bytes(source.as_bytes());
+@@ -15397,10 +15564,8 @@
+             }
+             // An element unset reaches the host; the elements a whole-array
+             // unset tears down, the array no longer bound as `::env`, do not.
+-            "unset" => {
+-                if self.resolve_var_from("::env", 0).and_then(|r| r.id) == Some(array) {
+-                    env.unset(&host_key);
+-                }
++            "unset" if self.resolve_var_from("::env", 0).and_then(|r| r.id) == Some(array) => {
++                env.unset(&host_key);
+             }
+             _ => {}
+         }
+@@ -15439,6 +15604,81 @@
+         scope.check_native(self)
+     }
+ 
++    fn read_trace_precision(
++        &mut self,
++        id: VarId,
++        cell: &VarTraceCell,
++        authored: bool,
++        policy: tcl_dialect::DoubleStringPolicy,
++        scope: &native_operation_currency::NativeOperationScope,
++    ) -> Result<Result<Option<u8>, Completion<Value>>, tcl_runtime_api::NativeExecutionError> {
++        let original = self
++            .initial_value_at_cell(id, cell.array)
++            .map(|value| value.map(Value::native_lifetime_lease));
++        scope.check_native(self)?;
++        let original = match original {
++            Ok(original) => original,
++            Err(error) => return Ok(Err(self.variable_trace_command_error(error.into())?)),
++        };
++        let reached = if authored {
++            original.as_ref().map_or(Ok(None), |lease| {
++                let value = lease.value();
++                Ok(tcl_syntax::number::parse_double_precision(
++                    policy,
++                    &value.to_str(),
++                ))
++            })
++        } else if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
++            let bytes = original
++                .as_ref()
++                .map(|lease| {
++                    lease
++                        .value()
++                        .native_string_bytes(tcl_syntax::native_string::NativeStringProtocol::C(
++                            tcl_dialect::TclVersion::V8_4,
++                        ))
++                        .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
++                        .map_err(tcl_syntax::value::ValueError::from)
++                })
++                .transpose();
++            scope.check_native(self)?;
++            match bytes {
++                Ok(bytes) => native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
++                    .and_then(|ops| ops.c84_precision(bytes.as_deref().unwrap_or(&[]))),
++                Err(error) => Err(error.into()),
++            }
++        } else {
++            match original.as_ref() {
++                Some(lease) => {
++                    let value = lease.value();
++                    native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
++                        .and_then(|ops| {
++                            ops.probe(
++                                value,
++                                tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
++                            )
++                        })
++                        .map(|outcome| match outcome {
++                            Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(
++                                integer,
++                            )) => tcl_syntax::number::double_precision_from_native_integer(
++                                policy, integer,
++                            ),
++                            _ => None,
++                        })
++                }
++                None => Ok(None),
++            }
++        };
++        drop(original);
++        scope.check_native(self)?;
++        let precision = match reached {
++            Ok(precision) => precision,
++            Err(error) => return Ok(Err(self.variable_trace_command_error(error)?)),
++        };
++        Ok(Ok(precision))
++    }
++
+     fn fire_native_precision_trace_bytes(
+         &mut self,
+         name: &[u8],
+@@ -15500,73 +15740,9 @@
+         let error = if self.is_safe {
+             Some("can't modify precision from a safe interpreter")
+         } else {
+-            let original = self
+-                .initial_value_at_cell(id, cell.array)
+-                .map(|value| value.map(Value::native_lifetime_lease));
+-            scope.check_native(self)?;
+-            let original = match original {
+-                Ok(original) => original,
+-                Err(error) => return Ok(Err(self.variable_trace_command_error(error.into())?)),
+-            };
+-            let reached = if authored {
+-                original.as_ref().map_or(Ok(None), |lease| {
+-                    let value = lease.value();
+-                    Ok(tcl_syntax::number::parse_double_precision(
+-                        policy,
+-                        &value.to_str(),
+-                    ))
+-                })
+-            } else if policy == tcl_dialect::DoubleStringPolicy::Tcl84Precision {
+-                let bytes = original
+-                    .as_ref()
+-                    .map(|lease| {
+-                        lease
+-                            .value()
+-                            .native_string_bytes(
+-                                tcl_syntax::native_string::NativeStringProtocol::C(
+-                                    tcl_dialect::TclVersion::V8_4,
+-                                ),
+-                            )
+-                            .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+-                            .map_err(tcl_syntax::value::ValueError::from)
+-                    })
+-                    .transpose();
+-                scope.check_native(self)?;
+-                match bytes {
+-                    Ok(bytes) => {
+-                        native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
+-                            .and_then(|ops| ops.c84_precision(bytes.as_deref().unwrap_or(&[])))
+-                    }
+-                    Err(error) => Err(error.into()),
+-                }
+-            } else {
+-                match original.as_ref() {
+-                    Some(lease) => {
+-                        let value = lease.value();
+-                        native_numeric_ops::OriginalNumericOps::in_original_scope(self, scope)
+-                            .and_then(|ops| {
+-                                ops.probe(
+-                                    value,
+-                                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Int,
+-                                )
+-                            })
+-                            .map(|outcome| match outcome {
+-                                Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(
+-                                    integer,
+-                                )) => tcl_syntax::number::double_precision_from_native_integer(
+-                                    policy, integer,
+-                                ),
+-                                _ => None,
+-                            })
+-                    }
+-                    None => Ok(None),
+-                }
+-            };
+-            drop(original);
+-            scope.check_native(self)?;
+-            let precision = match reached {
++            let precision = match self.read_trace_precision(id, cell, authored, policy, scope)? {
+                 Ok(precision) => precision,
+-                Err(error) => return Ok(Err(self.variable_trace_command_error(error)?)),
++                Err(error) => return Ok(Err(error)),
+             };
+             if let Some(precision) = precision {
+                 context.set_precision(precision);
+@@ -16586,6 +16762,67 @@
+         resolved: ResolvedVar,
+     ) -> Result<Value, Completion<Value>> {
+         self.read_selected_variable_result_bytes_with_original(root, element, resolved, None)
++    }
++
++    fn read_selected_variable_after_traces(
++        &mut self,
++        resolved: &ResolvedVar,
++        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
++        original: Option<&Value>,
++        original_names: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<Value, Completion<Value>> {
++        use tcl_syntax::naming::NativeVariableFailureSite as Site;
++        let current = if self.dictionary_variable_containers() {
++            self.read_variable_contents(resolved)
++        } else if let Some(id) = resolved.id {
++            match self.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id)) {
++                Ok(current) => current,
++                Err(error) => {
++                    return Err(crate::command::completion_from_cmd_error(
++                        self,
++                        error.into(),
++                    ));
++                }
++            }
++            .cloned()
++        } else if let Some((base, element)) = resolved.base_id.zip(resolved.elem.as_ref()) {
++            self.read_resolved_elem(base, element)
++        } else {
++            None
++        };
++        if let Some(value) = current {
++            return Ok(value);
++        }
++        let reason = if resolved.elem.is_some() {
++            if resolved
++                .base_id
++                .and_then(|id| self.var_arena.get(id))
++                .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
++            {
++                "no such element in array"
++            } else {
++                "no such variable"
++            }
++        } else if resolved
++            .id
++            .and_then(|id| self.var_arena.get(id))
++            .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
++        {
++            "variable is array"
++        } else {
++            "no such variable"
++        };
++        let site = if resolved.id.is_some() || resolved.base_id.is_some() {
++            Site::ValueRead
++        } else {
++            Site::NameLookup
++        };
++        if let Some(original) = original {
++            original_names
++                .read(self, original)
++                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++        }
++        Err(self.variable_access_error_at("read", input, reason, site))
+     }
+ 
+     fn read_selected_variable_result_bytes_with_original(
+@@ -16646,58 +16883,7 @@
+                         vm.fire_var_traces_from_cell_bytes(root, "read", None, None, cell.clone())
+                     })?;
+                 }
+-                let current = if vm.dictionary_variable_containers() {
+-                    vm.read_variable_contents(&resolved)
+-                } else if let Some(id) = resolved.id {
+-                    match vm.initial_value_at_cell(id, resolved.elem.as_ref().and(resolved.base_id))
+-                    {
+-                        Ok(current) => current,
+-                        Err(error) => {
+-                            return Err(crate::command::completion_from_cmd_error(
+-                                vm,
+-                                error.into(),
+-                            ));
+-                        }
+-                    }
+-                    .cloned()
+-                } else if let Some((base, element)) = resolved.base_id.zip(resolved.elem.as_ref()) {
+-                    vm.read_resolved_elem(base, element)
+-                } else {
+-                    None
+-                };
+-                if let Some(value) = current {
+-                    return Ok(value);
+-                }
+-                let reason = if resolved.elem.is_some() {
+-                    if resolved
+-                        .base_id
+-                        .and_then(|id| vm.var_arena.get(id))
+-                        .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
+-                    {
+-                        "no such element in array"
+-                    } else {
+-                        "no such variable"
+-                    }
+-                } else if resolved
+-                    .id
+-                    .and_then(|id| vm.var_arena.get(id))
+-                    .is_some_and(|cell| matches!(cell.state(), Local::Array(_)))
+-                {
+-                    "variable is array"
+-                } else {
+-                    "no such variable"
+-                };
+-                let site = if resolved.id.is_some() || resolved.base_id.is_some() {
+-                    Site::ValueRead
+-                } else {
+-                    Site::NameLookup
+-                };
+-                if let Some(original) = original {
+-                    original_names
+-                        .read(vm, original)
+-                        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+-                }
+-                Err(vm.variable_access_error_at("read", input, reason, site))
++                vm.read_selected_variable_after_traces(&resolved, input, original, &original_names)
+             };
+             if let Some(cell) = cell.as_ref() {
+                 self.with_variable_operation(cell, read)
+@@ -17390,8 +17576,7 @@
+                     None,
+                 );
+                 let mut completion = match evaluated {
+-                    Ok(completion) => completion,
+-                    Err(crate::error::TclError::Guest(completion)) => completion,
++                    Ok(completion) | Err(crate::error::TclError::Guest(completion)) => completion,
+                     Err(crate::error::TclError::Host(first)) => {
+                         return Err(self.retain_tcl_host_failure(first));
+                     }
+@@ -17448,6 +17633,65 @@
+         reached
+     }
+ 
++    fn publish_variable_trace_failure_code(
++        &mut self,
++        mut failure: Completion<Value>,
++        op: &str,
++        name: &[u8],
++        scope: &native_operation_currency::NativeOperationScope,
++    ) -> Result<
++        std::ops::ControlFlow<Completion<Value>, Completion<Value>>,
++        tcl_runtime_api::NativeExecutionError,
++    > {
++        // From 8.6 the failed access sets the bare `TCL READ|WRITE VARNAME`
++        // code (`tclVar.c` 9.0.4:1472, :2073); 8.4 and 8.5 keep whatever code
++        // the callback left.
++        if op != "array"
++            && (self.native_c_variable_name_protocol().is_none()
++                || self.runtime_version >= tcl_dialect::TclVersion::V8_6)
++        {
++            let kind = if op == "write" { "WRITE" } else { "READ" };
++            let mut words = vec![
++                Value::string("TCL"),
++                Value::string(kind),
++                Value::string("VARNAME"),
++            ];
++            if self.native_c_variable_name_protocol().is_none() {
++                words.push(Value::from_string_bytes(name));
++            }
++            let code = Value::list(words);
++            scope.check_native(self)?;
++            // `Tcl_SetErrorCode`: the interpreter's code is the access's, not
++            // the one the callback's `return -errorcode` left.
++            if self.native_c_variable_name_protocol().is_some() {
++                self.restore_guest_error_code(code.clone());
++                scope.check_native(self)?;
++            }
++            let options = match crate::command::completion_options(self, &failure) {
++                Ok(options) => options,
++                Err(crate::error::TclError::Host(first)) => {
++                    return Err(self.retain_tcl_host_failure(first));
++                }
++                Err(crate::error::TclError::Guest(completion)) => {
++                    return Ok(std::ops::ControlFlow::Break(completion));
++                }
++            };
++            scope.check_native(self)?;
++            let selected = crate::command::with_return_option(self, &options, "-errorcode", code);
++            scope.check_native(self)?;
++            failure.options = match selected {
++                Ok(options) => options,
++                Err(crate::error::TclError::Host(first)) => {
++                    return Err(self.retain_tcl_host_failure(first));
++                }
++                Err(crate::error::TclError::Guest(completion)) => {
++                    return Ok(std::ops::ControlFlow::Break(completion));
++                }
++            };
++        }
++        Ok(std::ops::ControlFlow::Continue(failure))
++    }
++
+     fn present_variable_trace_failure(
+         &mut self,
+         mut failure: Completion<Value>,
+@@ -17465,7 +17709,7 @@
+             let reached = self.adopt_native_interp_result(failure.result.clone());
+             scope.check_native(self)?;
+             let original =
+-                reached.map_err(|error| self.retain_variable_trace_value_error(error))?;
++                reached.map_err(|error| self.retain_variable_trace_value_error(&error))?;
+             self.observe_native_error_result(original.value());
+             drop(original);
+             scope.check_native(self)?;
+@@ -17549,61 +17793,120 @@
+             failure
+                 .result
+                 .retain_native_string_representation(recipe)
+-                .map_err(|error| self.retain_variable_trace_value_error(error))?;
++                .map_err(|error| self.retain_variable_trace_value_error(&error))?;
+             scope.check_native(self)?;
+         }
+ 
+-        // From 8.6 the failed access sets the bare `TCL READ|WRITE VARNAME`
+-        // code (`tclVar.c` 9.0.4:1472, :2073); 8.4 and 8.5 keep whatever code
+-        // the callback left.
+-        if op != "array"
+-            && (self.native_c_variable_name_protocol().is_none()
+-                || self.runtime_version >= tcl_dialect::TclVersion::V8_6)
+-        {
+-            let kind = if op == "write" { "WRITE" } else { "READ" };
+-            let mut words = vec![
+-                Value::string("TCL"),
+-                Value::string(kind),
+-                Value::string("VARNAME"),
+-            ];
+-            if self.native_c_variable_name_protocol().is_none() {
+-                words.push(Value::from_string_bytes(name));
+-            }
+-            let code = Value::list(words);
+-            scope.check_native(self)?;
+-            // `Tcl_SetErrorCode`: the interpreter's code is the access's, not
+-            // the one the callback's `return -errorcode` left.
+-            if self.native_c_variable_name_protocol().is_some() {
+-                self.restore_guest_error_code(code.clone());
+-                scope.check_native(self)?;
+-            }
+-            let options = match crate::command::completion_options(self, &failure) {
+-                Ok(options) => options,
+-                Err(crate::error::TclError::Host(first)) => {
+-                    return Err(self.retain_tcl_host_failure(first));
+-                }
+-                Err(crate::error::TclError::Guest(completion)) => return Ok(completion),
+-            };
+-            scope.check_native(self)?;
+-            let selected = crate::command::with_return_option(self, &options, "-errorcode", code);
+-            scope.check_native(self)?;
+-            failure.options = match selected {
+-                Ok(options) => options,
+-                Err(crate::error::TclError::Host(first)) => {
+-                    return Err(self.retain_tcl_host_failure(first));
+-                }
+-                Err(crate::error::TclError::Guest(completion)) => return Ok(completion),
+-            };
+-        }
++        failure = match self.publish_variable_trace_failure_code(failure, op, name, scope)? {
++            std::ops::ControlFlow::Break(completion) => return Ok(completion),
++            std::ops::ControlFlow::Continue(failure) => failure,
++        };
+         if native_result {
+             let reached = self.adopt_native_interp_result(failure.result.clone());
+             scope.check_native(self)?;
+             let original =
+-                reached.map_err(|error| self.retain_variable_trace_value_error(error))?;
++                reached.map_err(|error| self.retain_variable_trace_value_error(&error))?;
+             drop(original);
+         }
+         scope.check_native(self)?;
+         Ok(failure)
++    }
++
++    fn fire_variable_trace_groups(
++        &mut self,
++        groups: Vec<TraceGroup>,
++        invocation: VarTraceInvocation<'_>,
++        cell: &VarTraceCell,
++        policy: tcl_syntax::naming::NamePolicyProtocol,
++        scope: &native_operation_currency::NativeOperationScope,
++    ) -> VariableTraceOutcome {
++        let VarTraceInvocation {
++            leave_error_message,
++            name,
++            op,
++            ..
++        } = invocation;
++        for group in groups {
++            scope.check_native(self)?;
++            let steps: Vec<Step> = match &group {
++                TraceGroup::Live(key) => self
++                    .variable_observers
++                    .script_traces
++                    .get(key)
++                    .map_or_else(Vec::new, |list| {
++                        list.iter().rev().map(|t| Step::Live(t.id)).collect()
++                    }),
++                TraceGroup::Taken(list) => list
++                    .iter()
++                    .rev()
++                    .filter(|t| t.ops.iter().any(|o| o == op))
++                    .map(|t| Step::Taken(t.clone()))
++                    .collect(),
++            };
++            let live_key = match &group {
++                TraceGroup::Live(key) => Some(*key),
++                TraceGroup::Taken(_) => None,
++            };
++            for step in steps {
++                scope.check_native(self)?;
++                let entry = match step {
++                    Step::Live(id) => self
++                        .variable_observers
++                        .script_traces
++                        .get(&live_key.expect("live trace group has a key"))
++                        .and_then(|list| list.iter().find(|t| t.id == id))
++                        .filter(|t| t.ops.iter().any(|o| o == op))
++                        .cloned(),
++                    Step::Taken(trace) => Some(trace),
++                };
++                let Some(trace) = entry else {
++                    continue;
++                };
++                let (completion, command) =
++                    self.invoke_variable_trace_callback(trace, invocation, cell, policy, scope)?;
++                scope.check_native(self)?;
++                if !completion.code.is_ok() {
++                    if !leave_error_message {
++                        return Ok(Err(err("")));
++                    }
++                    if matches!(op, "write" | "read" | "array") {
++                        let failure = self.present_variable_trace_failure(
++                            completion,
++                            command.as_ref(),
++                            op,
++                            name,
++                            scope,
++                        )?;
++                        return Ok(Err(failure));
++                    }
++                    // Genuine unset Guest errors are ignored; dropping their original results remains a reached stage.
++                    drop(completion);
++                    scope.check_native(self)?;
++                }
++            }
++            if let Some(id) = live_key {
++                self.fire_native_error_variable_trace(id, op);
++                scope.check_native(self)?;
++            }
++            if live_key.is_some() && live_key == self.variable_observers.precision_cell {
++                let precision = self.fire_native_precision_trace_bytes(name, op, cell, scope)?;
++                scope.check_native(self)?;
++                if let Err(guest) = precision {
++                    return Ok(Err(guest));
++                }
++            }
++            // The host-environment hook is the `env` array's oldest
++            // trace: it runs after the script traces of the array's group
++            // and before the element's own (tclsh 8.6 and 9.0).
++            if live_key.is_some() && live_key == self.variable_observers.env_cell {
++                let env = self.fire_native_env_trace(name, op, cell, scope)?;
++                scope.check_native(self)?;
++                if let Err(guest) = env {
++                    return Ok(Err(guest));
++                }
++            }
++        }
++        Ok(Ok(()))
+     }
+ 
+     fn fire_var_traces_inner(
+@@ -17617,10 +17920,9 @@
+         scope.check_native(self)?;
+         let VarTraceInvocation {
+             leave_error_message,
+-            name,
++            element_access,
+             op,
+-            reported: _,
+-            element_access,
++            ..
+         } = invocation;
+         let groups = self.variable_trace_groups(element_access, cell, array_active, taken, op);
+         let policy = self.name_policy_protocol().ok_or_else(|| {
+@@ -17633,90 +17935,7 @@
+         } else {
+             self.save_native_interp_trace_result()?
+         };
+-        let reached = (|| {
+-            for group in groups {
+-                scope.check_native(self)?;
+-                let steps: Vec<Step> = match &group {
+-                    TraceGroup::Live(key) => self
+-                        .variable_observers
+-                        .script_traces
+-                        .get(key)
+-                        .map_or_else(Vec::new, |list| {
+-                            list.iter().rev().map(|t| Step::Live(t.id)).collect()
+-                        }),
+-                    TraceGroup::Taken(list) => list
+-                        .iter()
+-                        .rev()
+-                        .filter(|t| t.ops.iter().any(|o| o == op))
+-                        .map(|t| Step::Taken(t.clone()))
+-                        .collect(),
+-                };
+-                let live_key = match &group {
+-                    TraceGroup::Live(key) => Some(*key),
+-                    TraceGroup::Taken(_) => None,
+-                };
+-                for step in steps {
+-                    scope.check_native(self)?;
+-                    let entry = match step {
+-                        Step::Live(id) => self
+-                            .variable_observers
+-                            .script_traces
+-                            .get(&live_key.expect("live trace group has a key"))
+-                            .and_then(|list| list.iter().find(|t| t.id == id))
+-                            .filter(|t| t.ops.iter().any(|o| o == op))
+-                            .cloned(),
+-                        Step::Taken(trace) => Some(trace),
+-                    };
+-                    let Some(trace) = entry else {
+-                        continue;
+-                    };
+-                    let (completion, command) = self
+-                        .invoke_variable_trace_callback(trace, invocation, cell, policy, scope)?;
+-                    scope.check_native(self)?;
+-                    if !completion.code.is_ok() {
+-                        if !leave_error_message {
+-                            return Ok(Err(err("")));
+-                        }
+-                        if matches!(op, "write" | "read" | "array") {
+-                            let failure = self.present_variable_trace_failure(
+-                                completion,
+-                                command.as_ref(),
+-                                op,
+-                                name,
+-                                scope,
+-                            )?;
+-                            return Ok(Err(failure));
+-                        }
+-                        // Genuine unset Guest errors are ignored; dropping their original results remains a reached stage.
+-                        drop(completion);
+-                        scope.check_native(self)?;
+-                    }
+-                }
+-                if let Some(id) = live_key {
+-                    self.fire_native_error_variable_trace(id, op);
+-                    scope.check_native(self)?;
+-                }
+-                if live_key.is_some() && live_key == self.variable_observers.precision_cell {
+-                    let precision =
+-                        self.fire_native_precision_trace_bytes(name, op, cell, scope)?;
+-                    scope.check_native(self)?;
+-                    if let Err(guest) = precision {
+-                        return Ok(Err(guest));
+-                    }
+-                }
+-                // The host-environment hook is the `env` array's oldest
+-                // trace: it runs after the script traces of the array's group
+-                // and before the element's own (tclsh 8.6 and 9.0).
+-                if live_key.is_some() && live_key == self.variable_observers.env_cell {
+-                    let env = self.fire_native_env_trace(name, op, cell, scope)?;
+-                    scope.check_native(self)?;
+-                    if let Err(guest) = env {
+-                        return Ok(Err(guest));
+-                    }
+-                }
+-            }
+-            Ok(Ok(()))
+-        })();
++        let reached = self.fire_variable_trace_groups(groups, invocation, cell, policy, scope);
+         let restore = !matches!(reached, Ok(Err(_))) || !leave_error_message;
+         let cleanup = if let Some(saved) = saved {
+             if restore {
+@@ -18017,26 +18236,15 @@
+         Ok(())
+     }
+ 
+-    fn prepare_procedure_body_with_entry(
+-        &mut self,
+-        admission: Option<(&str, &str)>,
+-        parameters: &[crate::command::Param],
++    fn procedure_command_plan(
++        &mut self,
++        compiler: &dyn CompileService<Module = ModuleAsm>,
++        source: &tcl_runtime_api::SourceImage,
+         namespace: &NamespacePath,
+-        source: &tcl_runtime_api::SourceImage,
+         entry: &tcl_runtime_api::NativeCompilationEntry,
+         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
+-    ) -> Result<CompiledUnit, TclError> {
++    ) -> Result<tcl_runtime_api::ScriptCommandPlan, TclError> {
+         use tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody;
+-        let Some(compiler) = self.compiler.clone() else {
+-            return Err(self.compile_service_error_bytes(
+-                tcl_runtime_api::CompileError::Unsupported(
+-                    "procedure compilation requires a byte CompileService".into(),
+-                ),
+-                source,
+-                namespace,
+-                ProcedureBody,
+-            ));
+-        };
+         let reached =
+             compiler.script_command_plan_bytes_with_entry(source, self.source_profile(), entry);
+         original_name_scope
+@@ -18056,6 +18264,91 @@
+                 ProcedureBody,
+             ));
+         }
++        Ok(plan)
++    }
++
++    fn finish_procedure_unit(
++        &mut self,
++        module: ModuleAsm,
++        dispatch: ProcedureDispatch,
++        fatal_tail: Option<FatalTail>,
++        entry: &tcl_runtime_api::NativeCompilationEntry,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<CompiledUnit, TclError> {
++        Self::validate_procedure_plain_dispatch(&module, dispatch)?;
++        self.merge_procs(&module);
++        original_name_scope
++            .check(self)
++            .map_err(|error| self.original_name_cmd_error(error))?;
++        let mut unit = self
++            .compiled_unit(Rc::new(module.top_level), module.source_namespace)
++            .with_manifest(module.manifest)
++            .with_fatal_tail(fatal_tail);
++        original_name_scope
++            .check(self)
++            .map_err(|error| self.original_name_cmd_error(error))?;
++        if let Ok(namespace) = u32::try_from(entry.current_namespace) {
++            unit.native_cache = Some(self.native_cache_stamp(NsId(namespace)));
++        }
++        Ok(unit)
++    }
++
++    fn compile_procedure_module(
++        &mut self,
++        compiler: &dyn CompileService<Module = ModuleAsm>,
++        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
++        source: &tcl_runtime_api::SourceImage,
++        entry: &tcl_runtime_api::NativeCompilationEntry,
++        dispatch: ProcedureDispatch,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<ModuleAsm, TclError> {
++        use tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody;
++        let namespace = target.namespace;
++        let reached = compiler.compile_procedure_bytes_with_entry(
++            target,
++            self.source_profile(),
++            entry,
++            dispatch,
++        );
++        original_name_scope
++            .check(self)
++            .map_err(|error| self.original_name_cmd_error(error))?;
++        let reported = reached.map_err(|error| {
++            self.compile_service_error_bytes(error, source, namespace, ProcedureBody)
++        });
++        let module = self.original_name_tcl_outcome(original_name_scope, reported)?;
++        self.validate_module_profile(&module)?;
++        Self::validate_module_namespace_bytes(&module, namespace)?;
++        Ok(module)
++    }
++
++    fn prepare_procedure_body_with_entry(
++        &mut self,
++        admission: Option<(&str, &str)>,
++        parameters: &[crate::command::Param],
++        namespace: &NamespacePath,
++        source: &tcl_runtime_api::SourceImage,
++        entry: &tcl_runtime_api::NativeCompilationEntry,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<CompiledUnit, TclError> {
++        use tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody;
++        let Some(compiler) = self.compiler.clone() else {
++            return Err(self.compile_service_error_bytes(
++                tcl_runtime_api::CompileError::Unsupported(
++                    "procedure compilation requires a byte CompileService".into(),
++                ),
++                source,
++                namespace,
++                ProcedureBody,
++            ));
++        };
++        let plan = self.procedure_command_plan(
++            compiler.as_ref(),
++            source,
++            namespace,
++            entry,
++            original_name_scope,
++        )?;
+         if plan.fatal_tail.is_none()
+             && let Some((name, parameter_source)) = admission
+             && let Ok(text) = std::str::from_utf8(source.bytes())
+@@ -18088,21 +18381,14 @@
+             parameters: &parameter_names,
+             namespace,
+         };
+-        let reached = compiler.compile_procedure_bytes_with_entry(
++        let mut module = self.compile_procedure_module(
++            compiler.as_ref(),
+             target,
+-            self.source_profile(),
++            source,
+             entry,
+             dispatch,
+-        );
+-        original_name_scope
+-            .check(self)
+-            .map_err(|error| self.original_name_cmd_error(error))?;
+-        let reported = reached.map_err(|error| {
+-            self.compile_service_error_bytes(error, source, namespace, ProcedureBody)
+-        });
+-        let mut module = self.original_name_tcl_outcome(original_name_scope, reported)?;
+-        self.validate_module_profile(&module)?;
+-        Self::validate_module_namespace_bytes(&module, namespace)?;
++            original_name_scope,
++        )?;
+         if !force_plain
+             && !self.function_command_bindings_match_with_manifest(
+                 &module.top_level,
+@@ -18115,21 +18401,14 @@
+                 parameters: &parameter_names,
+                 namespace,
+             };
+-            let reached = compiler.compile_procedure_bytes_with_entry(
++            module = self.compile_procedure_module(
++                compiler.as_ref(),
+                 target,
+-                self.source_profile(),
++                source,
+                 entry,
+                 dispatch,
+-            );
+-            original_name_scope
+-                .check(self)
+-                .map_err(|error| self.original_name_cmd_error(error))?;
+-            let reported = reached.map_err(|error| {
+-                self.compile_service_error_bytes(error, source, namespace, ProcedureBody)
+-            });
+-            module = self.original_name_tcl_outcome(original_name_scope, reported)?;
+-            self.validate_module_profile(&module)?;
+-            Self::validate_module_namespace_bytes(&module, namespace)?;
++                original_name_scope,
++            )?;
+         }
+         if module.source != prefix {
+             return Err(self.compile_service_error_bytes(
+@@ -18141,22 +18420,13 @@
+                 ProcedureBody,
+             ));
+         }
+-        Self::validate_procedure_plain_dispatch(&module, dispatch)?;
+-        self.merge_procs(&module);
+-        original_name_scope
+-            .check(self)
+-            .map_err(|error| self.original_name_cmd_error(error))?;
+-        let mut unit = self
+-            .compiled_unit(Rc::new(module.top_level), module.source_namespace)
+-            .with_manifest(module.manifest)
+-            .with_fatal_tail(plan.fatal_tail);
+-        original_name_scope
+-            .check(self)
+-            .map_err(|error| self.original_name_cmd_error(error))?;
+-        if let Ok(namespace) = u32::try_from(entry.current_namespace) {
+-            unit.native_cache = Some(self.native_cache_stamp(NsId(namespace)));
+-        }
+-        Ok(unit)
++        self.finish_procedure_unit(
++            module,
++            dispatch,
++            plan.fatal_tail,
++            entry,
++            original_name_scope,
++        )
+     }
+ 
+     /// Compile through the explicit plain-dispatch capability and verify the
+@@ -20282,14 +20552,84 @@
+             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?
+     }
+ 
++    fn populate_procedure_statics(
++        &mut self,
++        outer: Vec<Value>,
++        strings: tcl_syntax::native_string::NativeStringProtocol,
++        dialect: tcl_registry::InvocationDialect,
++        table: &mut VarTable,
++        fresh: &mut Vec<VarId>,
++        original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
++    ) -> Result<(), Completion<Value>> {
++        use tcl_registry::native_procedure::{
++            StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
++        };
++        for specifier in outer {
++            let reached = native_numeric_ops::OriginalNumericOps::in_original_scope(
++                self,
++                original_name_scope.operation_scope(),
++            )
++            .and_then(|ops| {
++                ops.list(&specifier, strings)
++                    .map(|items| items.as_ref().clone())
++            });
++            let fields = self
++                .original_name_outcome(original_name_scope, reached)
++                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++            if !matches!(fields.len(), 1 | 2) {
++                let bytes = self
++                    .native_name_operand_bytes_checked(&specifier)
++                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++                return Err(err(Error::Fields.message(&bytes)));
++            }
++            let bytes = self
++                .native_name_operand_bytes_checked(&fields[0])
++                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++            let selected = tcl_registry::native_procedure::static_variable_value_specifier(
++                dialect,
++                fields.len(),
++                Some(&bytes),
++            )
++            .expect("selected native Jim static name");
++            let declaration = selected.map_err(|error| {
++                let name = if bytes.first() == Some(&b'&') {
++                    &bytes[1..]
++                } else {
++                    &bytes[..]
++                };
++                err(error.message(name))
++            })?;
++            let creates_cell = declaration.initialiser != Initialiser::CaptureCurrentCell;
++            let id = match declaration.initialiser {
++                Initialiser::LiteralValue => self.var_arena.alloc(Local::Scalar(fields[1].clone())),
++                Initialiser::CopyCurrent => self
++                    .resolve_var_from_bytes(&declaration.name, self.current_level())
++                    .and_then(|resolved| resolved.id)
++                    .and_then(|id| self.var_arena.copy_cell(id)),
++                Initialiser::CaptureCurrentCell => self
++                    .var_binding_from_bytes(&declaration.name, self.current_level())
++                    .and_then(|binding| self.var_table(binding.owner)?.get(&binding.name).copied()),
++            };
++            if creates_cell && let Some(id) = id {
++                fresh.push(id);
++            }
++            original_name_scope
++                .check(self)
++                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
++            let id = id.ok_or_else(|| err(Error::MissingCurrent.message(&declaration.name)))?;
++            if table.contains_key(&declaration.name) {
++                return Err(err(Error::Duplicate.message(&declaration.name)));
++            }
++            table.insert(declaration.name, id);
++        }
++        Ok(())
++    }
++
+     pub(crate) fn prepare_procedure_statics_value_in_original_name(
+         &mut self,
+         original: &Value,
+         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
+     ) -> Result<Rc<crate::vars::StaticVariables>, Completion<Value>> {
+-        use tcl_registry::native_procedure::{
+-            StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
+-        };
+         original_name_scope
+             .check(self)
+             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+@@ -20325,71 +20665,14 @@
+             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+         let mut table = VarTable::new();
+         let mut fresh = Vec::new();
+-        let result = (|| {
+-            for specifier in outer {
+-                let reached = native_numeric_ops::OriginalNumericOps::in_original_scope(
+-                    self,
+-                    original_name_scope.operation_scope(),
+-                )
+-                .and_then(|ops| {
+-                    ops.list(&specifier, strings)
+-                        .map(|items| items.as_ref().clone())
+-                });
+-                let fields = self
+-                    .original_name_outcome(original_name_scope, reached)
+-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-                if !matches!(fields.len(), 1 | 2) {
+-                    let bytes = self
+-                        .native_name_operand_bytes_checked(&specifier)
+-                        .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-                    return Err(err(Error::Fields.message(&bytes)));
+-                }
+-                let bytes = self
+-                    .native_name_operand_bytes_checked(&fields[0])
+-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-                let selected = tcl_registry::native_procedure::static_variable_value_specifier(
+-                    dialect,
+-                    fields.len(),
+-                    Some(&bytes),
+-                )
+-                .expect("selected native Jim static name");
+-                let declaration = selected.map_err(|error| {
+-                    let name = if bytes.first() == Some(&b'&') {
+-                        &bytes[1..]
+-                    } else {
+-                        &bytes[..]
+-                    };
+-                    err(error.message(name))
+-                })?;
+-                let creates_cell = declaration.initialiser != Initialiser::CaptureCurrentCell;
+-                let id = match declaration.initialiser {
+-                    Initialiser::LiteralValue => {
+-                        self.var_arena.alloc(Local::Scalar(fields[1].clone()))
+-                    }
+-                    Initialiser::CopyCurrent => self
+-                        .resolve_var_from_bytes(&declaration.name, self.current_level())
+-                        .and_then(|resolved| resolved.id)
+-                        .and_then(|id| self.var_arena.copy_cell(id)),
+-                    Initialiser::CaptureCurrentCell => self
+-                        .var_binding_from_bytes(&declaration.name, self.current_level())
+-                        .and_then(|binding| {
+-                            self.var_table(binding.owner)?.get(&binding.name).copied()
+-                        }),
+-                };
+-                if creates_cell && let Some(id) = id {
+-                    fresh.push(id);
+-                }
+-                original_name_scope
+-                    .check(self)
+-                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+-                let id = id.ok_or_else(|| err(Error::MissingCurrent.message(&declaration.name)))?;
+-                if table.contains_key(&declaration.name) {
+-                    return Err(err(Error::Duplicate.message(&declaration.name)));
+-                }
+-                table.insert(declaration.name, id);
+-            }
+-            Ok(())
+-        })();
++        let result = self.populate_procedure_statics(
++            outer,
++            strings,
++            dialect,
++            &mut table,
++            &mut fresh,
++            original_name_scope,
++        );
+         let result = match original_name_scope.check(self) {
+             Ok(()) => result,
+             Err(error) => Err(crate::command::completion_from_cmd_error(self, error)),
+@@ -20860,6 +21143,97 @@
+         )
+     }
+ 
++    fn retire_unset_storage(
++        &mut self,
++        name: &[u8],
++        resolved: &ResolvedVar,
++        old_state: variable_cleanup::DetachedVariableState,
++        traced_cell: Option<VarTraceCell>,
++        publication: Option<authored_tmm_static::StaticAddress>,
++        original: &variable_cleanup::OriginalVariableCleanup,
++    ) -> (Option<Local>, Result<(), Completion<Value>>) {
++        let (old_state, array_default) = old_state.into_parts();
++        let key_drain = if let Local::Array(elements) = &old_state {
++            if let Ok(state) = original.state_mut(self) {
++                state
++                    .var_arena
++                    .begin_element_destruction(elements.values().copied());
++            }
++            Some(elements.destruction_key_drain())
++        } else {
++            None
++        };
++        let table_holds_vars = original
++            .c_protocol()
++            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
++        let preserve_definition = original
++            .c_protocol()
++            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
++        let publication_result = if original.check(self).is_ok() {
++            self.publish_authored_static_unset(publication)
++        } else {
++            Ok(())
++        };
++        let mut retired_bindings = Vec::new();
++        if let Some(cell) = traced_cell {
++            let _ = original.fire_taken(self, name, None, cell, true);
++        }
++
++        // An array's old element table is detached from the parent before its
++        // callback, then visited one cell at a time. Later old elements remain
++        // live while an earlier callback runs, and callback-created elements
++        // belong to the revived array rather than this destruction pass.
++        let terminal_old = match old_state {
++            Local::Array(elements) => {
++                retired_bindings = self.retire_unset_array_elements(
++                    name,
++                    resolved.id,
++                    elements,
++                    preserve_definition,
++                    table_holds_vars,
++                    original,
++                );
++                None
++            }
++            state if original.c_protocol().is_some() => {
++                let _ = original.retire(self, crate::vars::VariableRetirement::state(state));
++                None
++            }
++            state => Some(state),
++        };
++        for id in retired_bindings {
++            let _ = original.retire(self, crate::vars::VariableRetirement::unbind(id));
++        }
++        let _ = original.in_original(self, |_| drop(array_default));
++        let _ = original.in_original(self, |_| drop(key_drain));
++        (terminal_old, publication_result)
++    }
++
++    fn refresh_unset_jim_lookup_identity(
++        &mut self,
++        resolved: &ResolvedVar,
++        existed: bool,
++        original: &variable_cleanup::OriginalVariableCleanup,
++    ) {
++        if original.check(self).is_ok()
++            && existed
++            && resolved.elem.is_none()
++            && self.uses_native_jim_lookup()
++        {
++            let level = match resolved.binding.owner {
++                VarTableOwner::Frame(level)
++                | VarTableOwner::ProcedureStatics(level)
++                | VarTableOwner::CompiledLocal { level, .. } => level,
++                VarTableOwner::Namespace(_) => 0,
++            };
++            if let Some(frame) = self.frames.get(level) {
++                frame
++                    .jim_lookup_id
++                    .set(crate::frame::ActivationIdentity::new().serial);
++            }
++        }
++    }
++
+     fn unset_resolved_checked(
+         &mut self,
+         name: impl AsRef<[u8]>,
+@@ -20927,83 +21301,21 @@
+             return Ok(false);
+         };
+ 
+-        let (old_state, array_default) = old_state.into_parts();
+-        let key_drain = if let Local::Array(elements) = &old_state {
+-            if let Ok(state) = original.state_mut(self) {
+-                state
+-                    .var_arena
+-                    .begin_element_destruction(elements.values().copied());
+-            }
+-            Some(elements.destruction_key_drain())
+-        } else {
+-            None
+-        };
+-        let table_holds_vars = original
+-            .c_protocol()
+-            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
+-        let preserve_definition = original
+-            .c_protocol()
+-            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
+-        let publication_result = if original.check(self).is_ok() {
+-            self.publish_authored_static_unset(publication)
+-        } else {
+-            Ok(())
+-        };
+-        let mut retired_bindings = Vec::new();
+-        if let Some(cell) = traced_cell {
+-            let _ = original.fire_taken(self, name, None, cell, true);
+-        }
+-
+-        // An array's old element table is detached from the parent before its
+-        // callback, then visited one cell at a time. Later old elements remain
+-        // live while an earlier callback runs, and callback-created elements
+-        // belong to the revived array rather than this destruction pass.
+-        let terminal_old = match old_state {
+-            Local::Array(elements) => {
+-                retired_bindings = self.retire_unset_array_elements(
+-                    name,
+-                    resolved.id,
+-                    elements,
+-                    preserve_definition,
+-                    table_holds_vars,
+-                    &original,
+-                );
+-                None
+-            }
+-            state if original.c_protocol().is_some() => {
+-                let _ = original.retire(self, crate::vars::VariableRetirement::state(state));
+-                None
+-            }
+-            state => Some(state),
+-        };
+-        for id in retired_bindings {
+-            let _ = original.retire(self, crate::vars::VariableRetirement::unbind(id));
+-        }
+-        let _ = original.in_original(self, |_| drop(array_default));
+-        let _ = original.in_original(self, |_| drop(key_drain));
++        let (terminal_old, publication_result) = self.retire_unset_storage(
++            name,
++            resolved,
++            old_state,
++            traced_cell,
++            publication,
++            &original,
++        );
+         if native_precision_unset && original.check(self).is_ok() {
+             self.install_native_precision_trace_at(name);
+         }
+         if let Some(id) = receiver {
+             let _ = original.retire(self, crate::vars::VariableRetirement::unpin(id));
+         }
+-        if original.check(self).is_ok()
+-            && existed
+-            && resolved.elem.is_none()
+-            && self.uses_native_jim_lookup()
+-        {
+-            let level = match resolved.binding.owner {
+-                VarTableOwner::Frame(level)
+-                | VarTableOwner::ProcedureStatics(level)
+-                | VarTableOwner::CompiledLocal { level, .. } => level,
+-                VarTableOwner::Namespace(_) => 0,
+-            };
+-            if let Some(frame) = self.frames.get(level) {
+-                frame
+-                    .jim_lookup_id
+-                    .set(crate::frame::ActivationIdentity::new().serial);
+-            }
+-        }
++        self.refresh_unset_jim_lookup_identity(resolved, existed, &original);
+         if original.check(self).is_ok()
+             && let Some(variable) = native_error_unset
+         {
+@@ -24267,8 +24579,8 @@
+ 
+     /// Register a freshly opened channel, returning its minted id (`file3`, …).
+     pub(crate) fn add_channel(&mut self, chan: crate::cmd_chan::Channel) -> String {
+-        let id = format!("file{}", self.chan_counter);
+-        self.chan_counter += 1;
++        let id = format!("file{}", self.counters.chan_counter);
++        self.counters.chan_counter += 1;
+         self.channels.insert(id.clone(), chan);
+         id
+     }
+@@ -24574,7 +24886,39 @@
+         let node = self.prepare_expression(src)?;
+         let mut ops = ExprEval::new(self);
+         let value = eval(&node, &mut ops)?;
+-        ops.finish_expression_result(value)
++        ops.finish_expression_result(&value)
++    }
++
++    fn check_jim_expression_context(
++        ops: &native_numeric_ops::OriginalNumericOps<'_>,
++        original: &Value,
++        context: &Rc<crate::value::NativeJimObjectContext>,
++    ) -> Result<(), tcl_cmd_core::CmdError> {
++        ops.with_vm_for_value(original, |vm| {
++            let actual = vm.jim_object_context.borrow().as_ref().cloned();
++            if !context.is_live()
++                || actual
++                    .as_ref()
++                    .is_none_or(|actual| !Rc::ptr_eq(actual, context))
++            {
++                return Err(tcl_cmd_core::CmdError::from_execution_refusal(
++                vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
++                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
++                        "original Jim expression interpreter")))));
++            }
++            Ok(())
++        })
++    }
++
++    fn jim_integer_expression_error(message: Vec<u8>) -> tcl_cmd_core::CmdError {
++        tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
++            string_result: None,
++            message,
++            error_code: tcl_cmd_core::CmdErrorCodeUpdate::Unchanged,
++            error_info: None,
++            error_line: None,
++            primitive_getter: None,
++        })
+     }
+ 
+     pub(crate) fn native_jim_wide_expression(
+@@ -24599,18 +24943,7 @@
+         ops.current_for_value(original)?;
+         bound?;
+         // Context ownership is independent of the original header and scope.
+-        let current_context = || {
+-            ops.with_vm_for_value(original, |vm| {
+-                let actual = vm.jim_object_context.borrow().as_ref().cloned();
+-                if !context.is_live() || actual.as_ref().is_none_or(|actual| !Rc::ptr_eq(actual, &context)) {
+-                    return Err(tcl_cmd_core::CmdError::from_execution_refusal(
+-                        vm.retain_tcl_host_failure(crate::error::TclHostFailure::ValueAccess(
+-                            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+-                                "original Jim expression interpreter")))));
+-                }
+-                Ok(())
+-            })
+-        };
++        let current_context = || Self::check_jim_expression_context(&ops, original, &context);
+         current_context()?;
+         if original.native_jim_optimistic_integer() {
+             let _ = ops.probe(original, NativeScalarGetterKind::Wide)?;
+@@ -24687,16 +25020,7 @@
+         context.publish_result(&error_result);
+         drop(error_result);
+         current_context()?;
+-        Err(tcl_cmd_core::CmdError::from_byte_details(
+-            tcl_cmd_core::CmdErrorDetails {
+-                string_result: None,
+-                message,
+-                error_code: tcl_cmd_core::CmdErrorCodeUpdate::Unchanged,
+-                error_info: None,
+-                error_line: None,
+-                primitive_getter: None,
+-            },
+-        ))
++        Err(Self::jim_integer_expression_error(message))
+     }
+ 
+     /// Explicit independent expression-source route for authored and oracle inputs.
+@@ -24741,15 +25065,47 @@
+         self.prepare_expression_value_using(source, Some(scope))
+     }
+ 
++    fn materialize_expression_source(
++        &mut self,
++        source: &Value,
++        protocol: tcl_syntax::native_string::NativeStringProtocol,
++        scope: Option<&native_operation_currency::NativeOperationScope>,
++    ) -> Result<Result<Rc<[u8]>, TclError>, TclError> {
++        Ok(if let Some(scope) = scope {
++            let ops = native_numeric_ops::OriginalNumericOps::in_original_scope_native(self, scope)
++                .map_err(TclError::from_execution_failure)?;
++            if ops.dialect().native_string_protocol() != Some(protocol) {
++                return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
++            }
++            crate::expr::OriginalArithmeticStages::string(&ops, source)
++        } else {
++            source.native_string_bytes(protocol).map_err(|error| {
++                tcl_syntax::value::ValueError::NativeStringAccess(
++                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
++                )
++                .into()
++            })
++        })
++    }
++
++    fn check_expression_source_entry(
++        &mut self,
++        source: &Value,
++        scope: Option<&native_operation_currency::NativeOperationScope>,
++    ) -> Result<(), TclError> {
++        self.original_expression_source_current(source, scope)?;
++        if let Some(refusal) = self.execution_refusal.clone() {
++            return Err(TclError::from_execution_failure(refusal));
++        }
++        Ok(())
++    }
++
+     fn prepare_expression_value_using(
+         &mut self,
+         source: &Value,
+         scope: Option<&native_operation_currency::NativeOperationScope>,
+     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
+-        self.original_expression_source_current(source, scope)?;
+-        if let Some(refusal) = self.execution_refusal.clone() {
+-            return Err(TclError::from_execution_failure(refusal));
+-        }
++        self.check_expression_source_entry(source, scope)?;
+         self.claim_number_grammar();
+         let dialect = self.native_invocation_dialect();
+         let profile = self.expression_source_profile().cache_key();
+@@ -24778,21 +25134,7 @@
+                 options.map_err(|error| crate::command::completion_option_failure(self, error))?,
+             )));
+         }
+-        let materialized = if let Some(scope) = scope {
+-            let ops = native_numeric_ops::OriginalNumericOps::in_original_scope_native(self, scope)
+-                .map_err(TclError::from_execution_failure)?;
+-            if ops.dialect().native_string_protocol() != Some(protocol) {
+-                return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable.into());
+-            }
+-            crate::expr::OriginalArithmeticStages::string(&ops, source)
+-        } else {
+-            source.native_string_bytes(protocol).map_err(|error| {
+-                tcl_syntax::value::ValueError::NativeStringAccess(
+-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+-                )
+-                .into()
+-            })
+-        };
++        let materialized = self.materialize_expression_source(source, protocol, scope)?;
+         // Even a failed String worker must be checked before parser or cache work.
+         self.original_expression_source_current(source, scope)?;
+         let materialized = materialized?;
+@@ -25152,7 +25494,7 @@
+         match self.prepare_expression_bytes(source).and_then(|node| {
+             let mut ops = ExprEval::new(self);
+             let value = eval(&node, &mut ops)?;
+-            ops.finish_expression_result(value)
++            ops.finish_expression_result(&value)
+         }) {
+             Ok(completion) => completion,
+             Err(error) => crate::command::completion_from_tcl_error(self, error),
+@@ -26289,20 +26631,15 @@
+         observations
+     }
+ 
+-    pub(crate) fn native_compilation_binding(
++    fn native_command_implementation(
+         &self,
+         key: &str,
+         command: &Command,
+         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+-    ) -> Option<tcl_runtime_api::native_compilation::NativeCompilationBinding> {
++    ) -> Option<tcl_runtime_api::native_compilation::NativeCommandImplementation> {
+         use tcl_runtime_api::native_compilation::{
+-            NativeCommandImplementation, NativeCompilationBinding, NativeInterpreterIdentity,
+-        };
+-        let slot = self.command_slot(key)?;
+-        if !self.builtin_command_visible_for_surface(key, command) {
+-            return None;
+-        }
+-        let token = self.visible_command_generation(key)?;
++            NativeCommandImplementation, NativeInterpreterIdentity,
++        };
+         let implementation = if let Some(import) = self.visible_import_binding(key) {
+             let source = import.origin.key.name();
+             NativeCommandImplementation::Imported {
+@@ -26363,6 +26700,22 @@
+                 _ => NativeCommandImplementation::Opaque,
+             }
+         };
++        Some(implementation)
++    }
++
++    pub(crate) fn native_compilation_binding(
++        &self,
++        key: &str,
++        command: &Command,
++        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
++    ) -> Option<tcl_runtime_api::native_compilation::NativeCompilationBinding> {
++        use tcl_runtime_api::native_compilation::NativeCompilationBinding;
++        let slot = self.command_slot(key)?;
++        if !self.builtin_command_visible_for_surface(key, command) {
++            return None;
++        }
++        let token = self.visible_command_generation(key)?;
++        let implementation = self.native_command_implementation(key, command, interpreter)?;
+         let compiler_hook = self.native_hook_at_sidecar(&CommandSidecarKey::visible(key));
+         let compiler = self.visible_import_binding(key).map_or_else(
+             || self.native_compiler_registration(command, &implementation),
+@@ -26514,6 +26867,27 @@
+             .map(|module| (*module).clone())
+     }
+ 
++    fn validate_script_module_source(
++        &mut self,
++        module: &ModuleAsm,
++        source: &tcl_lexer::SourceImage,
++        namespace: &NamespacePath,
++    ) -> Result<(), TclError> {
++        self.validate_module_profile(module)?;
++        Self::validate_module_namespace_bytes(module, namespace)?;
++        if &module.source != source {
++            return Err(self.compile_service_error_bytes(
++                tcl_runtime_api::CompileError::Unsupported(
++                    "byte CompileService returned another source image or input channel".into(),
++                ),
++                source,
++                namespace,
++                tcl_runtime_api::NativeCompilationAdmissionScope::Script,
++            ));
++        }
++        Ok(())
++    }
++
+     fn compile_module_bytes(
+         &mut self,
+         source: &tcl_lexer::SourceImage,
+@@ -26576,18 +26950,7 @@
+                 tcl_runtime_api::NativeCompilationAdmissionScope::Script,
+             )
+         })?);
+-        self.validate_module_profile(&module)?;
+-        Self::validate_module_namespace_bytes(&module, namespace)?;
+-        if &module.source != source {
+-            return Err(self.compile_service_error_bytes(
+-                tcl_runtime_api::CompileError::Unsupported(
+-                    "byte CompileService returned another source image or input channel".into(),
+-                ),
+-                source,
+-                namespace,
+-                tcl_runtime_api::NativeCompilationAdmissionScope::Script,
+-            ));
+-        }
++        self.validate_script_module_source(&module, source, namespace)?;
+         if plain {
+             if !module.plain_command_dispatch
+                 || !module.top_level.plain_command_dispatch

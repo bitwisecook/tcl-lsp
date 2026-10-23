@@ -1,0 +1,44 @@
+--- a/rust/tcl-compiler/tests/wasm_real_link.rs
++++ b/rust/tcl-compiler/tests/wasm_real_link.rs
+@@ -361,6 +361,19 @@
+     (if (i64.ne (call $residual) (local.get $before)) (then unreachable))
+     (if (i64.ne (call $doubles) (i64.const 0)) (then unreachable))
+     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
++  ;; Diagnostic-only entry: a fresh instance reports original counter values.
++  ;; The _start assertion sequence above is unchanged and remains the test gate.
++  (func (export "diagnostic_counts") (result i64 i64 i64 i32 i64)
++    (local $interp i32) (local $first i64) (local $second i64)
++    (local.set $interp (call $create))
++    (call $setcur (local.get $interp))
++    (call $top)
++    (local.set $first (call $residual))
++    (call $top)
++    (local.set $second (call $residual))
++    (call $top)
++    (local.get $first) (local.get $second) (call $residual)
++    (call $frames) (call $doubles))
+ )"#
+     .to_owned()
+ }
+@@ -986,6 +999,21 @@
+             .arg(&boot)
+             .output()
+             .expect("run wasmtime");
++        if !out.status.success() {
++            // Preserve the failed original process and its assertion. This separate
++            // fresh instance only reports first/second/third residual, frames and doubles.
++            let diagnostic = Command::new("wasmtime")
++                .arg("run")
++                .arg("--invoke")
++                .arg("diagnostic_counts")
++                .arg("--preload")
++                .arg(format!("tcl={}", runtime.display()))
++                .arg("--preload")
++                .arg(format!("user={}", user.display()))
++                .arg(&boot)
++                .output();
++            eprintln!("WASM_LEAK_COUNTER_WITNESS tag={tag} result={diagnostic:?}");
++        }
+         let _ = std::fs::remove_file(&user);
+         let _ = std::fs::remove_file(&boot);
+         assert!(
