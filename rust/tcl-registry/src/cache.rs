@@ -363,7 +363,7 @@ pub(crate) fn core_surface_specs() -> (u64, Vec<&'static CommandSpec>) {
 
 /// The registered generation and the specs that have a core row for `family`,
 /// read under one lock so the pair describes one registered set.
-fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
+pub(crate) fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
     let guard = CORE_SURFACE.read().unwrap_or_else(PoisonError::into_inner);
     let specs = guard
         .specs
