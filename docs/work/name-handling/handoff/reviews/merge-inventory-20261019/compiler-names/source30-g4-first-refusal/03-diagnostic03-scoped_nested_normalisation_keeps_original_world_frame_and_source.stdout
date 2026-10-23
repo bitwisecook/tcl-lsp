@@ -1,0 +1,11 @@
+
+running 1 test
+test command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source ... FAILED
+
+failures:
+
+failures:
+    command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10568 filtered out; finished in 0.99s
+

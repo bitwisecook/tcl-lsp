@@ -1,0 +1,19 @@
+{
+  "oracle-input.tcl.txt": "2d7a737ca60666b1d88c3955df3073c5dc047e68bd01df6dc943c8d19c8ae593",
+  "quote-v1-receipt.json": "24d7531e50b895b6d998fce2a083fd7641ebd799b8079fa6c666a5aff28f8190",
+  "quote-v4-receipt.json": "f5a1837389c53e4955de6f279247b81ce4f65144735af9e78a04f1606c4cb512",
+  "quote-v4-oracle-receipt.json": "4419dd8aedcc6f9ddcdac4fbc4c0181944b6b5da08ab20af7670ab968c34decc",
+  "quote-v1-proposal.patch": "df3909220e3f27791e92b3693bcccfba75cf06708cb1ec52ea36454441662293",
+  "case-consumer-v1-proposal.patch": "9c6c04ee5168d856c86dc267b3f56f28864ec6abbfe8e32b79200e980d9c0ada",
+  "quote-v4-names-peer-review.json": "d02b424759d6c476f51979015c43d2e0302b27e716267cb027f60e5b0bee5579",
+  "list-consumer-design.json": "dffa22200f495013e96f366b82eb3ea31cdb527e2db2edff84760fcb54f4dff8",
+  "case-compiler-v1-bounded-interface-review.json": "faea467cb211c26cf3dfc593594ea37f4b8856c93ea97803d981c518c2c6667d",
+  "quote-v3-names-peer-review.json": "630f216af3968999ea40a9b800b34a8893f75514516d9170c8e7ebb5a69e39d9",
+  "quote-v4-proposal.patch": "68302f945525b7ff30513b0aeb0d6c704f0ce73d7d665a8c1b83136545d96482",
+  "quote-v4-oracle-input.tcl.txt": "4b98cbd4f00a7bdccb2118cedd3a7cfa599b21247e8eb13bb7110d7990fa33c8",
+  "quote-v3-proposal.patch": "6c889a2dabe68b736e9d42409d0f038a3bfe4721ec2a67217001eb874e2e51e6",
+  "case-consumer-v1-receipt.json": "bd7a5c5c0b3ae837ee7cc155495576400bfabf70f5068022b75037b24414e910",
+  "quote-v3-receipt.json": "9b5873c39c7417f8205e3bbfcfcee11f86f52d3f3e1f3836e212ea5f5564fd5d",
+  "diagnosis.json": "4740bfe82bd2efccb498c865fad11e70023905285e1cd75f81de8c59116aa0bd",
+  "oracle-receipt.json": "5e63f39e2cf00b462605e847c001e6eb25459909727de7f9790fbd3d2a3c58a6"
+}

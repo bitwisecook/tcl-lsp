@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:27:14.002201+00:00",
+  "status": "off-tree proposed source-only quote edit; peer pending; no Cargo/application",
+  "before": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+  "final": "5f28eaa48329c93bac5b11095d8619fc11dbbf7526a80ee4f5186f79ce47898a",
+  "patch": "df3909220e3f27791e92b3693bcccfba75cf06708cb1ec52ea36454441662293",
+  "scope": "static quoted NativeWord only; configured independent static Unicode value and ordered components equal; original full script reparse/count/word/expand verification unchanged; no dynamic quote rewrite/list/world/Native grants"
+}

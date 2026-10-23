@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:34:50.728267+00:00",
+  "status": "frozen API-provisional off-tree; compiler issuer dependency pending; no Cargo/application",
+  "before_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+  "final_sha256": "863b925939ebe218121aa538806a90bb845c40ed380d49905291ae4291889657",
+  "patch_sha256": "9c6c04ee5168d856c86dc267b3f56f28864ec6abbfe8e32b79200e980d9c0ada",
+  "scope": "tiny compiler-issued gap-only consumer; source/input/actualanalysis rejoin; existing Expr/runtime/body/whole-script guards unchanged; additive genuine hosted regexp positive and data/odd/shadow/observer/unknown/expand negatives; original assertions unchanged"
+}

@@ -1,0 +1,106 @@
+{
+  "utc": "2026-10-23T03:41:16.027293+00:00",
+  "source_run": "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z",
+  "scope": "actual source30 first4 G4 selectors, 0PASS4FAIL; no product/assertion edits or acceptance",
+  "rows": [
+    {
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "artifact_sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+      "per_selector_guards": "all observed current receipts stable, exact1, complete, warningfree; whole11 suite closure remains root-owned",
+      "files": [
+        {
+          "path": "01-diagnostic01-conditional_expression_template_retains_grammar_without_actual_entry.result.json",
+          "sha256": "4b8255af0e059962b3fbb451f19592489bb4389232ec29fd96ef4e3204311fbd"
+        },
+        {
+          "path": "01-diagnostic01-conditional_expression_template_retains_grammar_without_actual_entry.stderr",
+          "sha256": "e6a9a2f56853f75474a98cd3adcdfd0878ea6ae81e92bb898bd26f9eac0272d4"
+        },
+        {
+          "path": "01-diagnostic01-conditional_expression_template_retains_grammar_without_actual_entry.stdout",
+          "sha256": "39593df0036c1f1f77e5a52c9afeb4be7f3ad8173feae6c7fe3d081603892bbd"
+        }
+      ],
+      "first_assertion": "binding.original_normal_result(&tokens).is_none()",
+      "location": "conditional_expression_tests.rs:68",
+      "observed": "Standalone / Reached, attached original Procedure frame, one exact matching Normal basis with value14 and complete_normally=true.",
+      "unknown": "Whether source simulated Normal facts should be publicly queryable at these afterload reached entries; no Native/source-input baseline captured."
+    },
+    {
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "artifact_sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+      "per_selector_guards": "all observed current receipts stable, exact1, complete, warningfree; whole11 suite closure remains root-owned",
+      "files": [
+        {
+          "path": "02-diagnostic02-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.result.json",
+          "sha256": "a6aa97a802df41c37fa4acb79575c18308d31f74cbbad02d4ff4815dbf15233c"
+        },
+        {
+          "path": "02-diagnostic02-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.stderr",
+          "sha256": "2dcb5cb23ca8968177d5633a280581997485c5e8e26ef483d83d6a1539d2bd23"
+        },
+        {
+          "path": "02-diagnostic02-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.stdout",
+          "sha256": "a378d595c7481f4474812630b264dfc33045871f9d4703a8fbcede932fdb2a7a"
+        }
+      ],
+      "first_assertion": "!binding.original_invocation_completes_normally(&positive)",
+      "location": "normal_result.rs:691",
+      "observed": "Standalone / Reached, attached original Procedure frame, one exact matching Normal basis with value42 and complete_normally=true.",
+      "unknown": "Same source Normal contract boundary; later scoped_procedure_evaluation still requires Conditional and has not executed after this assertion."
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "artifact_sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+      "per_selector_guards": "all observed current receipts stable, exact1, complete, warningfree; whole11 suite closure remains root-owned",
+      "files": [
+        {
+          "path": "03-diagnostic03-scoped_nested_normalisation_keeps_original_world_frame_and_source.result.json",
+          "sha256": "b6c087fca7d565bbf9da7341e1630424b6450850e8195053b35e08bd103e3e83"
+        },
+        {
+          "path": "03-diagnostic03-scoped_nested_normalisation_keeps_original_world_frame_and_source.stderr",
+          "sha256": "f8831a59b5496f3514aa04282feba1a9f0e7faa28f531ea53132ad3cf428fc3c"
+        },
+        {
+          "path": "03-diagnostic03-scoped_nested_normalisation_keeps_original_world_frame_and_source.stdout",
+          "sha256": "5b6d63dd7e98cb813847e216ae4e39c151541f6e33070dcf88dbfa224fde6f2d"
+        }
+      ],
+      "first_assertion": "binding.proved_execution_target().is_none()",
+      "location": "expression_preparation.rs:2068",
+      "observed": "tcl8.4 allowed case passes original Procedure versus mutated Global inequality, original attachment true, mutated false, original normalization frame Procedure and mutated normalization None. Later fourth suffix (rename expr saved; proc expr args {return changed}) has Reached unique::expr / Generic visit1.",
+      "unknown": "Rust target kind/allocation identity not printed; cannot infer builtin versus replacement solely from command text."
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "artifact_sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+      "per_selector_guards": "all observed current receipts stable, exact1, complete, warningfree; whole11 suite closure remains root-owned",
+      "files": [
+        {
+          "path": "04-diagnostic04-selected_nested_normalisation_projects_actual_operand_and_command_source.result.json",
+          "sha256": "4884090ccf91896f5314bfa26137ea77bf38ee426d738450de6cbd5721afe4f3"
+        },
+        {
+          "path": "04-diagnostic04-selected_nested_normalisation_projects_actual_operand_and_command_source.stderr",
+          "sha256": "19673eac5107618b62221439c2396c325c7a416ddf1bba8c6b3fe26eb31b6250"
+        },
+        {
+          "path": "04-diagnostic04-selected_nested_normalisation_projects_actual_operand_and_command_source.stdout",
+          "sha256": "72603bff30cedaa12b439bf76c26815b83610b9ae97ecd2f19b70d9d0889717c"
+        }
+      ],
+      "first_assertion": "binding.proved_execution_target().is_none()",
+      "location": "expression_preparation.rs:2172",
+      "observed": "Same passed original/mutated frame controls and later fourth-suffix target absence failure as row03.",
+      "unknown": "Same unprinted Rust target-kind/allocation boundary. Later profiles do not execute after first tcl8.4 assertion failure."
+    }
+  ],
+  "next": [
+    "Independently review source Normal owner purpose versus nonConditional reachability; do not invent Native completion from reached alone.",
+    "Record exact target kind/implementation allocation for replaced-handler negative before any assertion correction.",
+    "Retain passed unequal wrong-frame control; do not attribute current failure to frame.",
+    "Preserve all original assertions until explicit recorded policy and independent authority proof justify narrowly scoped correction."
+  ],
+  "separate_oracle": "../source30-g4-afterload-oracles.json"
+}

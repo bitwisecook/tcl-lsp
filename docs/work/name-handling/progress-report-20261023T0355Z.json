@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T03:55:37.213591+00:00",
+  "scheduled_report_utc": "2026-10-23T03:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T04:25:37+00:00",
+  "change_since_previous_report": [
+    "Actualsource30 sevenpackagealltargetcheck remainsPASS0W; report14actualcomplete03:34:51 exact2filters14selected=10PASS4FAIL,0warnings/allsource/provider/artifact/GO/launcher/processguardsvalid. Fullarchivingassignedcoordination. PerfAPIintegratedtyped but runtimecontrolsFAIL, no acceptance/fullproofrouteyet.",
+    "Rootwatcher72766 validatedactual14counts/summary/exits/ignored0/lifecycle/seals andclosedlauncher beforeallocatingfrozenexact11 at03:34:54; actualG4/N13/ILXdiagnosticsrunning, sourceHOLD/docsCLEAR.",
+    "Compilerreport minimalpure2fileobservability5255e1ea off-tree forfirstactualownerrefusal/bodyrolecensus; no guessedcorrespondencefix or normalization/globalEqweakening.",
+    "BPFv4staticclearanceREVOKED afterindexed/scalarExprVar effectholefound; no canonicalintegration. Sharedv5 refusesallunprovenVar, staticpeerCLEAR withcaller55ff, exact4pathshadow/fmtproof, untyped/runtimeunrun; broadBPFfixnotclaimed.",
+    "LSP quoteproof successors/corecaseconsumer+compilerlistissuer remainofftree/reviewing. ManualC Tcl105/105 values/controlsonly; notRustproof. Newcompiler-names ownerrestored, no duplicateexternalroles.",
+    "Actualdiag11 closed03:40:51:11exactfilters11selected=1PASS10FAIL,0warnings/fullsource/provider/artifact/GO/launcher/directchildfinalguardsvalid. G4first4failed butwrongframeguards nowpass; first2sourceNormal14/42 reflectReached, contradictoryConditionalexpectations reviewedagainst13:17+C Tcl20/20, no productiongetterrelaxation. N13threecompletionfails underboundedCCGtriage; ILXoverridePASS and3positivefailures allactualsamecommand-summary19.",
+    "ILXactualunconditionalblocker: localsourceeffects projectionrequireswords.dialectSome butVendor wordsintentionallyNone. Narrowlocal actualself.input.unit_profile projection487ea0d7 off-tree preservesVendorNone/allNative/runtime/opaqueguards; newpositive/current/stale/foreign/crossdialect controls, peerpending.",
+    "Rootlaunchedfrozenbody5v3 at03:42:43 withactualreport14/typecheckreceiptpins andexact4d4/tree9259, GO71f9950b, currentrun034248.807889Z building. Failingreport14permitted bydiagnosticscope; no green prerequisite.",
+    "Fiveclearedcomponents composedOFFTREE8pathprefix: quotev4/ILXv2/BPFsharedv5+caller5/reportpuretrace. Combined856fb4fe, manifest7c145343, zero-fuzz/nooffset andpinnedfmt8/8PASS. PrefixNOTfinal/applied: G4testdraft612f peerpending/listissuer+consumerprovisional/N13variableobserver-proofpending.",
+    "Body5currently2observedFAIL:factorial andDefaultbracedexpression originalassertions retained; nofinalwhole-runclaim. Firstauthenticbodygate summary/attachment/words/owner/configtrue butcompilerstateNone=>syntax/purposeNone atif28/return54; runtimeclosedenvelope/evaluatedbodyguardcannotrepairsourceproof. Namesinvestigatingall-actual-compiler-snapshot syntaxconsensus, neverarbitraryfirst/runtimefallback.",
+    "ILXv2fullconfig28f9cbf5 peerCLEAR039334d5; quotev4 68302f94 peerCLEARd02b4247. G4test-only612f7f75 peerCLEAR74c51229, originalNative/normalisation/refusalcoverage retained plusunmeasuredgenuineConditionalpositive. N13typedquietvariableeffectdraft7b58b7ce4files inreview/controls, no setEMPTY/namehardcode orno_callbackmisinterpretation."
+  ],
+  "committed": [
+    "941b757db2c47ed99e34e3574a1f5e7e49a78ba3"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Actualreport14 compilecompleted0W, finishcontrols+finalseals; rootwatcher72766 validatesclosedexact14 thenlaunchesfrozen11; laterbody5/VMfull4 andoriginalintegration3/SpecTcl3 controlsready. Sourcehold continues.",
+    "Execute VMfull4/codegen3/native15/SpecTcl66/currentnoTom16 under root build lock, preserving original budgets/counts and actual source identity.",
+    "Close exact origin/rust baseline regressions and allsectionF shipping gates; external perf full all-old/mixed authenticated proof required before patch acceptance."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Product4d4/source30typedPASS0W; report14FAIL10/4 +diag11FAIL1/10 completevalidguards0W. Body5partial2FAIL, finalunknown. Allfixes/probes/testcorrectionsOFFTREE nottyped/run/applied; perfblocked. AllF/audit0/zero-P2F/strict/host/SpecTclreleasegatesopen; noPR/merge/release.",
+  "disk_free_bytes": 10525458432,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

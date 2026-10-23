@@ -1,0 +1,130 @@
+proc collect args {set ::seen $args;return $args}
+proc snap {script} {set ::seen UNSET; set code [catch {uplevel #0 $script} result];list $code $result $::seen}
+set passed 0
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022343222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c656374203432]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL quote42 $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c656374202268656c6c6f22]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742068656c6c6f]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL statictext $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c656374202222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c656374202222]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL empty-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c656374202274776f20776f72647322]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c656374202274776f20776f72647322]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL spaces-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022613b6222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022613b6222]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL semicolon-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022236e6f7461636f6d6d656e7422]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022236e6f7461636f6d6d656e7422]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL hash-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420227b646174617d22]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420227b646174617d22]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL brace-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 7365742064796e616d69632056414c55453b636f6c6c65637420222464796e616d696322]]
+set candidate [encoding convertfrom utf-8 [binary format H* 7365742064796e616d69632056414c55453b636f6c6c65637420222464796e616d696322]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL dynamic-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420225b6c6973742034325d22]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420225b6c6973742034325d22]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL command-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c656374207b2a7d22343222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c656374207b2a7d22343222]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL expand-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420225c753030343222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c656374205c7530303432]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL unicode-escape $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022636166c3a922]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c65637420636166c3a9]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL unicode-literal $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 73657420612034323b636f6c6c6563742022247b617d22]]
+set candidate [encoding convertfrom utf-8 [binary format H* 73657420612034323b636f6c6c6563742022247b617d22]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL braced-variable-config-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022efbbbf343222]]
+set candidate [encoding convertfrom utf-8 [binary format H* 636f6c6c6563742022efbbbf343222]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL bom-purpose-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 7365742078206162633b20737769746368202d726567657870202478207b0a20207b5e617d207b636f6c6c65637420317d0a202064656661756c74207b636f6c6c65637420327d0a7d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 7365742078206162633b737769746368202d726567657870202478207b7b5e617d207b636f6c6c65637420317d2064656661756c74207b636f6c6c65637420327d7d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL switch-regexp $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 736574207820233b737769746368202d2d202478207b0a2023207b636f6c6c656374207965737d0a2064656661756c74207b636f6c6c656374206e6f7d0a7d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 736574207820233b737769746368202d2d202478207b23207b636f6c6c656374207965737d2064656661756c74207b636f6c6c656374206e6f7d7d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL switch-hash-pattern $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 7365742078207b613b627d3b737769746368202d2d202478207b0a207b613b627d207b636f6c6c656374207965737d0a2064656661756c74207b636f6c6c656374206e6f7d0a7d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 7365742078207b613b627d3b737769746368202d2d202478207b7b613b627d207b636f6c6c656374207965737d2064656661756c74207b636f6c6c656374206e6f7d7d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL switch-semicolon-pattern $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 7365742078207b6120627d3b737769746368202d2d202478207b0a202261206222207b636f6c6c656374207965737d0a2064656661756c74207b636f6c6c656374206e6f7d0a7d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 7365742078207b6120627d3b737769746368202d2d202478207b2261206222207b636f6c6c656374207965737d2064656661756c74207b636f6c6c656374206e6f7d7d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL switch-quoted-pattern $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 7377697463682078207b617d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 7377697463682078207b617d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL malformed-list-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 70726f63206c6f63616c5f7377697463682061726773207b636f6c6c6563742024617267737d3b6c6f63616c5f7377697463682078207b0a2061207b636f6c6c656374207965737d0a7d]]
+set candidate [encoding convertfrom utf-8 [binary format H* 70726f63206c6f63616c5f7377697463682061726773207b636f6c6c6563742024617267737d3b6c6f63616c5f7377697463682078207b0a2061207b636f6c6c656374207965737d0a7d]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL shadow-list-refused $before $after];exit 1}
+incr passed
+set original [encoding convertfrom utf-8 [binary format H* 70726f632071756f74655f626f6479207b7d202272657475726e223b71756f74655f626f6479]]
+set candidate [encoding convertfrom utf-8 [binary format H* 70726f632071756f74655f626f6479207b7d2072657475726e3b71756f74655f626f6479]]
+set before [snap $original]
+set after [snap $candidate]
+if {![string equal $before $after]} {puts stderr [list FAIL quotedbody $before $after];exit 1}
+incr passed
+puts [list PASS $passed]

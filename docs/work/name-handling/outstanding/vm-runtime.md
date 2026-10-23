@@ -2,11 +2,24 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T03:25Z (originalSpecTcl3 immutable protocol prepared; independent review pending; original assertions/source unchanged; noGO/run/queue)
+Last updated: 2026-10-23T03:27Z (originalSpecTcl3v2 strict libtest status/exit protocol frozen; actual noGO refusal; no acceptance/Cargo/source)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+OriginalSpecTcl3v2 at `/tmp/vm-spectcl-original3-v2/` addresses root's
+concrete status/exit consistency finding; v1 immutable. Suiteb1ad8d2e,
+launcher43a4bc08, manifest2b3b666e; plan9ec3e617 remains byte-identical,
+executor88125/source32/selectors/rosters/features/budgets unchanged. After
+exact count/name/start admission, raw summary status/pass/fail/ignored and
+process evidence are saved; only ok1/0/0+exit0 or FAILED0/1/0+exit101 can be
+ordinary outcomes. Signals/inconsistent summaries are terminal protocol
+failures with raw logs/process retained, not guard_stable ordinaryFAIL.
+AST passed; actual launcher and direct-suite noGO refusals each exit2, no
+lock/provider/Cargo/test execution. Root peer review pending; no GO/queue.
+Lossless protocol archive `vm-runtime/protocols/spectcl-original3-v2/manifest.txt`.
+
 
 Root-requested bounded originalSpecTcl3 v1 prepared off-tree under
 `/tmp/vm-spectcl-original3-v1/`: plan9ec3e617, suitea8f55f6a,

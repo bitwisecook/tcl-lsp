@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T03:34:13.052888+00:00",
+  "status": "bounded independent static CLEAR; typing and Rust/runtime validation UNRUN",
+  "patch": "/tmp/lsp-minify-static-quote-v3/proposal.patch",
+  "sha256": "6c889a2dabe68b736e9d42409d0f038a3bfe4721ec2a67217001eb874e2e51e6",
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-lsp-core/src/minify/original.rs\n",
+    "stderr": ""
+  },
+  "reviewed": [
+    "Only actual authenticated scriptplan NativeWord with Quoted and !expand shape can issue edit.",
+    "Full original image/configuration and inner source bytes retain exact word ownership.",
+    "original_static_word_unicode_value refuses dynamic components and uses configured source Unicode value rather than native runtime value.",
+    "lexical_unicode_source_word_matches independently requires one complete word under original full configuration; empty/multiword/semicolon/BOM purpose effects decline.",
+    "lexical_source_word_preserves_components additionally preserves ordered literal/substitution source components; no body, command, variable or expansion is erased.",
+    "Leading # and { remain conservative.",
+    "Existing final whole-script count/word/expand/exact source-gap validation unchanged.",
+    "Source-only syntax correspondence grants no lookup/frame/runtime/Normal permission.",
+    "Production same as v2; additive tests preserve all pre-existing assertions; unicode escapes/literals and actual Content BOM axis covered statically."
+  ],
+  "limits": [
+    "No Cargo, compilation, Clippy or test execution by this reviewer.",
+    "Manual C 100/100 oracle receipt belongs to LSP and proves its scoped value/control comparisons only.",
+    "No performance, complete suite or zero-pass-to-fail acceptance."
+  ]
+}

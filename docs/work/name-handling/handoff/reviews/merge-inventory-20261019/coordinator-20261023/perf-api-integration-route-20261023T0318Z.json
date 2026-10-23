@@ -10,7 +10,7 @@
   "typecheck_final_sha256": "94e8c119c7f57fb72a7b759a108bd1b50f3b94dfa7868c68200498bff47e2e93",
   "report14_protocol": "/tmp/compiler-authenticated-report-focused14-v6-source30",
   "report14_plan_sha256": "32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329",
-  "report14_runtime_status": "IN_PROGRESS; no result yet",
+  "report14_runtime_status": "COMPLETE03:34:51:10PASS4FAIL/14, allguardsvalid0W; perf acceptance blocked",
   "unblock_after_controls": "Use authenticated full-report API according to recorded2256 decision; run complete current all-old and mixed proofs, source-owner correspondence current/unique/complete. Preserve strict global/runtime Eq and count gates. Do not accept/forward realm/interprocedural patch before actual complete proof.",
   "unproven": [
     "focused14 runtime",
@@ -18,5 +18,14 @@
     "performance shipping contract",
     "patch acceptance"
   ],
-  "no_duplicate_external_role": true
+  "no_duplicate_external_role": true,
+  "last_observed_utc": "2026-10-23T03:38:37.475140+00:00",
+  "current_blocker": "AliasesactualNamed+NamespaceScriptroles and E003/hostedactualowner CurrentOwnerUnavailable. Compilerpriority off-tree fix; fullperf acceptance remainsblocked.",
+  "report14_failures": [
+    "original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+    "actual_e003_subjects_join_their_current_diagnostic_output_owners",
+    "e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+    "genuine_hosted_event_report_retains_a_separate_actual_domain"
+  ],
+  "report14_final_sha256": "e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00"
 }

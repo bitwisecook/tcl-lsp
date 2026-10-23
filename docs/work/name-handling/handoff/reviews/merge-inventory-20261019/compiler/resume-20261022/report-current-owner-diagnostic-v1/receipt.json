@@ -1,0 +1,28 @@
+{
+  "prepared_utc": "2026-10-23T03:37:41.966279+00:00",
+  "status": "OFFTREE report current-owner diagnostic only; noCargo/source",
+  "patch_sha256": "5255e1ea3dd51b89bb48b56402739318ad5ce7e8981743f6139f6f3517531fd2",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "before_sha256": "94757f7ccb8bffc22b503476f4c5951fc54fdac9318b95bdef0c0b08b188afed",
+      "after_sha256": "fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "before_sha256": "dbd29b45aac469912a26fd186013403ec197ee88850b560551e039a3f0f20449",
+      "after_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef"
+    }
+  ],
+  "env": {
+    "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+  },
+  "scope": "Original Option expressions evaluated once, bool refusal operands retain original short-circuit order; cfgtest/env trace only, actual reportcapture stages and complete actual bodycandidate roles/sites/purposes. Original14 assertions, comparison90fields12subjects, allguards/issuers/strictEq untouched. No owner/source reconstruction.",
+  "actual_failure_evidence": "Actual13selected=9PASS4FAIL: alias actualrole premise absent, E0032 and hosted1 currentowner unavailable, firstcapture gate unknown from stderr.",
+  "checks": [
+    "pinnedfmt2024 parseformatPASS2"
+  ],
+  "limits": [
+    "Untyped/unrun; some later output/purpose gates remain combined, furthertrace only if measurednecessary"
+  ]
+}

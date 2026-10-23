@@ -1,0 +1,11 @@
+
+running 1 test
+test command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations ... FAILED
+
+failures:
+
+failures:
+    command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10568 filtered out; finished in 0.45s
+

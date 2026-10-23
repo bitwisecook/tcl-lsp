@@ -1,0 +1,98 @@
+--- rust/tcl-lsp-core/src/minify/original.rs
++++ rust/tcl-lsp-core/src/minify/original.rs
+@@ -515,6 +515,31 @@
+         span: proof.original_operand().span(),
+         replacement: proof.replacement_source_word().to_owned(),
+     }))
++}
++
++/// Retain a complete original static source word's configured Unicode value.
++/// This syntax-only spelling edit supplies no lookup, frame or runtime grant.
++fn static_quoted_source_edit(word: &tcl_lexer::NativeWord) -> Option<SourceGapEdit> {
++    if word.group().kind != tcl_lexer::WordKind::Quoted || word.group().expand {
++        return None;
++    }
++    let content = word.content_span().ok()?;
++    let proposal = word.image().try_text().ok()?.get(content.as_range())?;
++    // Keep comment-shaped and brace-shaped spellings conservative in all slots.
++    if proposal.starts_with(['#', '{']) {
++        return None;
++    }
++    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
++    let value = std::str::from_utf8(&value).ok()?;
++    if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(proposal, value, word.config())
++        || !tcl_syntax::word_rules::lexical_source_word_preserves_components(word, proposal)
++    {
++        return None;
++    }
++    Some(SourceGapEdit {
++        span: word.span(),
++        replacement: proposal.to_owned(),
++    })
+ }
+ 
+ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+@@ -567,6 +592,9 @@
+                     span: Span::new(cursor, word.span().start()),
+                     replacement: replacement.to_owned(),
+                 });
++                if let Some(edit) = static_quoted_source_edit(word) {
++                    edits.push(edit);
++                }
+                 cursor = word.span().end();
+             }
+         }
+@@ -711,6 +739,53 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn native_static_quote_edits_keep_whole_script_word_boundaries() {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let registry = tcl_registry::CommandRegistry::build_default();
++        for (source, expected) in [
++            ("puts \"\\u0042\"", "puts \\u0042"),
++            ("puts \"café\"", "puts café"),
++            ("puts \"﻿42\"", "puts \"﻿42\""),
++            ("puts \"42\"", "puts 42"),
++            ("puts \"\"", "puts \"\""),
++            ("puts \"a;b\"", "puts \"a;b\""),
++            ("puts \"two words\"", "puts \"two words\""),
++            ("puts \"#comment\"", "puts \"#comment\""),
++            ("puts \"{data}\"", "puts \"{data}\""),
++            ("puts \"$dynamic\"", "puts \"$dynamic\""),
++            ("puts \"[list 42]\"", "puts \"[list 42]\""),
++            ("puts {*}\"42\"", "puts {*}\"42\""),
++            ("puts \"42", "puts \"42"),
++        ] {
++            let analysis = super::analysis_for_profile(source, profile, &registry);
++            assert!(!analysis.allows_lexical_declaration_advice());
++            let result =
++                super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++            assert_eq!(result.source, expected, "{source}");
++        }
++    }
++
++    #[test]
++    fn native_static_quote_edits_retain_the_actual_bom_configuration() {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let config = tcl_lexer::LexerConfig {
++            leading_bom: tcl_lexer::LeadingBom::Content,
++            ..tcl_lexer::LexerConfig::for_profile(Some(profile))
++        };
++        let context = tcl_registry::model::ingress::context_for_profile(profile);
++        let input =
++            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
++        let source = "puts \"\u{feff}42\"";
++        let analysis = super::analysis_with_input(source, &input);
++        assert!(!analysis.allows_lexical_declaration_advice());
++        let result =
++            super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++        assert_eq!(result.source, "puts \u{feff}42");
++    }
++
+     #[test]
+     fn native_syntax_compaction_uses_selected_original_expression_gaps() {
+         // Decision 2026-10-22T13:17Z: syntax gaps need no pure-value rewrite.

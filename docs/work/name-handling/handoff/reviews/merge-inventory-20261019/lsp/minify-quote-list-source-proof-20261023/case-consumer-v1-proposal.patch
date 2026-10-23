@@ -1,0 +1,76 @@
+--- rust/tcl-lsp-core/src/minify/original.rs
++++ rust/tcl-lsp-core/src/minify/original.rs
+@@ -595,6 +595,18 @@
+     };
+     let mut expressions = Vec::new();
+     for command in &structure.commands {
++        if let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_case_list_syntax_gap_compaction(source, analysis, command) {
++            if !proof.matches_source(&image, config)
++                || !proof.matches_input(input)
++                || !proof.matches_analysis(source, analysis)
++            {
++                return Err(MinifyRefusal::SourceCorrespondenceChanged);
++            }
++            edits.extend(proof.gap_edits().iter().map(|(span, replacement)| SourceGapEdit {
++                span: *span,
++                replacement: (*replacement).to_owned(),
++            }));
++        }
+         let selected = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+             source, analysis, command,
+         );
+@@ -711,6 +723,54 @@
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn native_case_list_gaps_keep_original_patterns_and_refuse_unissued_roles() {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
++        let registry = tcl_registry::CommandRegistry::build_default();
++        let source = "switch -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}";
++        let analysis = super::analysis_for_profile(source, profile, &registry);
++        assert!(!analysis.allows_lexical_declaration_advice());
++        let result =
++            super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++        assert_eq!(
++            result.source,
++            "switch -regexp $x {{^a} {puts 1} default {puts 2}}"
++        );
++        for (source, retained_container) in [
++            (
++                "list {\n  {^a} {puts 1}\n  default {puts 2}\n}",
++                "{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++            ),
++            ("switch -- x {\n a\n}", "{\n a\n}"),
++            (
++                "proc switch args {return $args};switch -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}",
++                "{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++            ),
++            (
++                "trace add execution switch enter callback;switch -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}",
++                "{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++            ),
++            (
++                "choose -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}",
++                "{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++            ),
++            (
++                "switch -regexp $x {*}{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++                "{\n  {^a} {puts 1}\n  default {puts 2}\n}",
++            ),
++        ] {
++            let analysis = super::analysis_for_profile(source, profile, &registry);
++            let result =
++                super::minify_with_analysis(source, &analysis, super::MinifyOptions::default());
++            assert!(
++                result.source.contains(retained_container),
++                "{source} -> {}",
++                result.source
++            );
++        }
++    }
++
+     #[test]
+     fn native_syntax_compaction_uses_selected_original_expression_gaps() {
+         // Decision 2026-10-22T13:17Z: syntax gaps need no pure-value rewrite.

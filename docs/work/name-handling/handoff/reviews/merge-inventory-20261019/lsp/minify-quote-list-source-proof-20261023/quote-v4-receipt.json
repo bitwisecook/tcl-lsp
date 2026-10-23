@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:37:02.993584+00:00",
+  "status": "frozen off-tree; no Cargo/application; peer pending",
+  "before_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+  "final_sha256": "2f716809576c38b829fe135f52306f5417cb25e1b815121c8c84c933085ca74a",
+  "patch_sha256": "68302f945525b7ff30513b0aeb0d6c704f0ce73d7d665a8c1b83136545d96482",
+  "delta_from_v3": "same admission; two exact delimiter-deletion edits replace whole-word edit so independently authenticated child interior coordinates map correctly; adds single-command quoted procedure body positive. Existing assertions retained."
+}

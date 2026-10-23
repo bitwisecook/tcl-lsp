@@ -1,0 +1,18 @@
+{
+  "version": "integration3-source30-v1",
+  "inputs": {
+    "/tmp/compiler-integration3-source30-v1/run.sh": "2050045c51328239637d9d1acfc84d85117f6b06fd62b774d74314f04ce615c0",
+    "/tmp/compiler-integration3-source30-v1/suite.py": "cdce137d177f4c3855d1298b83bafb6094433477e5c3439ae5f25711b5e1c7ab",
+    "/tmp/compiler-integration3-source30-v1/guarded-cargo.py": "ea0f78d5d1555df2f02b3b2e9643a6073f218930f8df7b85a098d48c1f9a896f",
+    "/tmp/compiler-integration3-source30-v1/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/compiler-integration3-source30-v1/launch.py": "1fd6af71580523ada4bb2030cb4846b59f3b58a3258db31aa669be36b4b44e7b",
+    "/tmp/compiler-integration3-source30-v1/plan.json": "c735973c43e3b96da099f9554109bd5fc23b84469569cefb3e6958e8af24ec16",
+    "/tmp/compiler-integration3-source30-v1/source30-manifest.json": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+    "/tmp/compiler-integration3-source30-v1/compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "/tmp/compiler-integration3-source30-v1/compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "/tmp/compiler-integration3-source30-v1/compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "/tmp/compiler-integration3-source30-v1/compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+  }
+}

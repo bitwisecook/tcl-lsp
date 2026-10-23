@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T03:19:36.807560+00:00",
+  "reviewer": "compiler-names",
+  "status": "BOUNDED STATIC CLEAR; no run/GO/Cargo/source changes",
+  "plan_sha256": "92d35f0d57259d9530bde4fcfdad71e680d80be9f40f7a98e083ca6017ecd12c",
+  "manifest_sha256": "57c4075d3fb7add49373bad0abf4924c0a19bf56897971303fdd1915c5d1e0af",
+  "launcher_sha256": "796cfa3c7f83094d366e56b94f217e3e0aa86e6d1f3c75ef033f67a2dd3c0673",
+  "checks": [
+    "All sealed input hashes match, Python AST4 parse.",
+    "Original actual49 exact3selectors present; each expected1. Existing source flags enable trace-only source/projection/bodygraph and lower/opaque/W210 diagnostic sites; no new probes or assertions.",
+    "Diff against reviewed diagnostic11 suite only paths/startup3-3/terminal3-3/timerfield. Fresh currentCargoJSON artifact joins, source30/authvalidcompleted49, source/provider/artifact seals, exact per-row counts, executor88125/180s/20MiB/2GiB guards preserved."
+  ],
+  "limits": [
+    "Actual cause remains unknown until authenticated new traces; missing trace does not prove admission or zero visits.",
+    "Tracing adds output/query overhead; no perf or semantic acceptance."
+  ]
+}

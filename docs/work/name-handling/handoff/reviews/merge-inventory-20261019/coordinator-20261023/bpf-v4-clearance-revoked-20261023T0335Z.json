@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T03:35:49.476911+00:00",
+  "role": "compiler-codegen",
+  "v4_static_clearance": "REVOKED after indexed/scalar ExprNodeVar effect hole found; no canonicalintegration occurred",
+  "candidate_successor": "/tmp/compiler-bpf-closed-effects-v5/proposal.patch",
+  "successor_sha256": "1cc14722077708643c65fab275b22729bfdadbd0cd44cdfa3ddd85aa178da35e",
+  "successor_status": "off-tree allunprovenVar refused, staticpeerpending; type/runtimeUNRUN",
+  "caller": "55ff820f",
+  "no_release_claim": true
+}

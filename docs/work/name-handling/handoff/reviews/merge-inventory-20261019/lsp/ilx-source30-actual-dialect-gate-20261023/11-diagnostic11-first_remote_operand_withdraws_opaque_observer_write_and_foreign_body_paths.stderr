@@ -1,0 +1,8 @@
+REMOTE_FIRST_OPERAND stage=body-inventory count=1
+REMOTE_FIRST_OPERAND stage=command-summary offset=19
+
+thread 'registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths' (250879) panicked at rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs:1015:17:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

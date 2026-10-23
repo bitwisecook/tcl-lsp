@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T03:45:57.537616+00:00",
+  "scope": "actual source30 diag11 rows8-11 only; whole run final guards not independently admitted here",
+  "observed_first_rejection": {
+    "rows": [
+      9,
+      10,
+      11
+    ],
+    "trace": [
+      "body-inventory count=1",
+      "command-summary offset=19"
+    ],
+    "location": "initial set h [ILX::init p e] source-summary, before setter/constructor/read or opaque barrier",
+    "effect_override_control_row8": "PASS original assertion"
+  },
+  "static_unconditional_blocker": "words_at admits only Vendor; original_vendor_registry_words sets dialectNone; summary required words.dialect()? before sourceeffects. Outer schema can still independently refuse; fix runtime unrun.",
+  "proposed_fix": "v2 28f9cbf5 actual retained unitprofile PLUS actualconfig lexer_grammar+word_values overlays, existing source_name_roles pattern; VendorNone/no Someprofile/native/schema/opaque changes",
+  "peer": "bounded static CLEAR039334d5",
+  "typing_runtime": "UNRUN",
+  "opaque2231": "bindings.clear()/break unchanged; later notify never rescued"
+}

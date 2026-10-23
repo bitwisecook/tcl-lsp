@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T03:40:04.103268+00:00",
+  "status": "bounded independent static CLEAR; typing/runtime UNRUN",
+  "patch": "/tmp/lsp-minify-static-quote-v4/proposal.patch",
+  "sha256": "68302f945525b7ff30513b0aeb0d6c704f0ce73d7d665a8c1b83136545d96482",
+  "predecessor_review": "compiler-names-static-quote-v3-review.json",
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-lsp-core/src/minify/original.rs\n",
+    "stderr": ""
+  },
+  "delta_review": [
+    "All v3 admission checks and original tests are unchanged.",
+    "Only delimiter deletion representation replaces whole-word replacement; exact content span is issued by original complete Quoted NativeWord.",
+    "Two source spans remove only original opening/closing delimiter bytes; ordered static value/component checks already establish unchanged inner source.",
+    "Separate source edits preserve emitted_boundary mapping for separately owned interior scripts.",
+    "Empty/malformed/multiword/dynamic/expand and complete-config/BOM-purpose refusal checks remain; whole-script checker unchanged.",
+    "Added proc p {} quoted return control checks independently selected child script geometry; no body proof supplies quote permission."
+  ],
+  "limits": [
+    "No typing/Cargo/test or reflection/runtime grant; manual oracle remains separately scoped."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "recorded_utc": "2026-10-23T03:55:04.340566+00:00",
+  "prior_roster": {
+    "path": "ci5206-complete-roster-0256.json",
+    "recorded_utc": "2026-10-23T02:57:04.639851+00:00",
+    "count": 31
+  },
+  "current_roster": "ci5206-complete-roster-0354.json",
+  "current_complete": true,
+  "new_job_ids": [],
+  "missing_job_ids": [],
+  "changed_jobs": [],
+  "newly_completed_jobs": [],
+  "decision": "No job newly completed since the 02:56 roster, so no workflow job logs were fetched."
+}

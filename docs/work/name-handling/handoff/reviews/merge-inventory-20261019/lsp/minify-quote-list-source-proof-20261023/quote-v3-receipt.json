@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:32:36.265331+00:00",
+  "status": "frozen off-tree; no Cargo/application; peer pending",
+  "before_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+  "final_sha256": "333863e9bfb33fcfa626959ee70bda21895c98a02232d5e21e8c5c17752f58c2",
+  "patch_sha256": "6c889a2dabe68b736e9d42409d0f038a3bfe4721ec2a67217001eb874e2e51e6",
+  "delta_from_v2": "production identical; additive escapedUnicode/literalUnicode/BOM WholeInput refusal and actual LeadingBom::Content configured positive; original assertions unchanged"
+}

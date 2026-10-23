@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-23T03:47:21.409604+00:00",
+  "scope": "abrupt root leaves named procedures installed; does not prove Rust Conditional carrier or scoped receipt",
+  "source": "set rootcode [catch {eval {proc answer {} {return 42}; proc f {} {return [answer]}; return ROOT}} rootvalue]; puts [list $rootcode $rootvalue [catch {f} value] $value]",
+  "rows": [
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "engine_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "stdout": "2 ROOT 0 42\n",
+      "stderr": "",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "engine_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "stdout": "2 ROOT 0 42\n",
+      "stderr": "",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "engine_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout": "2 ROOT 0 42\n",
+      "stderr": "",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "engine_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "exit": 0,
+      "stdout": "2 ROOT 0 42\n",
+      "stderr": "",
+      "matched": true
+    },
+    {
+      "engine": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "engine_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "exit": 0,
+      "stdout": "2 ROOT 0 42\n",
+      "stderr": "",
+      "matched": true
+    }
+  ]
+}

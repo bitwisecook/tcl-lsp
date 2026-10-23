@@ -1,0 +1,60 @@
+{
+  "argv": [
+    "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+  "artifact_sha256_after": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+  "artifact_sha256_before": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+  "artifact_unchanged": true,
+  "cap_bytes": 20971520,
+  "cleanup_signals": [],
+  "complete": true,
+  "consecutive_complete_empty_group_scans": 2,
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "deadline_seconds": 180,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z",
+    "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z",
+    "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z"
+  ],
+  "elapsed_seconds": 3.135242665,
+  "ended_utc": "2026-10-23T03:39:09.466020+00:00",
+  "exit_code": 101,
+  "group_empty_before_parent_reap": true,
+  "group_scan_attempts": 2,
+  "last_group_scan": {
+    "complete": true,
+    "members": [],
+    "vanished_pids": []
+  },
+  "minimum_free_bytes": 4200554496,
+  "owned_live_group_members": [],
+  "parent_exit_observed_monotonic_ns": 51408434000241,
+  "parent_waitid_wnowait": {
+    "si_code": 1,
+    "si_pid": 250012,
+    "si_status": 101
+  },
+  "pid": 250012,
+  "pid_start_ticks": 5140611,
+  "process_group": 250012,
+  "retained_bytes": 891,
+  "spawn_return_monotonic_ns": 51406114293072,
+  "spawn_return_utc": "2026-10-23T03:39:06.333222+00:00",
+  "stderr": "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z/09-diagnostic09-first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stderr",
+  "stderr_bytes": 473,
+  "stdout": "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z/09-diagnostic09-first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stdout",
+  "stdout_bytes": 418,
+  "stop_reason": null,
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 51406111948559,
+  "timer_armed_utc": "2026-10-23T03:39:06.331284+00:00"
+}

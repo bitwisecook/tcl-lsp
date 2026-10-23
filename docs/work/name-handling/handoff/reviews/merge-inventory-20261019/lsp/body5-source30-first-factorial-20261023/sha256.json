@@ -1,0 +1,13 @@
+{
+  "build-lsp_edit_workspace.process.json": "ebf42e0c08c8dcb8399ae6a05eb4db29ab0244461fdb28cbbf6a0557b6394c87",
+  "triage.json": "0fb5978546952017c3ab2f75af3d6b46f44b29bd54ffab90c858b127ee5edc8d",
+  "row-seals.json": "713a0525cae4afc7ad4466e6423dffee61275189909ea91ff1c6074d21b707da",
+  "lsp_edit_workspace-00.process.json": "70f7f0ac6cfee87ffd0d5b832aeab7a778d9f6bf02569649e5faa11b144ded96",
+  "lsp_edit_workspace-00.stdout": "2f769bc494b722b850a5bf226de36f1488fc51499f3fc0fe3dc8b70d81e69c99",
+  "lsp_edit_workspace-00.result.json": "6f765af9aa1936d912f335aaaf910343b11450dc6ae9050390e35e1599c5ec59",
+  "go.json": "71f9950b97bf3fab345856819a0b8bc2b1fcc7c7902c2963e59560a0b97045b6",
+  "lsp_edit_workspace-00.stderr": "abd28e7343bd316c90ea62338b1a915ea6cb89793b5657ca0905d760ba899004",
+  "build-lsp_edit_workspace.artifact.json": "de1f246b774e99c9a7fe5ca726a9afeffe955951c42a8ad2911de6fca373805a",
+  "plan.json": "a2caa9412560a410c44d4220115da6359b3c14033b4062025a9dfefde2650cfe",
+  "build-lsp_edit_workspace.warnings.json": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea"
+}

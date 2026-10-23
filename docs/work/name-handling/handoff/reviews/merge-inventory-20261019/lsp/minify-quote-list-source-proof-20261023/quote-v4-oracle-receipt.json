@@ -1,0 +1,72 @@
+{
+  "utc": "2026-10-23T03:37:38.092067+00:00",
+  "scope": "manual C8.4-9.1 matched value/control only; not Rust producer/runtime proof",
+  "cases": [
+    "quote42",
+    "statictext",
+    "empty-refused",
+    "spaces-refused",
+    "semicolon-refused",
+    "hash-refused",
+    "brace-refused",
+    "dynamic-refused",
+    "command-refused",
+    "expand-refused",
+    "unicode-escape",
+    "unicode-literal",
+    "braced-variable-config-refused",
+    "bom-purpose-refused",
+    "switch-regexp",
+    "switch-hash-pattern",
+    "switch-semicolon-pattern",
+    "switch-quoted-pattern",
+    "malformed-list-refused",
+    "shadow-list-refused",
+    "quoted-single-command-body"
+  ],
+  "comparisons_per_profile": 21,
+  "rows": [
+    {
+      "interpreter": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "exit": 0,
+      "stdout": "PASS 21\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "interpreter": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "exit": 0,
+      "stdout": "PASS 21\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "interpreter": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout": "PASS 21\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "interpreter": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "exit": 0,
+      "stdout": "PASS 21\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "interpreter": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "exit": 0,
+      "stdout": "PASS 21\n",
+      "stderr": "",
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "source_reflection": "Exact original command source text is outside this source-correspondence oracle; no runtime reflection/observer grant is claimed. Shadow case-list unchanged control is included; source issuer must refuse changed handler."
+}

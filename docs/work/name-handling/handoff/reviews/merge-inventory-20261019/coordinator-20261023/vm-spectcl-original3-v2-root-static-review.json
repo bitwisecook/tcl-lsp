@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T03:28:05.373862+00:00",
+  "reviewer_role": "coordinator",
+  "protocol": "/tmp/vm-spectcl-original3-v2",
+  "status": "CLEAR bounded static review only; no GO/Cargo",
+  "plan_sha256": "9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8",
+  "runner_input_manifest_sha256": "2b3b666e07ba372d570ed8dd201354d2e31194f9379e1ca8354d44cd898c065c",
+  "verified": [
+    "exact2targets3originalselectors; source original rosters15/12",
+    "fresh exact manifest/name/kind/test-profile CargoJSON artifact joins; target-contained executable",
+    "unchanged reviewed88125 executor; parent owned timers/lifecycle, cap20MiB aggregate, actualmount2GiBfloor",
+    "whole source/provider before/after pertarget, fullrunner transitivecapture/_paths pins, NHofftree, source32pins current",
+    "docs-only descendants and actual root approvedHEAD/tree required; root will approve exact4d4 product",
+    "v2count/start/name/ignored/status/exit consistency and originalrawsummary recorded; v1immutable",
+    "durablefilebackedlauncher GO/input pins, nonblockingwholebuildlock finallyreleased",
+    "originalfeatures all-features perpackage; narrower dependencyunification limitationexplicit"
+  ],
+  "runtime_claim": false,
+  "whole_release_or_family_admission": false
+}

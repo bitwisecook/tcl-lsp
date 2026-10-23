@@ -1,0 +1,57 @@
+{
+  "title": "Bounded static peer review: compiler integration3 source30 v1",
+  "reviewed_utc": "2026-10-23 03:32:19 UTC",
+  "verdict": "CLEAR for the requested static-protocol scope; not a GO or executed result.",
+  "protocol_directory": "/tmp/compiler-integration3-source30-v1",
+  "pins": {
+    "plan": "c735973c43e3b96da099f9554109bd5fc23b84469569cefb3e6958e8af24ec16",
+    "source30_manifest": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+    "runner_input_manifest": "b98823a222f93a64b2baab36cab4edd3fdea132f3bca1a7035fcda1225abdfaf",
+    "launcher": "1fd6af71580523ada4bb2030cb4846b59f3b58a3258db31aa669be36b4b44e7b",
+    "suite": "cdce137d177f4c3855d1298b83bafb6094433477e5c3439ae5f25711b5e1c7ab",
+    "guarded_cargo": "ea0f78d5d1555df2f02b3b2e9643a6073f218930f8df7b85a098d48c1f9a896f",
+    "guarded_exec": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "exact_controls": [
+    {
+      "target": "taint",
+      "selector": "dangerous_sinks::eval_sink",
+      "baseline5203": "PASS",
+      "ci5206_job120175508606": "FAIL",
+      "declaration_count": 1,
+      "expected_selected": 1
+    },
+    {
+      "target": "optimiser",
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "baseline5203": "PASS",
+      "ci5206_job120175508606": "FAIL",
+      "declaration_count": 1,
+      "expected_selected": 1
+    },
+    {
+      "target": "var_escape_residual2",
+      "selector": "cu_catch_literal_body_threads_its_upvar",
+      "baseline5203": "PASS",
+      "ci5206_job120175508606": "FAIL",
+      "declaration_count": 1,
+      "expected_selected": 1
+    }
+  ],
+  "checks": {
+    "selectors": "All three exact selectors occur once in their test sources; exact tcl-compiler binary+selector identities are PASS in the canonical 24,312-row 5203 ledger and FAIL in main3's exact 5206 job log. The three test files are outside the exact30 changed-path manifest.",
+    "source_pins": "All 30 canonical source files matched source30-manifest after hashes; manifest path count is 30.",
+    "runner_inputs": "All 13 runner inputs matched immutable SHA-256 pins.",
+    "syntax": "AST parse passed for suite.py, launch.py, guarded-cargo.py and guarded-exec.py.",
+    "build_target_join": "Three separate current Cargo --no-run --message-format=json invocations map to unique targets taint/optimiser/var_escape_residual2, all package tcl-compiler with rust/tcl-compiler/Cargo.toml manifest, kind [test], test profile. Unique build-{target} log prefixes; exactly-one current compiler-artifact match by target name/kind/manifest/test-profile; selector rows bind to artifacts by target name; no stale fallback.",
+    "build_and_run_lifecycle": "Builds use absolute pinned Cargo argv[0] via reviewed 88125bd executor with 3600s compile-only deadline, durable stdout/stderr, aggregate 20MiB cap and 2GiB disk floor. Each selector is a direct child of the same reviewed executor with pre-spawn 180s timer, waitid/WNOWAIT and owned-group-empty requirement.",
+    "warnings_and_outcomes": "Cargo compiler warnings/errors, build-script warnings and stderr warnings fail the build gate. Runtime warning lines make overall exit nonzero. Each selector requires exactly one started/selected/summary outcome; process/source/provider/artifact seals and process-group lifecycle are required. Failing selected tests remain recorded as failures when outcomes reconcile.",
+    "prior49_authentication": "Static suite rechecks exact prior49 plan, 36-row/49-selected counts, per-row starts/summaries/exit consistency, process seals, zero warnings, root-GO raw/sorted byte pins and JSON-content equality, root-GO before/after launcher hashes, durable COMPLETE plus LOCK_RELEASED transcript, stable provider receipts, and permits overall exit 1 when row failures reconcile.",
+    "no_go": "Current root-go.json is absent; existing launch-preflight-refusal.json records that no runner/Cargo started. Suite and launcher refuse before lock/build when GO is absent."
+  },
+  "limitations": [
+    "Bounded static review only; no launcher, suite, Cargo, compiler or test process was executed.",
+    "No actual prior49 final receipt was opened; the frozen runner requires a future root GO pinning actual completed valid49 receipt and launcher evidence.",
+    "No new compiler integration result or release-gate acceptance is established."
+  ]
+}

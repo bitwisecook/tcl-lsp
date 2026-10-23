@@ -1,0 +1,15 @@
+G4_OWNER label=selected-nested offset=Some(12) reached=Reached unknown=false target=Some("::expr") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: ChunkEntry } visits=1
+G4_VISIT label=selected-nested ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: ChunkEntry }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false
+G4_WRONG_FRAME profile=tcl8.4 original=Procedure { namespace: "::", identity: "::f/source:1/site:0" } mutated=Global equal=false attached_original=true attached_mutated=false original_normalisation_frame=Some(Procedure { namespace: "::", identity: "::f/source:1/site:0" }) mutated_normalisation_frame=None
+G4_NORMAL_FACT label=nested-original attached=true frame=Procedure { namespace: "::", identity: "::f/source:1/site:0" } reached=Reached purpose=Some(Standalone) owner=true lookup=true compiler=false normal_value=None completes=false observations=1 native_entry=Some(false) source_input=Some(false) opaque=Some(false) unclosed=Some(false)
+G4_NORMAL_BASIS label=nested-original ordinal=0 matches=true normal_possible=true complete_normally=false result=None basis_frame=Procedure { namespace: "::", identity: "::f/source:1/site:0" } basis_reached=Reached
+G4_NORMAL_FACT label=nested-mutated attached=false frame=Global reached=Reached purpose=None owner=true lookup=true compiler=false normal_value=None completes=false observations=1 native_entry=Some(false) source_input=Some(false) opaque=Some(false) unclosed=Some(false)
+G4_NORMAL_BASIS label=nested-mutated ordinal=0 matches=false normal_possible=true complete_normally=false result=None basis_frame=Procedure { namespace: "::", identity: "::f/source:1/site:0" } basis_reached=Reached
+G4_OWNER label=selected-nested offset=Some(12) reached=Conditional unknown=true target=None owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Unknown visits=0
+G4_OWNER label=selected-nested offset=Some(12) reached=Conditional unknown=true target=None owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Generic visits=0
+G4_OWNER label=selected-nested offset=Some(12) reached=Reached unknown=false target=Some("::expr") owner=true words=true native_dialect=true source_protocol=true table=false structured=false admission=Generic visits=1
+G4_VISIT label=selected-nested ordinal=0 selection=Some(Generic) admitted=false structured=false words=true policy=true native_entry=false opaque=false unclosed=false
+
+thread 'command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source' (248067) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2172:21:
+assertion failed: binding.proved_execution_target().is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

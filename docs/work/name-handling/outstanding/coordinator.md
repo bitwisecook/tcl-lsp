@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T03:25:37.125607+00:00
+Last updated: 2026-10-23T03:55:37.089282+00:00
 
 ## In progress
 
@@ -483,3 +483,30 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - VM role recovered; full4/noTom16/Spec66 frozeninputs/sourcepins3/3/12 reverified withoutlaunch. Current66/UPF/hooks/reload/hostproofs remainopen.
 - Exactmain3 routes deliveredtoowners: compiler574, iRules11, explorer36, registry3,spec-hooks12; CCG BPF21/CLI2; VM142/vm-cli1/cshim13/SpecTcl2/studio1; LSPcore36/db2. Current-only failures retainedseparately; no commoncause inferred. Main3exactlogSHA21536fc3, provenancebase64/gzipverified.
 - Exactintegration3 originaltaint/optimiser/upvar representative protocol prepared because existinglib49/11 hasnoexactintegrationoverlap; SpecTcl originalworkspacepacks2/studio1 protocol prepared because current66 excludes them. Staticpeer reviews pending, noGO/run/canonicalsource changes.
+
+### Current focused chain allocation (23 Oct03:30 UTC)
+
+- Report14v6 actualrun `/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z`, launcher031434.015133Z, source30, compiling currentcompilerlibtests; no runtime result yet. Rootchainwatcher session72766 `/tmp/naming-after-report14-diag11.py` waits for final+closed durablelauncher, independently checks all14 exactcounts/start/status/exit/ignored0/0W/source/provider/artifact/directchildguards and LOCK_RELEASED, then writes preparedexact11 rootGO and launches frozen `/tmp/compiler-source30-diagnostics-v1` with pinnedenv. Failing14tests permitted ifguardvalid; no arbitrarygreen prerequisite. Allocation receipt willbe `/tmp/naming-after-report14-diag11-allocation.json`, durablelaunchlog `/tmp/naming-diag11-chain-launch.log`. No other queuedCargo; source/test/providerHOLD continues, docsCLEAR.
+- Rootboundedstaticreview of SpecTcloriginal3v2 CLEAR receipt `coordinator-20261023/vm-spectcl-original3-v2-root-static-review.json`: exact2workspacepacks/studio1, realcurrentCargoJSONartifacts andcompleteoriginalrosters15/12, 32sourcepins+transitivecapture/_paths inputs, 88125/cap/floor/lifecycle/fullseals, v2strictstatus/exit/countagreement. v1 preserved, noGO/execution. Perpackageallfeatures limitation vsworkspacefeatureunification explicit.
+- New compiler-names role `/root/compiler_names_current` replaces unavailable oldthread, owns LSPquotepeer and smallest currentcompiler case-list syntaxpurpose issuer; no duplicateexternalroles. VMrole recovered at `/root/vm_runtime_recovery`. Compiler/CCG BPFclosed-effect witness proposals and LSPquote/list fixes remainofftree/untyped/unrun, no sourceintegration permission yet.
+- Full03:25WIP941b normalpublished40481f437 at03:26:12 withfreshdepth1fetch/rebase andzero productdelta. Next03:55:37 reminder94100 armed; draft `/tmp/naming-cycle-0355-draft.json` must refreshactualresults. All8Fboxes open/auditverified0.
+
+### Diagnostic11 closure and body5 allocation (23 Oct03:44 UTC)
+
+- Actualfrozen11 COMPLETE03:40:51.335Z:1PASS/10FAIL/11exact, zero warnings, full source/provider/artifact/GO/launcher/direct-child guards valid. Rootchain72766exit1 aftercorrectvalidfailed14allocation; no activewatcher. EffectoverridePASS,4G4/3N13/3ILXFAIL; archiveassignedcoordination. G4wrongframeguardsnowpass; sourceNormalfacts14/42 intentionalsourcecontract, CCG8acfc956+C Tcl20/20 supportnarrowexisting13:17testcorrections butactualreplacementProc/Rusttargetkinduntraced. No runtimeguardweakening.
+- Body5v3 rootGO71f9950b97bf3fab345856819a0b8bc2b1fcc7c7902c2963e59560a0b97045b6 issued03:42:43 withactualtypecheckfinal94e8c119/report14e4ccee9d andexactsource4d4/tree9259. Run `/tmp/lsp-body-minify-diagnostic-v3-source30-direct5-runs/20261023T034248.807889Z`, launcher034243.818374Z, execsession18979; currentlybuildingfourfreshartifacts/5originalselectors, source/test/providerHOLD/docsCLEAR. No otherCargoqueue.
+- ILXthreeactualpositivesunconditionallyblockedbylocalprojectionwords.dialectNone whileVendorwordbuilderintentionallyNone. LSP487ea0d7 off-tree derivesprojectiondialect fromretainedactualinput only, keepsVendorNone andallNative/runtime/opaquestopguards. Awaitexactpeer/newtests; do notclaimactualfix. N13actualcompletiontraces assignedCCGboundedfirstrefusalassistance/compilerowner.
+
+### Current cycle and routing (03:55 UTC)
+
+- Actualsource30 sevenpackagealltargetcheck remainsPASS0W; report14actualcomplete03:34:51 exact2filters14selected=10PASS4FAIL,0warnings/allsource/provider/artifact/GO/launcher/processguardsvalid. Fullarchivingassignedcoordination. PerfAPIintegratedtyped but runtimecontrolsFAIL, no acceptance/fullproofrouteyet.
+- Rootwatcher72766 validatedactual14counts/summary/exits/ignored0/lifecycle/seals andclosedlauncher beforeallocatingfrozenexact11 at03:34:54; actualG4/N13/ILXdiagnosticsrunning, sourceHOLD/docsCLEAR.
+- Compilerreport minimalpure2fileobservability5255e1ea off-tree forfirstactualownerrefusal/bodyrolecensus; no guessedcorrespondencefix or normalization/globalEqweakening.
+- BPFv4staticclearanceREVOKED afterindexed/scalarExprVar effectholefound; no canonicalintegration. Sharedv5 refusesallunprovenVar, staticpeerCLEAR withcaller55ff, exact4pathshadow/fmtproof, untyped/runtimeunrun; broadBPFfixnotclaimed.
+- LSP quoteproof successors/corecaseconsumer+compilerlistissuer remainofftree/reviewing. ManualC Tcl105/105 values/controlsonly; notRustproof. Newcompiler-names ownerrestored, no duplicateexternalroles.
+- Actualdiag11 closed03:40:51:11exactfilters11selected=1PASS10FAIL,0warnings/fullsource/provider/artifact/GO/launcher/directchildfinalguardsvalid. G4first4failed butwrongframeguards nowpass; first2sourceNormal14/42 reflectReached, contradictoryConditionalexpectations reviewedagainst13:17+C Tcl20/20, no productiongetterrelaxation. N13threecompletionfails underboundedCCGtriage; ILXoverridePASS and3positivefailures allactualsamecommand-summary19.
+- ILXactualunconditionalblocker: localsourceeffects projectionrequireswords.dialectSome butVendor wordsintentionallyNone. Narrowlocal actualself.input.unit_profile projection487ea0d7 off-tree preservesVendorNone/allNative/runtime/opaqueguards; newpositive/current/stale/foreign/crossdialect controls, peerpending.
+- Rootlaunchedfrozenbody5v3 at03:42:43 withactualreport14/typecheckreceiptpins andexact4d4/tree9259, GO71f9950b, currentrun034248.807889Z building. Failingreport14permitted bydiagnosticscope; no green prerequisite.
+- Fiveclearedcomponents composedOFFTREE8pathprefix: quotev4/ILXv2/BPFsharedv5+caller5/reportpuretrace. Combined856fb4fe, manifest7c145343, zero-fuzz/nooffset andpinnedfmt8/8PASS. PrefixNOTfinal/applied: G4testdraft612f peerpending/listissuer+consumerprovisional/N13variableobserver-proofpending.
+- Body5currently2observedFAIL:factorial andDefaultbracedexpression originalassertions retained; nofinalwhole-runclaim. Firstauthenticbodygate summary/attachment/words/owner/configtrue butcompilerstateNone=>syntax/purposeNone atif28/return54; runtimeclosedenvelope/evaluatedbodyguardcannotrepairsourceproof. Namesinvestigatingall-actual-compiler-snapshot syntaxconsensus, neverarbitraryfirst/runtimefallback.
+- ILXv2fullconfig28f9cbf5 peerCLEAR039334d5; quotev4 68302f94 peerCLEARd02b4247. G4test-only612f7f75 peerCLEAR74c51229, originalNative/normalisation/refusalcoverage retained plusunmeasuredgenuineConditionalpositive. N13typedquietvariableeffectdraft7b58b7ce4files inreview/controls, no setEMPTY/namehardcode orno_callbackmisinterpretation.

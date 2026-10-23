@@ -1,0 +1,66 @@
+{
+  "utc": "2026-10-23T03:43:39.308149+00:00",
+  "scope": "static diagnosis; original CI and finite20 observations remain separately scoped; finite20 final provider seal missing",
+  "first_static_gate": {
+    "quote": "native syntax_compaction only creates script separator edits and braced Expr proofs. Legacy reconstruct_arg quote renderer is not called. No current plain static quoted-word edit issuer.",
+    "case_list": "case container interelement separators are list grammar, not script grammar; native pass never invokes legacy minify_case_list. Existing script child source bodies do not authorize list separators or pattern mutation.",
+    "checker": "complete final emitted scripts/command counts/word counts/expansion and exact original-word-relative source-gap outputs remain required"
+  },
+  "quote_candidate": {
+    "path": "/tmp/lsp-minify-static-quote-v4/proposal.patch",
+    "sha256": "68302f945525b7ff30513b0aeb0d6c704f0ce73d7d665a8c1b83136545d96482",
+    "status": "bounded static CLEAR namescurrent d02b4247; precise delimiter edits;105/105Cmanual; Rust typing/runtimeUNRUN",
+    "authority": "actual current compiler-authenticated scriptplan NativeWord; static Unicode value equality and ordered configured source components; no dynamic/effect/frame/world/Native/handler grant",
+    "negative_preservation": "leading#/{ refused; malformed/empty/multiword/config mismatch fails independent configured parsing; expanded and computed values refused"
+  },
+  "list_missing_facts": [
+    "Actual original switch source_registry_words source variant and operands_preserve_source_lookup result at the exact old failing source (dynamic undefined $x).",
+    "Whether actual words.with_source_schema under retained context issues authored_source_case_invocation and exact clause_list_index after all current barrier/owner checks.",
+    "Exact current genuine compiler snapshot/source-purpose closure at switch; no declaration-first or failed present runtime advice fallback.",
+    "Complete static braced container and configured list element geometry; preserve exact written patterns/fields and malformed-list errors, even valid clause pairing.",
+    "Separate list-gap correspondence proof and final list sequence equality; body-script permission alone is insufficient."
+  ],
+  "next_existing_original_controls": [
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_drops_redundant_quotes_around_number",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "unchanged"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_keeps_quotes_around_hash_to_avoid_comment",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "unchanged"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_keeps_quotes_when_value_starts_with_brace",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "unchanged"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_core_residual",
+      "selector": "minify_switch_regexp_case_list_preserved",
+      "exact": true,
+      "expected_selected": 1,
+      "assertions": "unchanged"
+    }
+  ],
+  "existing_opt_in_diagnostic": "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1 observes existing source config/realm/input/registry/image/barrier/binding path; compiler cfg(test) logging may not compile into integration-test dependency, so absent trace cannot establish gate state. No new runner/instrumentation requested.",
+  "held": "No list patch until genuine source grammar/closure facts; no canonical source/Cargo/GO/Git",
+  "manual_C_evidence": "v4 105/105 pairs:21 each C8.4/8.5/8.6/9.0/9.1, adds quoted single-command procedure body; v2 historical100/100 retained; manual value/control only.",
+  "case_consumer": {
+    "path": "/tmp/lsp-minify-case-list-consumer-v1/proposal.patch",
+    "sha256": "9c6c04ee5168d856c86dc267b3f56f28864ec6abbfe8e32b79200e980d9c0ada",
+    "status": "API-provisional; compiler-owned end-to-end parser/proof pending; peer pending; RustUNRUN",
+    "assertions": "exact hostedregexp positive and data/odd/shadow/observer/unknown/expanded container-negative additions; no original change"
+  }
+}

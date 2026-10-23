@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T03:45:17.611639+00:00",
+  "status": "bounded independent static CLEAR; typing/runtime unrun",
+  "patch_sha256": "28f9cbf5494a780b8ed9002d8c2cbc3c9370507f2b4acaf1aecb7e308ca0016a",
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs\n",
+    "stderr": ""
+  },
+  "review": [
+    "Actual summary first-gate sourcewords.dialect()? is unavailable for genuine Vendor source words (the builder intentionally keeps dialectNone).",
+    "Existing source_remote ingress retains complete actual hosted input/config, same current image/body metadata registry/context and actual word owners.",
+    "The local effect projection uses actual retained unit profile plus full self.config grammar_over and WordValueRules::from_config, matching existing source_name_roles.rs purpose.",
+    "Authored-source effect/state resolver explicitly accepts independent source grammar; this local value does not populate Vendor words dialect or issue Native handler metadata.",
+    "All schema selection, declared/raw/unclassified source-effect refusals, whole input/currentness/registry/body/setter/constructor/first-read joins unchanged.",
+    "User2231 remote first call still clears associations and breaks; later opaque notify is not rescued.",
+    "Added genuine Vendor None positive and changed configuration/foreign/stale/plain/mixed input negatives preserve all original assertions."
+  ],
+  "limits": [
+    "No Cargo/typecheck/execution/sufficiency/zero-P2F acceptance; later producer gates remain to measure."
+  ]
+}

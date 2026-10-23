@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T03:51:44.905571+00:00",
+  "run": "/tmp/compiler-source30-diagnostics-v1-runs/20261023T033456.480590Z",
+  "suite_finished": "2026-10-23T03:40:51.335283+00:00",
+  "selectors": 11,
+  "pass": 1,
+  "fail": 10,
+  "guards": "all11 actual exact1 selected; complete process/no stop; warningfree; source/provider/artifact stable; direct child timers valid",
+  "artifact": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+  "final_sha256": "e2604399087523b2125b8a289f8bd1169ca1eef215495f9bf6325021a286eb33",
+  "interpretation": "guarded diagnostic evidence only; G4 first4 0PASS4FAIL; no original8/current-suite or release acceptance"
+}

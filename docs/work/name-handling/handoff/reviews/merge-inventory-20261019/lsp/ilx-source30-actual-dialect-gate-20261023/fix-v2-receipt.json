@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:44:34.844908+00:00",
+  "status": "frozen off-tree; no Cargo/application; peer pending",
+  "before_sha256": "bf1008a1e62393145a7eb9df2d24a96677bb8c55cd671eae6901cadfb3e1bd0f",
+  "final_sha256": "41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+  "patch_sha256": "28f9cbf5494a780b8ed9002d8c2cbc3c9370507f2b4acaf1aecb7e308ca0016a",
+  "delta_from_v1": "full actual config overlay lexer_grammar and WordValueRules per existing source_name_roles owner; additive changed-config mismatch negative. Vendor Native dialectNone and all original assertions/opaque guards unchanged."
+}

@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-23T03:47:21.410083+00:00",
+  "status": "frozen off-tree; static peer pending; typing/runtime UNRUN, genuine Conditional positive NOT YET MEASURED",
+  "patch_sha256": "612f7f75cc99ae286f5e404aa244c2f81caec630f526af255737f26c6ad28c8c",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "before_sha256": "174bc87e5f83e5f6df91324f6a5bab587388920f0f57d6520cbc6f98cde91922",
+      "final_sha256": "27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "before_sha256": "5fc951fb35eea2b1645cceb8a96ac4853c32cac7947fee26f5e7cfe5fd35b2e5",
+      "final_sha256": "3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "before_sha256": "d598279c7de1141dfab12de7662f39a5f649f874886f0f461abecb3e43bbd633",
+      "final_sha256": "58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8"
+    }
+  ],
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs\nchecking file rust/tcl-compiler/src/command_binding/normal_result.rs\nchecking file rust/tcl-compiler/src/command_binding/expression_preparation.rs\n",
+    "stderr": ""
+  },
+  "authorisation": "Coordinator root 2026-10-23 after actual source30 G4 traces, applying recorded user2026-10-22T1317Z afterload compiler visit policy; no new policy",
+  "provenance": [
+    "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261022T1317Z.json",
+    "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/source30-g4-first-refusal/triage.json",
+    "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/source30-g4-afterload-oracles.json",
+    "conditional-native-oracle.json"
+  ],
+  "changes": [
+    "Actual row01 source Normal14 and total-source-completion exact assertions replace old conditional-only None; Native preparation remains unavailable.",
+    "Actual row02 reached source Normal42 + complete asserted; distinct Conditional-only scoped getter explicitly refuses reached fixture.",
+    "Old scoped positive is retained in separate source-authored fixture with explicit abrupt root return, which withdraws completedroot and requires genuine Conditional entry; no fields/purposes mutated.",
+    "New Conditional positive strengthens exact target Proc/nonregistry/authored allocation/result42 plus all original unknown/trace/opaque-body and synthetic-token refusal families.",
+    "Rows03/04 fourth rename/proc suffix now requires exact actual replacement name/kind/nonregistry/authored allocation and Reached carrier; first unknown/execution-trace targetNone and every normalization/frame/source/projection refusal retained.",
+    "Test-only diagnostic logs exact replacement kind/allocation and authentic Conditional source closure gates for finite validation.",
+    "No production getter/issuer/semantic policy changed."
+  ],
+  "required_next": [
+    "Bounded independent peer review.",
+    "Finite original4 plus new genuineConditional selector on same actual current build.",
+    "If Conditional authentic issuer/positive fails, diagnose actual first gate; never fake Conditional or remove positive coverage.",
+    "Later complete original8 rerun retains unchanged remaining4 obligations."
+  ]
+}

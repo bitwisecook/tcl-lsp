@@ -1,0 +1,44 @@
+--- rust/tcl-lsp-core/src/minify/original.rs
++++ rust/tcl-lsp-core/src/minify/original.rs
+@@ -515,6 +515,31 @@
+         span: proof.original_operand().span(),
+         replacement: proof.replacement_source_word().to_owned(),
+     }))
++}
++
++/// Retain a complete original static source word's configured Unicode value.
++/// This syntax-only spelling edit supplies no lookup, frame or runtime grant.
++fn static_quoted_source_edit(word: &tcl_lexer::NativeWord) -> Option<SourceGapEdit> {
++    if word.group().kind != tcl_lexer::WordKind::Quoted || word.group().expand {
++        return None;
++    }
++    let content = word.content_span().ok()?;
++    let proposal = word.image().try_text().ok()?.get(content.as_range())?;
++    // Keep comment-shaped and brace-shaped spellings conservative in all slots.
++    if proposal.starts_with(['#', '{']) {
++        return None;
++    }
++    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
++    let value = std::str::from_utf8(&value).ok()?;
++    if !tcl_syntax::word_rules::lexical_unicode_source_word_matches(proposal, value, word.config())
++        || !tcl_syntax::word_rules::lexical_source_word_preserves_components(word, proposal)
++    {
++        return None;
++    }
++    Some(SourceGapEdit {
++        span: word.span(),
++        replacement: proposal.to_owned(),
++    })
+ }
+ 
+ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+@@ -567,6 +592,9 @@
+                     span: Span::new(cursor, word.span().start()),
+                     replacement: replacement.to_owned(),
+                 });
++                if let Some(edit) = static_quoted_source_edit(word) {
++                    edits.push(edit);
++                }
+                 cursor = word.span().end();
+             }
+         }

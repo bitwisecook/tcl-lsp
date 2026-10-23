@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-23T03:53:43.526915+00:00",
+  "scope": "first actual body5 factorial selector only; remaining4/finalwhole5 guards PENDING",
+  "outcome": "original FAIL1/1; nested if/expr whitespace retained; no timeout",
+  "first_observed_guard": {
+    "offsets": [
+      28,
+      54
+    ],
+    "heads": [
+      "if",
+      "return"
+    ],
+    "attachment": true,
+    "compiler_words": true,
+    "owner": true,
+    "dialect": true,
+    "protocol": true,
+    "compiler_state": false,
+    "syntax": false,
+    "source_purpose": null,
+    "compiler_purpose": null,
+    "compiler_source_closed": false
+  },
+  "separate_runtime_facts": {
+    "if28": "lookup/target/handler/unobserved/names/closed true, evaluated_body true",
+    "return54": "lookup/handler/names true, target/unobserved/closed false, evaluated_body false"
+  },
+  "interpretation": "Authentic retained original summary/body tokens exist. original_compiler_argument_syntax cannot issue carrier without own compiler_lookup_state. No source role/Expr-gap proof follows; runtime closure must not replace missing actualcompiler snapshot.",
+  "unmeasured_producer_hypotheses": [
+    "attach_unanimous_original_compiler_metadata clears differing compiler table/namespace while preserving equal compilerwords",
+    "binding merge clears differing compiler states"
+  ],
+  "owner_route": "compiler-names-current received exact live trace and upstream clear sites; no sourcefix claimed",
+  "guards": "original assertions/evaluated-body/runtime/source-purpose/current owner guards unchanged; no source/Cargo/GO/Git"
+}

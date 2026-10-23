@@ -1,0 +1,117 @@
+--- rust/tcl-compiler/src/registry_invocation/source_structure/case_list_syntax.rs
++++ rust/tcl-compiler/src/registry_invocation/source_structure/case_list_syntax.rs
+@@ -91,7 +91,19 @@
+     {
+         return None;
+     }
+-    let words = super::source_registry_words(source, analysis, segment)?;
++    let words = super::source_registry_words(source, analysis, segment);
++    #[cfg(test)]
++    eprintln!(
++        "CASE_LIST_SYNTAX_SOURCE available={} selected={} preserves={}",
++        words.is_some(),
++        words
++            .as_ref()
++            .is_some_and(|words| matches!(words.source(), OriginalRegistrySource::Selected)),
++        words
++            .as_ref()
++            .is_some_and(OriginalRegistryWords::operands_preserve_source_lookup),
++    );
++    let words = words?;
+     if !matches!(words.source(), OriginalRegistrySource::Selected)
+         || !words.operands_preserve_source_lookup()
+     {
+@@ -114,12 +126,17 @@
+     let selected =
+         super::super::resolve_original_declared_layout(registry, metadata, &tokens, &advice)?;
+     if selected.facts.arity_accepts_frozen_arguments() != Some(true)
+-        || selected.effective.words.as_slice() != tokens.words()
++        || selected.effective.words.len() != tokens.words().len()
++        || selected.effective.words.get(1..) != tokens.words().get(1..)
++        || selected.effective.origins.len() != tokens.words().len()
++        || selected.effective.origins.first()
++            != Some(&crate::registry_invocation::InvocationWordOrigin::ResolvedHead)
+         || !selected
+             .effective
+             .origins
+             .iter()
+             .enumerate()
++            .skip(1)
+             .all(|(index, origin)| {
+                 *origin == crate::registry_invocation::InvocationWordOrigin::Written(index)
+             })
+@@ -285,6 +302,74 @@
+     use super::*;
+ 
+     #[test]
++    fn case_list_syntax_requires_current_actual_compiler_and_source_owners() {
++        let source = "switch -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}\n";
++        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        let input = analysis.resolved_input.as_ref().unwrap();
++        let config = input.lexer_config();
++        let segments = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
++        let segment = &segments[0];
++        let proof = original_case_list_syntax_gap_compaction(source, &analysis, segment)
++            .expect("same actual compiler and selected source case grammar");
++        assert!(!proof.gap_edits().is_empty());
++        assert!(proof.matches_analysis(source, &analysis));
++        assert!(proof.matches_input(input));
++        assert!(proof.matches_registry(analysis.resolved_registry().unwrap()));
++        assert_eq!(proof.original_operand().span(), segment.argv[3].span);
++        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        assert!(!proof.matches_analysis(source, &foreign));
++        let stale = source.replace("puts 1", "puts 9");
++        assert!(!proof.matches_analysis(&stale, &analysis));
++        assert!(original_case_list_syntax_gap_compaction(&stale, &analysis, segment).is_none());
++        let mut changed_config = analysis.clone();
++        changed_config.body_lexer_config = None;
++        assert!(!proof.matches_analysis(source, &changed_config));
++        assert!(
++            original_case_list_syntax_gap_compaction(source, &changed_config, segment).is_none()
++        );
++        let mut config = config;
++        config.leading_bom = match config.leading_bom {
++            tcl_lexer::LeadingBom::Content => tcl_lexer::LeadingBom::Skip,
++            tcl_lexer::LeadingBom::Skip => tcl_lexer::LeadingBom::Content,
++        };
++        let changed_input = ResolvedAnalysisInput::new(
++            input.analyser_profile(),
++            input.unit_profile(),
++            input.context_registry(),
++            config,
++        );
++        assert!(!proof.matches_input(&changed_input));
++    }
++
++    #[test]
++    fn case_list_syntax_refuses_non_case_and_changed_or_uncertain_source() {
++        for source in [
++            "set data {  a body  }",
++            "switch -regexp value {  a body extra  }",
++            "switch -regexp value {  {a}junk body  }",
++            "switch -regexp value {*} {  a body  }",
++            "proc switch args {return $args}; switch -regexp value {  a body  }",
++            "trace add execution switch enter callback; switch -regexp value {  a body  }",
++            "unknown_prefix; switch -regexp value {  a body  }",
++            "switch -regexp value {a {puts 1} \\\n b {puts 2}}",
++        ] {
++            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++            let config = analysis.body_lexer_config.unwrap();
++            let segments =
++                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
++            assert!(
++                original_case_list_syntax_gap_compaction(
++                    source,
++                    &analysis,
++                    segments.last().unwrap()
++                )
++                .is_none(),
++                "{source}"
++            );
++        }
++    }
++
++    #[test]
+     fn paired_list_gaps_preserve_original_complete_fields() {
+         let config = LexerConfig::default();
+         let original = b"\n  {^a} {puts 1}\n  default {puts 2}\n";

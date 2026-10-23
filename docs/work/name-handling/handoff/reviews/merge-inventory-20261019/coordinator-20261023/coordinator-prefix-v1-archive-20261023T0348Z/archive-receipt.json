@@ -1,0 +1,15 @@
+{
+  "schema": "prefix-v1-archive-receipt",
+  "utc": "2026-10-23T03:50:38.957371+00:00",
+  "verified_lossless": true,
+  "payload_file_count": 25,
+  "before_source_copies": 8,
+  "final_source_copies": 8,
+  "component_count": 5,
+  "combined_patch_sha256": "856fb4fe305cc84ab9ab4ae9aa16965139dad6fe5d968196b73721821a8e5f4d",
+  "composition_manifest_sha256": "7c145343ad763b05f0915eeec9614f76ba81cf6e5a90ea15b9aee21527f89ecb",
+  "owner_format_receipt_sha256": "fa2be273e5ac77f15efd4f3fa35d75a9762fd2f48db5400b2d67ccfee67eea73",
+  "canonical_source_unchanged": true,
+  "owner_format_passed": true,
+  "scope": "Provisional prefix only; no canonical integration or acceptance claim."
+}

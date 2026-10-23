@@ -1,0 +1,8 @@
+G4_OWNER label=conditional-expression offset=Some(11) reached=Reached unknown=false target=Some("::expr") owner=true words=true native_dialect=true source_protocol=true table=false structured=true admission=Inline { operation: StructuredLowering(Expr), guard: BeforeArguments } visits=1
+G4_VISIT label=conditional-expression ordinal=0 selection=Some(Inline { operation: StructuredLowering(Expr), guard: BeforeArguments }) admitted=true structured=true words=true policy=true native_entry=false opaque=false unclosed=false
+G4_NORMAL_FACT label=conditional-expression attached=true frame=Procedure { namespace: "::", identity: "::f/source:1/site:0" } reached=Reached purpose=Some(Standalone) owner=true lookup=true compiler=false normal_value=Some("14") completes=true observations=1 native_entry=Some(false) source_input=Some(false) opaque=Some(false) unclosed=Some(false)
+G4_NORMAL_BASIS label=conditional-expression ordinal=0 matches=true normal_possible=true complete_normally=true result=Some("14") basis_frame=Procedure { namespace: "::", identity: "::f/source:1/site:0" } basis_reached=Reached
+
+thread 'command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry' (247069) panicked at rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs:68:5:
+assertion failed: binding.original_normal_result(&tokens).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T03:41:58.315696+00:00",
+  "status": "frozen off-tree; no Cargo/application; peer pending",
+  "before_sha256": "bf1008a1e62393145a7eb9df2d24a96677bb8c55cd671eae6901cadfb3e1bd0f",
+  "final_sha256": "09d2396f2f3c2d5661864854e31f56a13bb54c2416a367e27bb0058dd9d4b530",
+  "patch_sha256": "487ea0d7d41d3b5d6b5f363893c318fb43ac3a41bab4253692f1967f68b37a45",
+  "actual_evidence": "source30diag11 row9/10 bodyinventory1 then command-summary19; Vendor builder sets dialectNone; summary inner only? was words.dialect()?",
+  "scope": "local actual retained unit-profile projection only for authored source effects/transitions; no Some(profile) on Vendor words, schema selection/currentness/Native/runtime/opaque barrier unchanged",
+  "validation": "pinnedfmt PASS; applycheck next; typing/runtime UNRUN"
+}

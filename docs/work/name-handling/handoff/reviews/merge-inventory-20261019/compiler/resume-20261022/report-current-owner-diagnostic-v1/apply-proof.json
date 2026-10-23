@@ -1,0 +1,7 @@
+{
+  "patch_sha256": "5255e1ea3dd51b89bb48b56402739318ad5ce7e8981743f6139f6f3517531fd2",
+  "exact_current_pins": true,
+  "zero_fuzz_apply_exact_finals": true,
+  "canonical_writes": false,
+  "typing_runtime": "UNRUN"
+}

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T03:53:52.939457+00:00",
+  "source_before_sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+  "source_postrow_sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+  "providers_before_sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+  "providers_postrow_sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+  "artifact_expected": "bd460927af447d86c37ffe8803f6752b345e09e4c7269f131e995f469bdb4af8",
+  "artifact_actual_readonly_now": "bd460927af447d86c37ffe8803f6752b345e09e4c7269f131e995f469bdb4af8",
+  "finalwhole5": "PENDING",
+  "source_equal": true,
+  "providers_equal": true,
+  "artifact_equal_now": true
+}

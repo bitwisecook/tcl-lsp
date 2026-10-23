@@ -1,0 +1,17 @@
+{
+  "approved_integrated_head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "approved_integrated_tree": "9259245b902c9dff672c5978a9ee3e5c1cddbdd6",
+  "plan_sha256": "ef19316d63feedfe96a1587132e22f74a7d75531f6e1fe1a972a79490d7f3a82",
+  "post30_report14_evidence": {
+    "path": "/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z/final.json",
+    "sha256": "e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00"
+  },
+  "post30_typecheck_evidence": {
+    "path": "/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025300.957867Z/final.json",
+    "sha256": "94e8c119c7f57fb72a7b759a108bd1b50f3b94dfa7868c68200498bff47e2e93"
+  },
+  "runner_input_manifest_sha256": "8d592bc20cc7b2c927404a4469a09b7e1e0bb38fb1524bbe8406ef585224c1db",
+  "scope": "Root allocation exact originalbody5 diagnostics afterclosedvalid11; actualreport14 FAIL10/4 preserved, no green prerequisite/no release admission",
+  "source30_manifest_sha256": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+  "utc": "2026-10-23T03:42:43.525166+00:00"
+}

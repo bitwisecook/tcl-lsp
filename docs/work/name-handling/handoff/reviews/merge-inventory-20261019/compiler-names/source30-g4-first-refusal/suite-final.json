@@ -1,0 +1,70 @@
+{
+  "all11_direct_child_timers_valid": true,
+  "all_artifacts_retained": true,
+  "artifact_stable": true,
+  "build_artifacts": {
+    "tcl-compiler": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+        ],
+        "fresh": true,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "mtime_ns": 1792726290865537530,
+      "package": "tcl-compiler",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+      "size": 263156256,
+      "stderr_sha256": "599b4d09245ac354c917149bc2d0448194f72989f9a4ee94ae0ba652f560cdcd",
+      "stdout_sha256": "2cff579c92ecedd487e8a82a89749c78828b6082430d92604ca75ffcf5a1c5fc",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler"
+    }
+  },
+  "finished_utc": "2026-10-23T03:40:51.335283+00:00",
+  "overall_exit": 1,
+  "providers_stable": true,
+  "results": 11,
+  "root_go_sha256": "2e5b4d24bf7011d668c28bdc53f4722c9517e04516cd161c4c569da832c95193",
+  "selected": 11,
+  "source_count": 100405,
+  "source_stable": true
+}

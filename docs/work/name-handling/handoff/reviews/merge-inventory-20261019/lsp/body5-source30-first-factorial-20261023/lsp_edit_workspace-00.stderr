@@ -1,0 +1,12 @@
+ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate=false original_summary=true installed_summary=false statements=2
+ORIGINAL_BODY_SYNTAX offset=Some(28) head=Some("if") words=3 attachment=true syntax=false compiler_words=true compiler_state=false owner=true dialect=true protocol=true source_purpose=None compiler_purpose=None compiler_source_closed=false
+ORIGINAL_BODY_SYNTAX_RUNTIME offset=Some(28) lookup=true target=true handler=true unobserved=true names=true closed=true evaluated_body=true
+ORIGINAL_BODY_SYNTAX offset=Some(54) head=Some("return") words=2 attachment=true syntax=false compiler_words=true compiler_state=false owner=true dialect=true protocol=true source_purpose=None compiler_purpose=None compiler_source_closed=false
+ORIGINAL_BODY_SYNTAX_RUNTIME offset=Some(54) lookup=true target=false handler=true unobserved=false names=true closed=false evaluated_body=false
+ORIGINAL_BODY_SYNTAX_CANDIDATE duplicate=true original_summary=true installed_summary=false statements=2
+
+thread 'minify_strips_comments_and_collapses_whitespace_factorial' (253589) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:274:5:
+assertion `left == right` failed
+  left: "proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]"
+ right: "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

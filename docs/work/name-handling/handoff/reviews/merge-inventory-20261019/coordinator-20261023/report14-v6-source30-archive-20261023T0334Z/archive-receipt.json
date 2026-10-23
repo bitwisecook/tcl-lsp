@@ -1,0 +1,45 @@
+{
+  "schema": "report14-v6-source30-archive-receipt-v1",
+  "archive_verified_lossless": true,
+  "file_count": 52,
+  "uncompressed_bytes": 13177094,
+  "archive": "report14-v6-source30-evidence.tar.gz",
+  "archive_sha256": "ad61f548c7a9258d186ee6e2dcab0eab1c2b9d774621d111e30703f4ccd800b4",
+  "file_manifest_sha256": "3778e94e4f6aa7bb044f23f053b176e7d2102490883268161afdb3a6e000ae6c",
+  "run_final_sha256": "e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00",
+  "run_final_path": "runs/20261023T031436.856477Z/final.json",
+  "launcher_path": "runs/20261023T031434.015133Z/launcher.json",
+  "protocol_path": "protocol/",
+  "overall_exit": 1,
+  "selected": 14,
+  "selectors": 2,
+  "passes": 10,
+  "failures": 4,
+  "ignored": 0,
+  "warnings": 0,
+  "failed_tests": [
+    "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+    "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+    "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+    "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain"
+  ],
+  "failure_detail": "E003 equal-source foreign diagnostic attachment and genuine hosted-event case report CurrentOwnerUnavailable; see preserved stdout/stderr for exact assertions.",
+  "build": {
+    "exit_code": 0,
+    "duration_seconds": 981.396,
+    "warnings": 0,
+    "artifact_sha256": "ebc50939400614d318eec03729e8d90208e1f595090486e953d0b7366995167e",
+    "artifact_fresh": false,
+    "artifact_unchanged": true
+  },
+  "guards": {
+    "source_stable": true,
+    "providers_stable": true,
+    "root_go_stable": true,
+    "direct_child_timers_valid": true,
+    "launcher_inputs_stable": true,
+    "launcher_lock_released": true
+  },
+  "interpretation": "Build/type compilation completed with zero warnings. The focused run observed 10 passing and 4 failing tests; this is not API acceptance, runtime proof, performance acceptance, or release acceptance.",
+  "scope_note": "No source, Cargo, provider, or Git mutation was performed for this archive. Root reported all section F and audit verified counts remain 0."
+}

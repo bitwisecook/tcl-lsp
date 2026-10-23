@@ -1,0 +1,11 @@
+
+running 1 test
+test command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source ... FAILED
+
+failures:
+
+failures:
+    command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10568 filtered out; finished in 8.51s
+

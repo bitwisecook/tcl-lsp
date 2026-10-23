@@ -1,0 +1,38 @@
+{
+  "event": {
+    "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060",
+    "features": [],
+    "filenames": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060"
+    ],
+    "fresh": false,
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/Cargo.toml",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "profile": {
+      "debug_assertions": true,
+      "debuginfo": 0,
+      "opt_level": "0",
+      "overflow_checks": true,
+      "test": true
+    },
+    "reason": "compiler-artifact",
+    "target": {
+      "crate_types": [
+        "bin"
+      ],
+      "doc": false,
+      "doctest": false,
+      "edition": "2024",
+      "kind": [
+        "test"
+      ],
+      "name": "lsp_edit_workspace",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+      "test": true
+    }
+  },
+  "server": null,
+  "server_sha256": null,
+  "test": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/lsp_edit_workspace-6e94f603df5c1060",
+  "test_sha256": "bd460927af447d86c37ffe8803f6752b345e09e4c7269f131e995f469bdb4af8"
+}

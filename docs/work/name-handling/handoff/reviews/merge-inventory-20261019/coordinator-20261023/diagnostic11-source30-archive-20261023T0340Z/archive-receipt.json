@@ -1,0 +1,47 @@
+{
+  "schema": "diagnostic11-source30-archive-receipt-v1",
+  "archive_verified_lossless": true,
+  "file_count": 119,
+  "uncompressed_bytes": 13359794,
+  "archive": "diagnostic11-source30-evidence.tar.gz",
+  "archive_sha256": "bd69a24c04ca017de9ffebd7c93c4faa19b91ea96bce2dd2f4219432bb3927ff",
+  "file_manifest_sha256": "43921840668b39af989ebd31f0e7f275e0889ec961a3045aede94a2989250557",
+  "final_path": "runs/20261023T033456.480590Z/final.json",
+  "final_sha256": "e2604399087523b2125b8a289f8bd1169ca1eef215495f9bf6325021a286eb33",
+  "launcher_path": "runs/20261023T033454.259347Z/launcher.json",
+  "launcher_sha256": "24ba140505f441fe2b8e52e63b585ca391ce2ed6af61802eeec0f2a706016a61",
+  "overall_exit": 1,
+  "selected": 11,
+  "exact_filters": 11,
+  "pass": 1,
+  "fail": 10,
+  "ignored": 0,
+  "warnings": 0,
+  "outcome_breakdown": {
+    "effect_override_pass": 1,
+    "G4_fail": 4,
+    "N13_fail": 3,
+    "ILX_fail": 3
+  },
+  "guard_facts": {
+    "source_stable": true,
+    "providers_stable": true,
+    "artifacts_stable": true,
+    "final_root_go_stable": true,
+    "launcher_inputs_stable": true,
+    "direct_child_timers_valid": true,
+    "lock_released": true
+  },
+  "approval_hashes": {
+    "active_root_go": "2e5b4d24bf7011d668c28bdc53f4722c9517e04516cd161c4c569da832c95193",
+    "pending_root_go": "2e5b4d24bf7011d668c28bdc53f4722c9517e04516cd161c4c569da832c95193",
+    "active_equals_pending_byte_for_byte": true,
+    "compiler49_raw_root_go": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "compiler49_serialized_receipt": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "compiler49_raw_and_serialized_json_equal": true,
+    "compiler49_raw_and_serialized_bytes_equal": false,
+    "allocation_receipt": "32074bc65fbfe4b99c860b73a1cb4334bf3f27489f67ae2e694b0c8668b60c74"
+  },
+  "interpretation": "The guarded diagnostic run completed with 1 passing effect-override control and 10 failing diagnostic selectors (4 G4, 3 N13, 3 ILX). It is diagnostic evidence only; it does not establish release acceptance, performance acceptance, or section F completion.",
+  "scope_note": "No source, Cargo, provider, or Git mutation was performed for this archive. The concurrently live body5 run was not read or modified. Root reports section F and audit verified counts remain 0."
+}

@@ -1,0 +1,78 @@
+{
+  "utc": "2026-10-23T03:27:31.968987+00:00",
+  "status": "AST passed; actual launcher and direct-suite noGO refusals exit2; no runner lock/provider/Cargo/tests",
+  "files": [
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/launch-preflight-refusal.json",
+      "sha256": "bbe7f5b53775851103668cdc6666416bc875f14b8d9115b9721d84ee178a4674",
+      "bytes": 144,
+      "blob": "blobs/bbe7f5b53775851103668cdc6666416bc875f14b8d9115b9721d84ee178a4674.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/preparation-receipt.txt",
+      "sha256": "01b83174a0a10032af9c7710d9e176715248294ad5417fc474dd6df3268d618f",
+      "bytes": 1569,
+      "blob": "blobs/01b83174a0a10032af9c7710d9e176715248294ad5417fc474dd6df3268d618f.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/successor.patch",
+      "sha256": "5a2eddc239ac7b3f30b38fce8896033261f22169c898b3095b23624782406bfb",
+      "bytes": 2954,
+      "blob": "blobs/5a2eddc239ac7b3f30b38fce8896033261f22169c898b3095b23624782406bfb.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/runner-input-manifest.json",
+      "sha256": "2b3b666e07ba372d570ed8dd201354d2e31194f9379e1ca8354d44cd898c065c",
+      "bytes": 1554,
+      "blob": "blobs/2b3b666e07ba372d570ed8dd201354d2e31194f9379e1ca8354d44cd898c065c.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/run.sh",
+      "sha256": "8328f5aac90d3bc4ee58ff109e08d27d0d75d5d5071c90d1fb3fe7db3ad1f27b",
+      "bytes": 175,
+      "blob": "blobs/8328f5aac90d3bc4ee58ff109e08d27d0d75d5d5071c90d1fb3fe7db3ad1f27b.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/launch.py",
+      "sha256": "43a4bc08d106a23b1e2132c48664ffb37fbdc394ea56e17b79550fb87210d4fc",
+      "bytes": 2289,
+      "blob": "blobs/43a4bc08d106a23b1e2132c48664ffb37fbdc394ea56e17b79550fb87210d4fc.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/suite.py",
+      "sha256": "b1ad8d2eeb03e4963d2e234978435b966c148b62876f5d654c81f3771c1559e8",
+      "bytes": 11889,
+      "blob": "blobs/b1ad8d2eeb03e4963d2e234978435b966c148b62876f5d654c81f3771c1559e8.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "bytes": 2324,
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "bytes": 2286,
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/plan.json",
+      "sha256": "9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8",
+      "bytes": 9945,
+      "blob": "blobs/9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v2/source30-manifest.json",
+      "sha256": "42283b17fefac868402519ed3b5642378bc864f2f92505c69bad1b68c9819ade",
+      "bytes": 9011,
+      "blob": "blobs/42283b17fefac868402519ed3b5642378bc864f2f92505c69bad1b68c9819ade.gz"
+    }
+  ]
+}

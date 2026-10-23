@@ -1,0 +1,57 @@
+--- rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs
++++ rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs
+@@ -744,7 +744,12 @@
+             use tcl_registry::world_effect::{CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain};
+             let facts = schema.facts();
+             let writes = tcl_registry::CommandRegistry::variable_write_projection_for_selected_source(schema);
+-            let source_dialect = words.dialect()?;
++            // Vendor words deliberately carry no Native invocation dialect.
++            // This source-only effect projection uses the same complete input
++            // already retained by the current body and invocation owners.
++            let mut source_dialect = tcl_registry::InvocationDialect::of_profile(self.input.unit_profile());
++            source_dialect.lexer_grammar = self.config.grammar_over(source_dialect.lexer_grammar);
++            source_dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&self.config);
+             let (effects, transitions) = schema.authored_source_effects_and_state_transitions(source_dialect);
+             let callback = effects.callback();
+             let callbacks_supported = (callback.kinds == CallbackKinds::NONE && callback.reentrancy == Reentrancy::Never)
+@@ -840,6 +845,40 @@
+     }
+ 
+     #[test]
++    fn vendor_source_effect_summary_keeps_native_dialect_unavailable() {
++        let source = "when HTTP_REQUEST {set h [ILX::init p e]; ILX::call $h m; ILX::notify $h n}";
++        let analysis = analyse(source);
++        let words = super::super::source_structure::source_registry_words_at(source, &analysis, 19)
++            .expect("actual original source setter");
++        assert!(matches!(words.source(), OriginalRegistrySource::Vendor(_)));
++        assert!(
++            words.dialect().is_none(),
++            "source profile is not a Native word dialect"
++        );
++        let calls = source_remote_first_operand_associations(source, &analysis).unwrap();
++        assert_eq!(calls.len(), 1, "the later opaque notify is never rescued");
++        assert!(calls[0].matches_source_analysis(source, &analysis));
++        let mut changed_config = analysis.clone();
++        let mut config = analysis.body_lexer_config.unwrap();
++        config.irules_brace_separator = !config.irules_brace_separator;
++        changed_config.body_lexer_config = Some(config);
++        assert!(!calls[0].matches_source_analysis(source, &changed_config));
++        assert!(source_remote_first_operand_associations(source, &changed_config).is_none());
++        let foreign = analyse(source);
++        assert!(!calls[0].matches_source_analysis(source, &foreign));
++        let stale = source.replace(" p e", " q e");
++        assert!(!calls[0].matches_source_analysis(&stale, &analysis));
++        assert!(source_remote_first_operand_associations(&stale, &analysis).is_none());
++        let plain = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        assert!(!calls[0].matches_source_analysis(source, &plain));
++        assert!(source_remote_first_operand_associations(source, &plain).is_none());
++        let mut mixed = analysis.clone();
++        mixed.resolved_input = plain.resolved_input.clone();
++        assert!(!calls[0].matches_source_analysis(source, &mixed));
++        assert!(source_remote_first_operand_associations(source, &mixed).is_none());
++    }
++
++    #[test]
+     fn intrinsic_conditional_refuses_source_effect_and_transition_overrides() {
+         use tcl_registry::state_transition::{ResolvedStateTransitions, StateTransitionDescriptor};
+         use tcl_registry::world_effect::{

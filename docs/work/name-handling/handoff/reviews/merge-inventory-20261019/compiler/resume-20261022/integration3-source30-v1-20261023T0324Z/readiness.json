@@ -1,0 +1,10 @@
+{
+  "prepared_utc": "2026-10-23T03:24:19.299483+00:00",
+  "status": "OFFTREE exact3integration controls ready; peerpending; noGO/Cargo",
+  "plan_sha256": "c735973c43e3b96da099f9554109bd5fc23b84469569cefb3e6958e8af24ec16",
+  "runner_input_manifest_sha256": "b98823a222f93a64b2baab36cab4edd3fdea132f3bca1a7035fcda1225abdfaf",
+  "launcher_sha256": "1fd6af71580523ada4bb2030cb4846b59f3b58a3258db31aa669be36b4b44e7b",
+  "source30_manifest_sha256": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "checks": "AST4PASS/noGO refusalPASS; same88125/fullsource/provider/lifecycle/auth49 guards. Three separate fresh CargoJSON integration artifact events keyed by target, unique build log prefixes, selector routed to own artifact.",
+  "trace_policy": "env{} retained: selected integration tests have no local trace env gate; known shared ZZ/child/sourcepoint trace sites are cfg(test) library probes and do not compile into the ordinary library used by integration targets. No irrelevant flags or new probes."
+}

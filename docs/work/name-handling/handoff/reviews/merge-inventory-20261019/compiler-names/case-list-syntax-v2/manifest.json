@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-23T03:49:48.639758+00:00",
+  "status": "frozen off-tree candidate, peer/typing/executed end-to-end controls UNRUN; not integration ready",
+  "patch_sha256": "d9f03c12544f89c4b70f7d0976e821c1db983503fccf14f070ce06569a3b8791",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23",
+      "final_sha256": "da4f8b52096e7828e5a81d9fc9129a1df592c95a68feb95d8add6e9108c55203"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/case_list_syntax.rs",
+      "before_sha256": null,
+      "final_sha256": "fb6332ee7e72b870073c1743c767c8cad16b7958ce36b1da602dc157f6ae7080"
+    }
+  ],
+  "apply_check": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-compiler/src/registry_invocation/source_structure.rs\nchecking file rust/tcl-compiler/src/registry_invocation/source_structure/case_list_syntax.rs\n",
+    "stderr": ""
+  },
+  "syntax": "Pinned1.99.1 rustfmt parsed child and parent; no typecheck",
+  "authority": [
+    "Actual original compiler argument syntax/current full input/realm/request retained.",
+    "Own actual compiler advice requires closed AuthoredSimulation source lookup; no declaration/runtime failure rescue.",
+    "Independently current source_registry_words must be Selected and operands_preserve_source_lookup; never relabel or set preservation.",
+    "Exact immutable selected command/subcommand descriptor identity, same authored_source_case_invocation layout and all Written identity vector required.",
+    "Braced !expand original word, static Unicode equals exact original interior bytes; cooked geometry refuses.",
+    "Full configured Strict list parser, even pairshape/no clause flags or omitted-body grammar; original whole field wrappers/bytes retained and reparsed.",
+    "Only endpoint/interfield list separators edited; no body completion/Native/runtime/Normal grant."
+  ],
+  "known_limits": [
+    "Nonvacuous original-$x owner/control expectations are implementation obligations, not measured results. Actual current sourcevariant/preserveflag still unknown; failclosed returnNone stays correct when guards lack proof.",
+    "No typecheck/Cargo/execution/integration/GO; not ready for canonical source."
+  ],
+  "v1_delta_sha256": "a8d6b20b8ccc1dd74808c410d5409ca80eec74114b1cb6dce4e246fe5afdf69d",
+  "successor_changes": [
+    "Respect actual existing effective-word owner: resolved canonical head is ResolvedHead, unchanged argument words/ordinals remain exact Written; original lexical head remains independently authenticated by actual compiler syntax. v1 erroneously required Written head/full equal composed head and would always decline.",
+    "Add nonvacuous exact original undefined-$x owner positive + source-role span, same fullrequest positive and foreign/stale/config input negatives; these controls remain unrun.",
+    "Add data/odd/malformed/expanded/changedhandler/observer/unknownprefix/cooked refusals; original full source/current/compiler guards unchanged.",
+    "Test-only source selected/preservation observation exposes first existing guard; no production outcome changed beyond accepting actual resolver head owner."
+  ]
+}

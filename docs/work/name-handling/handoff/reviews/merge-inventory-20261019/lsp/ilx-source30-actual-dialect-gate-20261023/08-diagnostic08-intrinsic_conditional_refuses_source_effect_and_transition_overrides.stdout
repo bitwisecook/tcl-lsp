@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10568 filtered out; finished in 0.01s
+

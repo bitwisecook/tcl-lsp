@@ -1,0 +1,9 @@
+{
+  "approved_integrated_head": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "approved_utc": "2026-10-23T01:58:56.309826+00:00",
+  "plan_sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+  "runner_input_manifest_sha256": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+  "scope": "Exact reviewed36 filters49 tests; no other source integration until final seals; sectionF and release gate unchanged",
+  "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "tracking_head": "94ae34ae9b795d297750e4638fe1d6c1cdc98cf5"
+}
