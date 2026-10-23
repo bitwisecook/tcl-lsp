@@ -4428,18 +4428,7 @@ impl Value {
     > {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
-        let protocol = dialect
-            .native_scalar_getter_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
-        if self
-            .native_scalar_descriptor_origin()
-            .is_some_and(|version| Some(version) != protocol.tcl_version())
-        {
-            return Err(ValueError::ScalarNumericInputUnavailable.into());
-        }
-        let string_protocol = dialect
-            .native_string_protocol()
-            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        let (protocol, string_protocol) = self.native_scalar_probe_protocols(dialect)?;
         let jim_abi = Cell::new(None);
         let checked_jim = protocol.is_jim084() && check.is_some();
         let current = self.native_scalar_cache();
@@ -4527,6 +4516,25 @@ impl Value {
         }
         Self::native_stage_check(check)?;
         Ok(outcome)
+    }
+
+    fn native_scalar_probe_protocols(
+        &self,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<(NativeScalarGetterProtocol, NativeStringProtocol), ValueError> {
+        let protocol = dialect
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        if self
+            .native_scalar_descriptor_origin()
+            .is_some_and(|version| Some(version) != protocol.tcl_version())
+        {
+            return Err(ValueError::ScalarNumericInputUnavailable);
+        }
+        let string_protocol = dialect
+            .native_string_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        Ok((protocol, string_protocol))
     }
 
     fn fresh_native_scalar_conversion_using<E: From<ValueError>>(

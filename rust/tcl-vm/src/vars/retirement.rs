@@ -50,7 +50,7 @@ enum Step {
     SetOrdinaryLink(VarId),
     RetireDetached,
     State(VarState),
-    Cell(VarCell),
+    Cell(Box<VarCell>),
     Release(VariableRelease),
     Elements(std::vec::IntoIter<(tcl_core_types::NameBytes, VarId)>),
 }
@@ -219,24 +219,22 @@ impl VariableRetirement {
                 && cell.static_refs == 0
         });
         if collectable && let Some(cell) = arena.cells.remove(&id) {
-            self.pending.push(Step::Cell(cell));
+            self.pending.push(Step::Cell(Box::new(cell)));
         }
     }
 
-    fn decompose_retiring_cell(&mut self, mut cell: VarCell) -> Option<VariableRelease> {
+    fn decompose_retiring_cell(&mut self, mut cell: Box<VarCell>) -> Option<VariableRelease> {
         // The old neutral worker did not move ignored scalar/name
         // payloads: whole-cell field order remains the same.
         if matches!(
             &cell.state,
             VarState::Undefined | VarState::Scalar(_) | VarState::NameLink(_)
         ) {
-            return Some(VariableRelease(Release::Cell(Box::new(cell))));
+            return Some(VariableRelease(Release::Cell(cell)));
         }
         let state = std::mem::replace(&mut cell.state, VarState::Undefined);
         self.pending
-            .push(Step::Release(VariableRelease(Release::Cell(Box::new(
-                cell,
-            )))));
+            .push(Step::Release(VariableRelease(Release::Cell(cell))));
         self.pending.push(Step::State(state));
         None
     }

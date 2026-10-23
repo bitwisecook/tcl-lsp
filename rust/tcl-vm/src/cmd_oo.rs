@@ -3364,10 +3364,7 @@ fn read_declared_variable_selection(
         } else {
             vec![Value::string("variable"), args[0].clone()]
         };
-        let usage = match vm.native_argument_usage_header(&words) {
-            Ok(usage) => usage,
-            Err(completion) => return Err(completion),
-        };
+        let usage = vm.native_argument_usage_header(&words)?;
         return Err(crate::command::native_wrong_args_bytes(vm, &usage));
     }
     Ok((incoming, selection.operation))
