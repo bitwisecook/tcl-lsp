@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T12:33:57.640522+00:00",
+  "records": [
+    {
+      "name": "compiler-names-regsub-external-utf8-c5-oracle-v1",
+      "archive_sha256": "f294f812bd0db46cc61903bd63f3e5ed4adff930b5cd9a6dba6e43cee628a325"
+    },
+    {
+      "name": "compiler-names-regsub-external-utf8-fixture-v2",
+      "archive_sha256": "7f105838f8496d5a4bb58650ea19b01e09c4b759c8435211a8de37786c7d488b"
+    }
+  ],
+  "oracle_receipt_sha256": "1d8e7247e7283438c2bbc8ccc224090f82e4c7c6e80c373b9a80d3b7997ceab7",
+  "v2_patch_sha256": "0115799aa9e0c1d11fd8041489fde5c70c80cff6bed9d48fc1cbf4aef7888d6f",
+  "status": "Actual C5 oracle valid; v2 static peer pending and Rustruntime unrun; no product edits"
+}

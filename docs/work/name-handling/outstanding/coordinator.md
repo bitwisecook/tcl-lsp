@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T12:25:50.286126+00:00
+Last updated: 2026-10-23T12:55:37.183517+00:00
 
 ## In progress
 
@@ -47,16 +47,8 @@ Last updated: 2026-10-23T12:25:50.286126+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (12:25 UTC)
+### Current cycle and routing (12:55 UTC)
 
-- 1155cycle localdocscheckpoint9ffe65b751 at11:56; publishernormalpushpending. Focused5 actualcompleted11:55:32/closedparent37487exit1/lockreleased. FouroriginalpositivesFAIL, unchangedhostlessrefusalPASS. Actualsource135100408/provider/input/artifact stable; noPRadmission.
-- Actualfirstcauses: N17helper andproductionloopskipauthenticatedOriginalDeclarationbodyloweringsbecausebothsearchNamedproceduresonly; narrowproductiontraversal/authenticownershiphelperfix830af853 underpeer, preservesoriginal42/xyassertions. Nativeexecution separatelydeclinesNativePreflightRequired atoriginalregistrationdescriptoraudit.
-- ReviewedWORKa8e7bc7a0d normalpublished12:05:04: N17authenticownedbodytraversal/helper830af, originalNative/Logicalaliascontrolsa512 preservingprofiles/fullbijection/expectedEqual plusnewmismatchnegatives, runtimealiasfixtureactualseparateelementAPI6e302 without assertionchange. Nativeinnertraceb24a andruntimeoutputv4/v5 stayinstrumentedWORKonly.
-- Cleanreleasecandidatea6fab9240dcdeca7536973fb01d32680f4286726 normalpushed12:09:51 afterfreshwork/rustfetch. All6cleanupwarnings+7files11realdocgaps fixed, UCS9/event2/N17/alias/VMfixtureselectivelycarried;3292requiredstagedinputsPASS/10973tracked/noevidence. FullCI5210run39951250208 nativeprooftrue+pairedperf39951254138 dispatched; cargo-deny/channelPASS currenttests/hostsqueued/running.
-- Exactbaselinefcb true-release-profile proofdispatchedread-onlyci.yml --refrust39949992948 11:59:29. No baselinebranchwrite/tag/publication; existingartifactwasCIprofilenotshipping. Actualshippinglatencyprotocolv1 staticreviewcaughtouterexecutableroute/revisionbarrier gaps beforeexecution, LSPv2repairunderway; no measurementclaim.
-- Actualsource135focused5 closed4FAIL1PASS source100408/provider/artifact/inputstable; rootparent37487CLOSED1/lockreleased. Active37canonicalproductpathsforwardmirroredonlyafterthisclosure, preservingunsaveddocs, committedfd11c84e/c1d1288a12:10:05; source135proofhistorical. NewWIPnative1diagnosticwillusefreshselectedtargetcleanCargoJSON asOWNlimitedtypeevidence, no8pkg/sectionFacceptanceclaim.
-- Hostedv5original16diagnostics accepted39950833444 exactWORKa8e7 at12:06:15; filename-safeartifacts andsamebudgetboundedconsolefallback nowreviewed. Firstoldrun1PASS15FAIL rawuploadlostcolonlabels; noretroactiveproofclaim. Newruncheckoutfinishedabout12:12/capturepending.
-- Supersededcandidatec611pairedrun39948582553 cancelled12:13 afterall3LinuxscopesprovedcandidatebuildFAILsame2warningroots/zero measurements; rawproofspreserved. RemainingoldMacbuildscannotadmitnewcandidate; cancellationreleasesrunnercapacity. No measuredperformanceverdictyet.
-- Hostedv5rawartifact12500329274 sha6ccc5935 recoveredandindependentlyverified: all16=1PASS15FAIL/0signal0protocol, 18ownedprocessreceipts,124335trackedsourcebefore/afterstable/a8e7/freshbinary/NoTomactualcapabilitystrict. Firstactualassertionsparseable; no missingoracleproviderpanic. ABI2/OO-regsub-trace3/env10 assignedexistingowningroles, no duplicatesexternalperf/BIGIP.
-- NewNative1WIPv2 dc40a063/input3e832a70 peerCLEARdcae08ae; rootGO9255a3d4. Firstlaunch61552 STOPdirtyrootmirrorMarkdownprelock/noCargo; rootverifiedexactOWNexpectedmirrorbytes/preservedtmpandpublishedoriginalonWORK, restoredownfd11committednotebeforeunmodifiedv2retry53116 at12:21. Activecode/sourceinputsunchanged, fullcurrent100653 initialsealPASS/buildinprogress; finalnote restoration onlyafterguardclosure.
-- RuntimeABIstringownerfixture3b25488a peerCLEARbc1c3007 preservesalloriginalassertions/refusal andusesindependentfreshC86successowner. Nocurrentruntimepassclaim. OOe4b5e061duplicate-retirementguard/regex1e876a15externalUTF8fixture inVMpeer. Envconstructorbootstraptracemissingseamunderactualreview. NoTomoverflownewdesignquestionpendinguser: proposeFullTomsemanticgate+strictNoTomrefusal; no dependentgatechangeuntilanswer.
+- WORK32a4 runtimefixes published12:40 afterfreshfetch preservingexternal2a5; fourreviewedcomponents no originalassertionsweakened. Newnativeprojection867/traceapprovedd190/lintmetadata+mechanical publicationinprogress.
+- Recorded user decisions20261023T124104Z: fullTomsemantic +strictnoTomcapability gates, traceexactregistrytableplusactualruntime-refusal; implementationunderpeer.
+- Actualshippinglatencyv2 firstbaseline failedprepareRenamerange, no acceptedperfclaim. Preservefailedcapture;triageprotocolvsbaselinecontract. LargeClippybacklog is criticalreleaseblocker; reviewedhelperextractionsinparallel.

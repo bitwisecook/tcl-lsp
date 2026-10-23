@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T12:30:10.532150+00:00",
+  "components": [
+    {
+      "component": "compiler-names-oo-prefired-retirement-v1",
+      "archive_sha256": "10216aa0688de3b524c132f2a6d931488b6a11c48f5c4dd8acf2f1e6eb43130a",
+      "status": "OFFTREE production lifecycle repair, no work/candidate apply"
+    },
+    {
+      "component": "compiler-names-regsub-external-utf8-fixture-v1",
+      "archive_sha256": "11f8afb21049ecf5ae2166749934b51da3d0947edab1aa1b1764ce2c102358df",
+      "status": "OFFTREE test input-boundary proposal; needs root substantive approval/peer, not backend fix"
+    },
+    {
+      "component": "compiler-names-trace-profile-purpose-v1",
+      "archive_sha256": "d030f6416ad7bace84f189d3582ba5ab4e68666b0d7ccc2d5c64e6285c39a458",
+      "status": "HELD OFFTREE explicit test-purpose routing proposal; requires root approval and independent substantivepeer"
+    }
+  ],
+  "limits": "No Names product application/Cargo/test/GO; OO and regsub independent staticpeers, trace purposeproposal held; actual original16 remains1PASS15FAIL pending root reexecution"
+}

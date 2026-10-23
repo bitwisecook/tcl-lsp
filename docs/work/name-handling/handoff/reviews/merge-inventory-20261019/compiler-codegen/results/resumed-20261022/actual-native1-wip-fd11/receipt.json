@@ -1,0 +1,63 @@
+{
+  "utc": "2026-10-23T12:42:57.389877+00:00",
+  "actual_run": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z",
+  "final_sha256": "c53889d45eeca9e693489558bf36c90a284915a158c500cc43400374de4419ae",
+  "raw_inner_first_decline": {
+    "stage": "registered-compiler-descriptor",
+    "head": "catch",
+    "offset": 1,
+    "words": 2
+  },
+  "earlier_actual_gates_present": [
+    "source origin",
+    "original lexical command",
+    "source string protocol",
+    "original NativeCompilerWords capture",
+    "compiler dialect"
+  ],
+  "raw_original_result": "FAILED0passed1failed0ignored/raw101",
+  "source_count": 100653,
+  "source_stable": true,
+  "providers_stable": true,
+  "artifact_stable": true,
+  "selected_target_clean_compilation": true,
+  "eight_package_typing_admission": false,
+  "release_admission": false,
+  "files": [
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/final.json",
+      "archive": "final.json.txt",
+      "sha256": "c53889d45eeca9e693489558bf36c90a284915a158c500cc43400374de4419ae"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/01-native_admission_first_decline.stdout",
+      "archive": "01-native_admission_first_decline.stdout.txt",
+      "sha256": "1ce7e5e8ebf2c2fbcf070ba9b808a0e741378c83159b74b4d2a9b402ee0e76fd"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/01-native_admission_first_decline.stderr",
+      "archive": "01-native_admission_first_decline.stderr.txt",
+      "sha256": "1114cb2384333660294bcdecf25d9c0f922cc4a60d714b91cbd580ea7d683da3"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/01-native_admission_first_decline.result.json",
+      "archive": "01-native_admission_first_decline.result.json.txt",
+      "sha256": "000390b2c08a7883842607d2111ff43ca01a47042e98d95ca76286e7ec104a20"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/build-tcl-vm.artifact.json",
+      "archive": "build-tcl-vm.artifact.json.txt",
+      "sha256": "7b8ab13238f2a86e149b191f8f279d9ccb04439a87c1636e07b3d8ec42875ee6"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122117.147715Z/build-tcl-vm.process.json",
+      "archive": "build-tcl-vm.process.json.txt",
+      "sha256": "461fb688c5bb6bb571580ba8f6f56e2a217637d8dc8788341bed4eb9ea79b351"
+    },
+    {
+      "source": "/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122111.320467Z/launcher.json",
+      "archive": "launcher.json.txt",
+      "sha256": "711d849cc57348885816bc1d28c1083ccbad728a55d62229cf26454911e9d07c"
+    }
+  ]
+}

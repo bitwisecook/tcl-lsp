@@ -1,0 +1,30 @@
+{
+  "actual_utc": "2026-10-23T12:27:53Z",
+  "status": "STATIC CLEAR; UNRUN; not shipping admission",
+  "protocol_manifest_sha256": "66f109fd5b27f387d28e9e384e05cceff155bf22b18a83d97397be6a2c5e7e77",
+  "peer_sha256": "21bfa5649b1a5ab5e5613df55b2e2c6431e40a7cce781d781d7ce69cb2a7ec21",
+  "archive_sha256": "18ea46d039a72179a77623c117dbacbe7664dbfb17cc7edcf3bba6f92858e622",
+  "roundtrip_all_members": true,
+  "files": {
+    "README.txt": "3fd0fbe6ee45f35bc36fe228f16c1569d577afe58ba2b043897cb5b677ef3a59",
+    "bounded_client.py": "c5142f04662d77d5326ab622f714af1ae3361a490547f8795e0a20eb745ce5cd",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "input-pins.json": "b79532ae9251cee77a31411d0b6f5324b5a50b72d2a06c633f66b59251669fd2",
+    "manifest.json": "66f109fd5b27f387d28e9e384e05cceff155bf22b18a83d97397be6a2c5e7e77",
+    "measure.py": "dd2ac891f6e9a472d575fa79ddea014407c9589b0358cd36a67395bb645d61cf",
+    "peer-audit.txt": "21bfa5649b1a5ab5e5613df55b2e2c6431e40a7cce781d781d7ce69cb2a7ec21",
+    "semantic_checks.py": "f299b4c8b00210e879f0089a1b654f498bbc6d47e6ca51df66ace7d0d96412ab",
+    "worker.py": "9b3e71f8d8f45dcbf6cf51e476c133ce617a3f8e991b35bc64093d556ad987df"
+  },
+  "native_producer_pair": {
+    "baseline": {
+      "run_id": 39949992948,
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+    },
+    "candidate": {
+      "run_id": 39951250208,
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  "execution_prerequisites": "Exact successful native producer API/job/log/ZIP/server hash joins and root allocation; no measurement performed."
+}

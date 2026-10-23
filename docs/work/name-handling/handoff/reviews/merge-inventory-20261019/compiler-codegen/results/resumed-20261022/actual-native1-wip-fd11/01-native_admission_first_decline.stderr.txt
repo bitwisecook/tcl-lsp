@@ -1,0 +1,19 @@
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=44 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=2 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=script_text source_len=44 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Global) current_namespace=Some(0) namespaces=Some(34) preflight=NotRequired instructions=9 procedure_body=false
+ZZ_NATIVE_REGISTRATION_DECLINE stage=registered-compiler-descriptor head="catch" offset=1 words=2
+ZZ_NATIVE_PROVIDER_REQUEST caller=rust/tcl-compiler/src/command_binding/compiled_preflight.rs:901:18 chunk_offset=0 source_len=29
+ZZ_NATIVE_REGISTRATION_DECLINE stage=registered-compiler-descriptor head="catch" offset=1 words=2
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=29 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=true native_entry_unavailable=false failure=false visits=2 children=0
+ZZ_NATIVE_REGISTRATION_DECLINE stage=registered-compiler-descriptor head="catch" offset=1 words=2
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=true cfg_admission_required=Some(true) cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=29 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(0) namespaces=Some(34) preflight=ProviderRequired instructions=9 procedure_body=false
+
+ZZ_NATIVE_ADMISSION_DECLINE predicate=preflight_flag preflight=ProviderRequired prerequisites=0 instructions=9 procedure_body=false failure=false math_prerequisite=false
+
+thread 'a_catch_body_write_is_visible_after_the_catch' (414461) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:
+the VM's own compile entry: CompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

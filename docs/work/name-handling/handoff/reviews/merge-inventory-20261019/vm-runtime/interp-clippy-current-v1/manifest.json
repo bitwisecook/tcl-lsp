@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T12:51:50.858360+00:00",
+  "status": "FROZEN_OFFTREE_STATIC_PEER_PENDING",
+  "files": [
+    {
+      "path": "rust/tcl-vm/src/interp.rs",
+      "before_sha256": "eaffb61e43b245108e1c708c2437081805e26cf6445566360e33c337ec786ba0",
+      "after_sha256": "5f598a472d56e3e07bc0d8dfb9b53be3b0da1aa9ef1278eacc9b85b91d458452"
+    }
+  ],
+  "patch_sha256": "c29bd16f4e291245bf7e52bd9634ccc5f3e9d6707eb9ee42002f850ab747d7b1",
+  "inventory_sha256": "84a40d8d5fe77e63bba5b92f351dc8cebcc4d5852876b0de769bf2f8b07737a7",
+  "checks": [
+    "Pinned rustfmt edition2024 skip_children parse/format PASS",
+    "Independent exact current before + copied zero-fuzz no-offset apply + exact final PASS",
+    "No new allow/expect/test assertion changes",
+    "Original words Rc retained in parent across alias registration/rollback"
+  ],
+  "atomic_lsp_interfaces": [
+    "native_original_ensemble_table_plan associated fn call",
+    "import_commands_selected(&ImportPattern), cmd_namespace caller must borrow",
+    "retain_variable_trace_value_error(&error) five callsites",
+    "finish_expression_result(&value) two callsites"
+  ],
+  "scope": "Owned interp.rs all25 recorded findings: mechanical corrections, stage helpers, private debugger/counter state grouping (only this file accesses moved fields), exact primitive initial values",
+  "limits": "Rust typing/Clippy/runtime UNRUN. Static line census only; no measured warning reduction. Compiler/Names peer required; root sole integration/Cargo."
+}

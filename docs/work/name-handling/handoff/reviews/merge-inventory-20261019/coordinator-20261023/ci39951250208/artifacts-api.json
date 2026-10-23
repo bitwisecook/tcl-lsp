@@ -1,0 +1,116 @@
+[
+  {
+    "id": 12502055697,
+    "name": "server-bins-linux-arm64-f5",
+    "size_in_bytes": 27852192,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12502055697",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12502055697/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:32:03Z",
+    "expires_at": "2026-10-24T12:32:01Z",
+    "updated_at": "2026-10-23T12:32:03Z",
+    "digest": "sha256:c89a5dbce64a078bbd24846ab793e509e84c5e8622aa01093609f0befb297f23",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  {
+    "id": 12501746787,
+    "name": "server-bins-linux-riscv64-mcp",
+    "size_in_bytes": 29936069,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501746787",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501746787/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:29:11Z",
+    "expires_at": "2026-10-24T12:29:09Z",
+    "updated_at": "2026-10-23T12:29:11Z",
+    "digest": "sha256:e0a6a6ce314bd02c76fc3c5360574a626e7a7ad5e4210b34f707ae68e12dfc8f",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  {
+    "id": 12501502176,
+    "name": "server-bins-linux-arm64-mcp",
+    "size_in_bytes": 29188065,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501502176",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501502176/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:28:34Z",
+    "expires_at": "2026-10-24T12:28:31Z",
+    "updated_at": "2026-10-23T12:28:34Z",
+    "digest": "sha256:3f4f03c0185f69b6359167abc0d9f4c6eb14bb62234bd5d88c14fae1bf7c7b84",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  {
+    "id": 12501392233,
+    "name": "server-bins-linux-arm64-tcl",
+    "size_in_bytes": 28599126,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501392233",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501392233/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:31:44Z",
+    "expires_at": "2026-10-24T12:31:41Z",
+    "updated_at": "2026-10-23T12:31:44Z",
+    "digest": "sha256:eadbde06ea2e4386df1749a1a2639af57167e8334708ff27d674c881ff0aee5a",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  {
+    "id": 12501307243,
+    "name": "server-bins-linux-x64-f5",
+    "size_in_bytes": 28423945,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501307243",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501307243/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:27:27Z",
+    "expires_at": "2026-10-24T12:27:24Z",
+    "updated_at": "2026-10-23T12:27:27Z",
+    "digest": "sha256:c967a553cb0ba4323ae32be8a506d12b60c5053c52f00815cfb1f928a58153f8",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  },
+  {
+    "id": 12501206572,
+    "name": "server-bins-linux-x64-tcl",
+    "size_in_bytes": 29445195,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501206572",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12501206572/zip",
+    "expired": false,
+    "created_at": "2026-10-23T12:25:43Z",
+    "expires_at": "2026-10-24T12:25:40Z",
+    "updated_at": "2026-10-23T12:25:43Z",
+    "digest": "sha256:a6ea5c7e61537556cca38130ae1f2673216e03afac57a65b32c720ec32b0ef41",
+    "workflow_run": {
+      "id": 39951250208,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "release/lsp-naming",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726"
+    }
+  }
+]

@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T11:59:33Z: exactbaselinefcb shippingartifact discoveryclosed21/21GitHubruns,9build-capableartifactrosters+10peeledreleasetags. No retainedtrue--release nativeexe found; CI5203 exeprofileci only,7releaseperf runsretainreportsnotbinaries, latestv2.2.5 isdifferentcommit3b5eba8a. Baselineworkflowalready supportsroot native_release_build_proof. Read-onlydiscovery/noGit/historyfetch/dispatch/build. Shippingmetricsprotocol4a24923f preparedUNRUN; true-releasepair+browser/package/memoryscope remainOPEN.
+Current status 2026-10-23T12:30:21Z: shipping latency v2 manifest66f109fd independently STATIC CLEAR, UNRUN. Actual true-release baseline39949992948 artifact12500014512 ZIP7a475f1e authenticated and exact ELF extracted under /workspace/naming-release-measurement-artifacts/baseline-39949992948; serverSHAba564a8e, never executed. Audit retains successful producer job/log; candidate39951250208/a6fab release artifact still pending. No measurement or section-F admission.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T11:59:33Z
+Last updated: 2026-10-23T12:30:21Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T11:59:33Z: lsp/baseline-release-artifact-discovery-20261023/discovery.json hascompleteexactcommitrun/artifactscope+actualbaselineworkflowblob8de4c6c8. Rootdispatchesnativeproofonexactbaseline ifneeded; no branch/rusthistorywrite. Do notsubstituteCIprofile12441329895 orreleasedv2.2.5binary. LatencyprotocolREADME retainscontractbounds/noinventedmemoryceiling; candidateartifact+finalsourcebindingspending.
+Latest resume pointer 2026-10-23T12:30:21Z: frozen latencyv2 /tmp/lsp-shipping-latency-protocol-v2 manifest66f109fd / peer21bfa564; archive lsp/shipping-latency-protocol-v2-20261023/. Baseline extraction receipt /workspace/naming-release-measurement-artifacts/baseline-39949992948/extraction-receipt.json proves API ZIP digest + exact native release member (not execution). Complete baseline producer log/job joins with Audit; await exact candidate shipping artifact and root allocation. Whole shipping latency/cancellation/memory admission remains OPEN.
 
 
 

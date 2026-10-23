@@ -1,0 +1,16 @@
+{
+  "actual_source_sha": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "artifact_stable": true,
+  "count": 16,
+  "diagnostic_only": true,
+  "finished_utc": "2026-10-23T12:16:03.053432+00:00",
+  "release_admission": false,
+  "source_clean_before_after": true,
+  "source_stable": true,
+  "statuses": {
+    "FAIL": 15,
+    "PASS": 1,
+    "PROTOCOL_FAILURE": 0,
+    "SIGNAL": 0
+  }
+}

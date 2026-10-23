@@ -1,0 +1,53 @@
+{
+  "schema": "candidate-ci-first-failure-evidence-v1",
+  "observed_utc": "2026-10-23T12:33:41Z",
+  "run_id": 39951250208,
+  "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+  "workflow": "ci.yml",
+  "jobs_pagination": {
+    "request": "GET /repos/bitwisecook/tcl-lsp/actions/runs/39951250208/jobs?per_page=100&page=1",
+    "total_count": 49,
+    "returned": 49,
+    "status_counts": {
+      "completed-success": 8,
+      "completed-failure": 1,
+      "completed-skipped": 1,
+      "in_progress": 9,
+      "queued": 30
+    }
+  },
+  "first_failure": {
+    "job_id": 120407781491,
+    "name": "rust-check",
+    "conclusion": "failure",
+    "step": "make check-rust-pr",
+    "facts": [
+      "Rust 1.99 Clippy with -D warnings; 107 denied findings in tcl-vm, 496 in tcl-compiler.",
+      "Top observed lints: 212 too_many_lines, 41 needless pass-by-value, 33 redundant closures, 27 Option<Option<T>>, 23 identical match arms, 23 return-let-binding, 23 items-after-statements, 20 too-many-arguments.",
+      "Additional explicit enum postfix lints: all variants postfix Source at rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs:29; postfix Declaration at rust/tcl-compiler/src/lowering/source_body_syntax.rs:25."
+    ]
+  },
+  "artifacts": {
+    "count": 6,
+    "terminal_capture_artifacts_present": false
+  },
+  "files": {
+    "rust-check-job-120407781491-decoded.log": {
+      "bytes": 936223,
+      "sha256": "ad93d25bdcaa07ffad51d0a2d630f303738b8ee12166fbcf536a43160ba91d4c"
+    },
+    "jobs-api-page1-per-page100.json": {
+      "bytes": 108648,
+      "sha256": "99250984ebf2e7f86ebbdd93fa328af2261cb5cc9fec3903e843d36d7919b931"
+    },
+    "artifacts-api.json": {
+      "bytes": 4691,
+      "sha256": "647a1891e7f53b0ff01f2edc8ca8e228ed532c86ebd980299f830c9b706f3764"
+    }
+  },
+  "limitations": [
+    "First failure evidence only; the run remains active and many jobs are queued.",
+    "No terminal capture artifact or runtime pass/fail comparison is established by this receipt.",
+    "This is work evidence, not release acceptance."
+  ]
+}

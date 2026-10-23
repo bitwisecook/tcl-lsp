@@ -1,0 +1,67 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T12:55:37.437502+00:00",
+  "scheduled_report_utc": "2026-10-23T12:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T13:25:37+00:00",
+  "change_since_previous_report": [
+    "WORK32a4 runtimefixes published12:40 afterfreshfetch preservingexternal2a5; fourreviewedcomponents no originalassertionsweakened. Newnativeprojection867/traceapprovedd190/lintmetadata+mechanical publicationinprogress.",
+    "Recorded user decisions20261023T124104Z: fullTomsemantic +strictnoTomcapability gates, traceexactregistrytableplusactualruntime-refusal; implementationunderpeer.",
+    "Actualshippinglatencyv2 firstbaseline failedprepareRenamerange, no acceptedperfclaim. Preservefailedcapture;triageprotocolvsbaselinecontract. LargeClippybacklog is criticalreleaseblocker; reviewedhelperextractionsinparallel."
+  ],
+  "committed": [
+    "4cf15ddbafd522be4b300f8024c3de991cabfbe3"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Integratepeer-clearedClippy/native/runtimegatepatchesONLYwork; selectivelycarryreleasecandidatekeepingdevelopmentchaffout; freshactualchecks.",
+    "DiagnosefirstbaselineprepareRenamerange protocol failure, performactualauthenticatedpairedlatency/Tclcorpusperf+scaling+memory/cancellation afterreview; no iRulesperf gate.",
+    "RequirefullgreenCI,sectionFand24,312exactbaselinezeropass-to-fail beforeauthorisedPR. Deadline14:56UTC targetseriousrisk; noPRyet."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T11:50:00+00:00",
+    "perf": "2026-10-23T11:50:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No F admissions. Historicalsource1358pkg0W only. Actualnative1fd11 originalcatch1FAIL afterclean0Wfreshselectedbuild. Hosted16 original1P15F patchesWORK32a4 runtimeunrerun. Candidatea6fab CI rust-check596uniqueFAIL. Firstauthenticatednativebaseline latencyv2 prepareRenameFAIL incomplete, no performanceapproval.",
+  "disk_free_bytes": 6657228800,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

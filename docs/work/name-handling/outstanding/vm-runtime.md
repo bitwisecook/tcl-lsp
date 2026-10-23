@@ -2,11 +2,28 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T12:25:18.293231+00:00 (hosted v5 actual16=1PASS15FAIL; full raw artifact verified; env10/ABI2/OO-regsub-trace3 routed)
+Last updated: 2026-10-23T12:52:41.849403+00:00 (env/OO/ABI/regex peers ready; exclusive tcl-vm interp lint cluster frozen, peer pending; native1 root HOLD)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Current exclusive ownership: rust/tcl-vm/src/interp.rs only; LSP owns otherVM.
+Frozen off-tree lint cluster /tmp/vm-interp-clippy-current-v1/proposal.patch
+SHA c29bd16f4e291245bf7e52bd9634ccc5f3e9d6707eb9ee42002f850ab747d7b1,
+before eaffb61e to5f598a47. Exactcurrent/copiedzero-fuzz/nooffset/final and
+pinnedfmt2024 PASS. Names substantive peer pending. Stage helpers preserve
+original scopes/checks/cleanup; original alias wordsRc stays parent-owned
+through rollback/registration. Private debug3/counters4 grouping retains
+initial values and all moved-field users remain in owned file. Four atomic
+LSP interface deltas recorded manifest. Actual typing/Clippy/runtime UNRUN;
+no measured warning reduction or closure claim. Root sole integration/Cargo.
+Env10 draft f114054e compilerstaticCLEAR2c5d656d; OO e4b5 lifecycleCLEAR9db5;
+ABI owner3b254 CLEARbc1c; regsub v2 0115799a actualC5oracle-aligned CLEARce4a.
+User-approved trace purpose d1905 boundedCLEARd6cf; runtime all UNRUN.
+Hosted v5 fullraw archive manifest0336b47e durable; exact16 remains1PASS15FAIL.
+Active no-raw-source/archive HOLD continues for root native1 capture.
+
 
 Current hosted v5 run39950833444/job120404591918 completed at12:16:03:
 original16=1PASS15FAIL, no signals/protocol failures. Catch PASS; env10,

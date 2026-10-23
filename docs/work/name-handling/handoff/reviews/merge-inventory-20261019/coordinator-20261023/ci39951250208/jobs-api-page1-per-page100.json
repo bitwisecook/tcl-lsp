@@ -1,0 +1,3123 @@
+{
+  "total_count": 49,
+  "jobs": [
+    {
+      "id": 120405984331,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCMGESw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120405984331",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120405984331",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:09:50Z",
+      "started_at": "2026-10-23T12:12:53Z",
+      "completed_at": "2026-10-23T12:13:16Z",
+      "name": "cargo-deny",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:12:53Z",
+          "completed_at": "2026-10-23T12:12:54Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:12:54Z",
+          "completed_at": "2026-10-23T12:13:02Z"
+        },
+        {
+          "name": "Install cargo-deny",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:13:02Z",
+          "completed_at": "2026-10-23T12:13:03Z"
+        },
+        {
+          "name": "cargo deny check (all locked workspaces)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:13:03Z",
+          "completed_at": "2026-10-23T12:13:14Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-23T12:13:14Z",
+          "completed_at": "2026-10-23T12:13:15Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:13:15Z",
+          "completed_at": "2026-10-23T12:13:15Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120405984331",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058863,
+      "runner_name": "GitHub Actions 1000058863",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120405984905,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCMGGiQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120405984905",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120405984905",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:09:50Z",
+      "started_at": "2026-10-23T12:13:57Z",
+      "completed_at": "2026-10-23T12:14:09Z",
+      "name": "channel",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:13:58Z",
+          "completed_at": "2026-10-23T12:13:58Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:13:58Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Detect release channel from the ref",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Check whether this exact code is already green",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Classify changed paths",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Select the broad Rust test runner",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13,
+          "started_at": "2026-10-23T12:14:07Z",
+          "completed_at": "2026-10-23T12:14:07Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120405984905",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000058867,
+      "runner_name": "GitHub Actions 1000058867",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781395,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwEw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781395",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781395",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:27:36Z",
+      "completed_at": "2026-10-23T12:31:33Z",
+      "name": "rust-tests-doctest",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:27:37Z",
+          "completed_at": "2026-10-23T12:27:38Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:27:38Z",
+          "completed_at": "2026-10-23T12:27:46Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:27:46Z",
+          "completed_at": "2026-10-23T12:27:59Z"
+        },
+        {
+          "name": "cargo test --doc",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:27:59Z",
+          "completed_at": "2026-10-23T12:31:30Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-23T12:31:30Z",
+          "completed_at": "2026-10-23T12:31:30Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-23T12:31:30Z",
+          "completed_at": "2026-10-23T12:31:30Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:31:30Z",
+          "completed_at": "2026-10-23T12:31:30Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781395",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058893,
+      "runner_name": "GitHub Actions 1000058893",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781467,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwWw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781467",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781467",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:15:03Z",
+      "completed_at": "2026-10-23T12:15:41Z",
+      "name": "web-frontends",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:15:04Z",
+          "completed_at": "2026-10-23T12:15:05Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:15:05Z",
+          "completed_at": "2026-10-23T12:15:15Z"
+        },
+        {
+          "name": "Set up Node",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:15:15Z",
+          "completed_at": "2026-10-23T12:15:19Z"
+        },
+        {
+          "name": "Enable Corepack (pin npm via packageManager)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:15:19Z",
+          "completed_at": "2026-10-23T12:15:21Z"
+        },
+        {
+          "name": "Cache npm registry",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:15:21Z",
+          "completed_at": "2026-10-23T12:15:23Z"
+        },
+        {
+          "name": "Install both front-end dependency trees",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:15:23Z",
+          "completed_at": "2026-10-23T12:15:27Z"
+        },
+        {
+          "name": "Shared report front-end (typecheck + lint + asset drift)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-23T12:15:27Z",
+          "completed_at": "2026-10-23T12:15:28Z"
+        },
+        {
+          "name": "Spec studio front-end (typecheck + lint + build + unit tests)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-23T12:15:28Z",
+          "completed_at": "2026-10-23T12:15:37Z"
+        },
+        {
+          "name": "Post Cache npm registry",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 14,
+          "started_at": "2026-10-23T12:15:37Z",
+          "completed_at": "2026-10-23T12:15:37Z"
+        },
+        {
+          "name": "Post Set up Node",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-23T12:15:37Z",
+          "completed_at": "2026-10-23T12:15:37Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-23T12:15:37Z",
+          "completed_at": "2026-10-23T12:15:37Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-23T12:15:37Z",
+          "completed_at": "2026-10-23T12:15:38Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781467",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058875,
+      "runner_name": "GitHub Actions 1000058875",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781471,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwXw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781471",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781471",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:17Z",
+      "completed_at": null,
+      "name": "spectcl-compat",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:14:18Z",
+          "completed_at": "2026-10-23T12:14:19Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:14:19Z",
+          "completed_at": "2026-10-23T12:14:28Z"
+        },
+        {
+          "name": "Resolve the exact Tcl 9.0 cache identity",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:14:28Z",
+          "completed_at": "2026-10-23T12:14:28Z"
+        },
+        {
+          "name": "Restore the exact Tcl 9.0 source and build tree",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:14:28Z",
+          "completed_at": "2026-10-23T12:14:28Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:14:28Z",
+          "completed_at": "2026-10-23T12:14:42Z"
+        },
+        {
+          "name": "Set up sccache",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:14:42Z",
+          "completed_at": "2026-10-23T12:14:42Z"
+        },
+        {
+          "name": "Enable sccache when available",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-23T12:14:42Z",
+          "completed_at": "2026-10-23T12:14:43Z"
+        },
+        {
+          "name": "Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 8,
+          "started_at": "2026-10-23T12:14:43Z",
+          "completed_at": null
+        },
+        {
+          "name": "Save the validated Tcl 9.0 source and build tree",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Report sccache statistics",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up sccache",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 19,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 20,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781471",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058870,
+      "runner_name": "GitHub Actions 1000058870",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781489,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwcQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781489",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781489",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "test-ext-web",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781489",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407781491,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwcw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781491",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781491",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:29:19Z",
+      "completed_at": "2026-10-23T12:31:16Z",
+      "name": "rust-check",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:29:20Z",
+          "completed_at": "2026-10-23T12:29:21Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:29:21Z",
+          "completed_at": "2026-10-23T12:29:37Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:29:37Z",
+          "completed_at": "2026-10-23T12:29:47Z"
+        },
+        {
+          "name": "Run fast CI gate (format + Clippy + generated-file drift)",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 4,
+          "started_at": "2026-10-23T12:29:47Z",
+          "completed_at": "2026-10-23T12:31:14Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-23T12:31:14Z",
+          "completed_at": "2026-10-23T12:31:14Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-23T12:31:14Z",
+          "completed_at": "2026-10-23T12:31:14Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:31:14Z",
+          "completed_at": "2026-10-23T12:31:14Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781491",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058895,
+      "runner_name": "GitHub Actions 1000058895",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781525,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwlQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781525",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781525",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:28:41Z",
+      "completed_at": null,
+      "name": "lsp-server-wasi",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:28:42Z",
+          "completed_at": "2026-10-23T12:28:45Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:28:45Z",
+          "completed_at": "2026-10-23T12:28:57Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:28:57Z",
+          "completed_at": "2026-10-23T12:29:11Z"
+        },
+        {
+          "name": "Install the wasmtime CLI",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:29:11Z",
+          "completed_at": "2026-10-23T12:29:15Z"
+        },
+        {
+          "name": "Install binaryen",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:29:15Z",
+          "completed_at": "2026-10-23T12:29:26Z"
+        },
+        {
+          "name": "Set up Node.js",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:29:26Z",
+          "completed_at": "2026-10-23T12:29:30Z"
+        },
+        {
+          "name": "Build and exercise the WASI LSP server",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 7,
+          "started_at": "2026-10-23T12:29:30Z",
+          "completed_at": null
+        },
+        {
+          "name": "Build the WASI LSP server (release artefact)",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload the WASI module",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Node.js",
+          "status": "pending",
+          "conclusion": null,
+          "number": 16,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 17,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781525",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058894,
+      "runner_name": "GitHub Actions 1000058894",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781556,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzwtA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781556",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781556",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:32:11Z",
+      "completed_at": null,
+      "name": "runtime-rust-tests",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:32:12Z",
+          "completed_at": "2026-10-23T12:32:13Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:32:13Z",
+          "completed_at": "2026-10-23T12:32:21Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:32:21Z",
+          "completed_at": "2026-10-23T12:32:36Z"
+        },
+        {
+          "name": "make runtime-rust-test-no-tommath (standalone runtime, no libtommath)",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 4,
+          "started_at": "2026-10-23T12:32:36Z",
+          "completed_at": null
+        },
+        {
+          "name": "Fetch the Tcl 9.0.4 source (libtommath)",
+          "status": "pending",
+          "conclusion": null,
+          "number": 5,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "make runtime-rust-test (standalone runtime unit suite)",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 12,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781556",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058901,
+      "runner_name": "GitHub Actions 1000058901",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781600,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzw4A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781600",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781600",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:26:53Z",
+      "completed_at": null,
+      "name": "python",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:26:54Z",
+          "completed_at": "2026-10-23T12:26:55Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:26:55Z",
+          "completed_at": "2026-10-23T12:27:04Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:27:04Z",
+          "completed_at": "2026-10-23T12:27:16Z"
+        },
+        {
+          "name": "Compute venv cache key",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:27:16Z",
+          "completed_at": "2026-10-23T12:27:17Z"
+        },
+        {
+          "name": "Cache typecheck venv",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:27:17Z",
+          "completed_at": "2026-10-23T12:27:18Z"
+        },
+        {
+          "name": "Install uv",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:27:18Z",
+          "completed_at": "2026-10-23T12:27:18Z"
+        },
+        {
+          "name": "Verify uv version",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-23T12:27:18Z",
+          "completed_at": "2026-10-23T12:27:18Z"
+        },
+        {
+          "name": "ruff (format --check + check)",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-23T12:27:18Z",
+          "completed_at": "2026-10-23T12:27:19Z"
+        },
+        {
+          "name": "ty + pyright",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 9,
+          "started_at": "2026-10-23T12:27:19Z",
+          "completed_at": null
+        },
+        {
+          "name": "Native engine binding tests",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Cache typecheck venv",
+          "status": "pending",
+          "conclusion": null,
+          "number": 18,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 19,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 20,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781600",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 1000058892,
+      "runner_name": "GitHub Actions 1000058892",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407781628,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzw_A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781628",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781628",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "wasm-real-link",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781628",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407781643,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzxCw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781643",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781643",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "build-tcl-lsp-server",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781643",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407781718,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzxVg",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781718",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781718",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "lsp-server-wasm",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781718",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407781836,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzxzA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781836",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781836",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-heavy",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781836",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407781943,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzyNw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407781943",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407781943",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "lsp-e2e archive",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407781943",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782118,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzy5g",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782118",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782118",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-shard (3/5)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782118",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782288,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzzkA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782288",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782288",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-shard (5/5)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782288",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782320,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzzsA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782320",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782320",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-shard (1/5)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782320",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782332,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzzvA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782332",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782332",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-shard (4/5)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782332",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782344,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNzzyA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782344",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782344",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "rust-tests-shard (2/5)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782344",
+      "labels": [
+        "ubuntu-26.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782487,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0Vw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782487",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782487",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:16:14Z",
+      "completed_at": "2026-10-23T12:28:39Z",
+      "name": "native linux-arm64 / mcp",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:16:15Z",
+          "completed_at": "2026-10-23T12:16:17Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:16:17Z",
+          "completed_at": "2026-10-23T12:16:38Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:16:38Z",
+          "completed_at": "2026-10-23T12:16:38Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:16:38Z",
+          "completed_at": "2026-10-23T12:16:47Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:16:47Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:31Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:28:31Z",
+          "completed_at": "2026-10-23T12:28:34Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:28:34Z",
+          "completed_at": "2026-10-23T12:28:37Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:28:37Z",
+          "completed_at": "2026-10-23T12:28:37Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:28:37Z",
+          "completed_at": "2026-10-23T12:28:37Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782487",
+      "labels": [
+        "ubuntu-24.04-arm"
+      ],
+      "runner_id": 1000058878,
+      "runner_name": "GitHub Actions 1000058878",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782519,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0dw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782519",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782519",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-arm64 / f5",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782519",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782523,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0ew",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782523",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782523",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:46Z",
+      "completed_at": "2026-10-23T12:27:33Z",
+      "name": "native linux-x64 / f5",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:14:47Z",
+          "completed_at": "2026-10-23T12:14:48Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:14:48Z",
+          "completed_at": "2026-10-23T12:15:04Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:15:04Z",
+          "completed_at": "2026-10-23T12:15:04Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:15:04Z",
+          "completed_at": "2026-10-23T12:15:15Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:15:15Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:24Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:27:24Z",
+          "completed_at": "2026-10-23T12:27:27Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:27:27Z",
+          "completed_at": "2026-10-23T12:27:32Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:27:32Z",
+          "completed_at": "2026-10-23T12:27:32Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:27:32Z",
+          "completed_at": "2026-10-23T12:27:32Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782523",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000058874,
+      "runner_name": "GitHub Actions 1000058874",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782532,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0hA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782532",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782532",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:17:23Z",
+      "completed_at": null,
+      "name": "native darwin-arm64 / server",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:17:24Z",
+          "completed_at": "2026-10-23T12:17:27Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:17:27Z",
+          "completed_at": "2026-10-23T12:17:50Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-23T12:17:50Z",
+          "completed_at": "2026-10-23T12:17:52Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:17:52Z",
+          "completed_at": "2026-10-23T12:18:08Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-10-23T12:18:08Z",
+          "completed_at": "2026-10-23T12:18:08Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:18:08Z",
+          "completed_at": "2026-10-23T12:18:08Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 7,
+          "started_at": "2026-10-23T12:18:08Z",
+          "completed_at": null
+        },
+        {
+          "name": "Verify native program version",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782532",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000058879,
+      "runner_name": "GitHub Actions 1000058879",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782587,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0uw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782587",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782587",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-x64 / server",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782587",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782599,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0xw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782599",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782599",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-arm64 / mcp",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782599",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782608,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz00A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782608",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782608",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-x64 / mcp",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782608",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782612,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz01A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782612",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782612",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:19:13Z",
+      "completed_at": "2026-10-23T12:29:16Z",
+      "name": "native linux-riscv64 / mcp",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:19:14Z",
+          "completed_at": "2026-10-23T12:19:16Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:19:16Z",
+          "completed_at": "2026-10-23T12:19:32Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:19:32Z",
+          "completed_at": "2026-10-23T12:19:32Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:19:32Z",
+          "completed_at": "2026-10-23T12:19:43Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-10-23T12:19:43Z",
+          "completed_at": "2026-10-23T12:19:43Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-23T12:19:43Z",
+          "completed_at": "2026-10-23T12:29:09Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:29:09Z",
+          "completed_at": "2026-10-23T12:29:09Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:29:09Z",
+          "completed_at": "2026-10-23T12:29:09Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:29:09Z",
+          "completed_at": "2026-10-23T12:29:09Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:29:09Z",
+          "completed_at": "2026-10-23T12:29:09Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:29:09Z",
+          "completed_at": "2026-10-23T12:29:12Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:29:12Z",
+          "completed_at": "2026-10-23T12:29:15Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:29:15Z",
+          "completed_at": "2026-10-23T12:29:15Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:29:15Z",
+          "completed_at": "2026-10-23T12:29:15Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782612",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000058881,
+      "runner_name": "GitHub Actions 1000058881",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782616,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz02A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782616",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782616",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native linux-riscv64 / server",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782616",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782617,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz02Q",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782617",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782617",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-arm64 / tcl",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782617",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782620,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz03A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782620",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782620",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:25:52Z",
+      "completed_at": null,
+      "name": "native linux-x64 / server",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:25:52Z",
+          "completed_at": "2026-10-23T12:25:54Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:25:54Z",
+          "completed_at": "2026-10-23T12:26:10Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:26:10Z",
+          "completed_at": "2026-10-23T12:26:10Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:26:10Z",
+          "completed_at": "2026-10-23T12:26:20Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 5,
+          "started_at": "2026-10-23T12:26:20Z",
+          "completed_at": null
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "pending",
+          "conclusion": null,
+          "number": 7,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify native program version",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782620",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000058891,
+      "runner_name": "GitHub Actions 1000058891",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782637,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz07Q",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782637",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782637",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-x64 / f5",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782637",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782648,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0-A",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782648",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782648",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:20:41Z",
+      "completed_at": null,
+      "name": "native win32-x64 / mcp",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:20:42Z",
+          "completed_at": "2026-10-23T12:20:44Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:20:44Z",
+          "completed_at": "2026-10-23T12:21:15Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:21:15Z",
+          "completed_at": "2026-10-23T12:21:15Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:21:15Z",
+          "completed_at": "2026-10-23T12:21:50Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 5,
+          "started_at": "2026-10-23T12:21:50Z",
+          "completed_at": "2026-10-23T12:21:50Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:21:50Z",
+          "completed_at": "2026-10-23T12:21:50Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 7,
+          "started_at": "2026-10-23T12:21:50Z",
+          "completed_at": null
+        },
+        {
+          "name": "Verify native program version",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782648",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000058886,
+      "runner_name": "GitHub Actions 1000058886",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782654,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz0_g",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782654",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782654",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:15:03Z",
+      "completed_at": "2026-10-23T12:25:49Z",
+      "name": "native linux-x64 / tcl",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:15:04Z",
+          "completed_at": "2026-10-23T12:15:06Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:15:06Z",
+          "completed_at": "2026-10-23T12:15:27Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:15:27Z",
+          "completed_at": "2026-10-23T12:15:27Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:15:27Z",
+          "completed_at": "2026-10-23T12:15:42Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:15:42Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:40Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:25:40Z",
+          "completed_at": "2026-10-23T12:25:44Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:25:44Z",
+          "completed_at": "2026-10-23T12:25:47Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:25:47Z",
+          "completed_at": "2026-10-23T12:25:47Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:25:47Z",
+          "completed_at": "2026-10-23T12:25:47Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782654",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 1000058876,
+      "runner_name": "GitHub Actions 1000058876",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782683,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1Gw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782683",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782683",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:20:51Z",
+      "completed_at": "2026-10-23T12:31:50Z",
+      "name": "native linux-arm64 / tcl",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:20:52Z",
+          "completed_at": "2026-10-23T12:20:54Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:20:54Z",
+          "completed_at": "2026-10-23T12:21:10Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:21:10Z",
+          "completed_at": "2026-10-23T12:21:10Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:21:10Z",
+          "completed_at": "2026-10-23T12:21:19Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:21:19Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:41Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:31:41Z",
+          "completed_at": "2026-10-23T12:31:44Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:31:44Z",
+          "completed_at": "2026-10-23T12:31:47Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:31:47Z",
+          "completed_at": "2026-10-23T12:31:48Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:31:48Z",
+          "completed_at": "2026-10-23T12:31:48Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782683",
+      "labels": [
+        "ubuntu-24.04-arm"
+      ],
+      "runner_id": 1000058887,
+      "runner_name": "GitHub Actions 1000058887",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782685,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1HQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782685",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782685",
+      "status": "in_progress",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:22:02Z",
+      "completed_at": null,
+      "name": "native linux-arm64 / server",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:22:03Z",
+          "completed_at": "2026-10-23T12:22:04Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:22:04Z",
+          "completed_at": "2026-10-23T12:22:19Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:22:19Z",
+          "completed_at": "2026-10-23T12:22:19Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:22:19Z",
+          "completed_at": "2026-10-23T12:22:27Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "in_progress",
+          "conclusion": null,
+          "number": 5,
+          "started_at": "2026-10-23T12:22:27Z",
+          "completed_at": null
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "pending",
+          "conclusion": null,
+          "number": 6,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "pending",
+          "conclusion": null,
+          "number": 7,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify native program version",
+          "status": "pending",
+          "conclusion": null,
+          "number": 8,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "pending",
+          "conclusion": null,
+          "number": 9,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 10,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "pending",
+          "conclusion": null,
+          "number": 11,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "pending",
+          "conclusion": null,
+          "number": 21,
+          "started_at": null,
+          "completed_at": null
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "pending",
+          "conclusion": null,
+          "number": 22,
+          "started_at": null,
+          "completed_at": null
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782685",
+      "labels": [
+        "ubuntu-24.04-arm"
+      ],
+      "runner_id": 1000058889,
+      "runner_name": "GitHub Actions 1000058889",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782695,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1Jw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782695",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782695",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:20:39Z",
+      "completed_at": "2026-10-23T12:32:08Z",
+      "name": "native linux-arm64 / f5",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-23T12:20:40Z",
+          "completed_at": "2026-10-23T12:20:41Z"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-23T12:20:41Z",
+          "completed_at": "2026-10-23T12:20:57Z"
+        },
+        {
+          "name": "Remove unused runner Homebrew tap",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 3,
+          "started_at": "2026-10-23T12:20:57Z",
+          "completed_at": "2026-10-23T12:20:57Z"
+        },
+        {
+          "name": "Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-23T12:20:57Z",
+          "completed_at": "2026-10-23T12:21:05Z"
+        },
+        {
+          "name": "Build GNU/Linux program against glibc 2.28",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-23T12:21:05Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Build RISC-V GNU/Linux program against glibc 2.35",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 6,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Cross-compile native program",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Verify native program version",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Verify GNU/Linux glibc ABI ceiling",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Smoke-test built binaries",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:01Z"
+        },
+        {
+          "name": "Upload server binaries",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-23T12:32:01Z",
+          "completed_at": "2026-10-23T12:32:03Z"
+        },
+        {
+          "name": "Post Set up Rust",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 21,
+          "started_at": "2026-10-23T12:32:03Z",
+          "completed_at": "2026-10-23T12:32:06Z"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 22,
+          "started_at": "2026-10-23T12:32:06Z",
+          "completed_at": "2026-10-23T12:32:06Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-23T12:32:06Z",
+          "completed_at": "2026-10-23T12:32:06Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782695",
+      "labels": [
+        "ubuntu-24.04-arm"
+      ],
+      "runner_id": 1000058884,
+      "runner_name": "GitHub Actions 1000058884",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 120407782700,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1LA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782700",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782700",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native linux-x64 / mcp",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782700",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782725,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1RQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782725",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782725",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native linux-riscv64 / tcl",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782725",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782726,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1Rg",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782726",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782726",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native linux-riscv64 / f5",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782726",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782748,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1XA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782748",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782748",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-x64 / server",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782748",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782751,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1Xw",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782751",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782751",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-arm64 / server",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782751",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782758,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1Zg",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782758",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782758",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native darwin-x64 / tcl",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782758",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782765,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1bQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782765",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782765",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-x64 / tcl",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782765",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782770,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1cg",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782770",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782770",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-x64 / f5",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782770",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782834,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1sg",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782834",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782834",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-arm64 / mcp",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782834",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782852,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz1xA",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782852",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782852",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-arm64 / tcl",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782852",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407782917,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz2BQ",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407782917",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407782917",
+      "status": "queued",
+      "conclusion": null,
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": null,
+      "name": "native win32-arm64 / f5",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407782917",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 0,
+      "runner_name": "",
+      "runner_group_id": 0,
+      "runner_group_name": ""
+    },
+    {
+      "id": 120407783649,
+      "run_id": 39951250208,
+      "workflow_name": "CI",
+      "head_branch": "release/lsp-naming",
+      "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39951250208",
+      "run_attempt": 1,
+      "node_id": "CR_kwDORmQgMc8AAAAcCNz44Q",
+      "head_sha": "a6fab9240dcdeca7536973fb01d32680f4286726",
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120407783649",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39951250208/job/120407783649",
+      "status": "completed",
+      "conclusion": "skipped",
+      "created_at": "2026-10-23T12:14:09Z",
+      "started_at": "2026-10-23T12:14:09Z",
+      "completed_at": "2026-10-23T12:14:09Z",
+      "name": "macos-wasm-check",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120407783649",
+      "labels": [
+        "macos-15"
+      ],
+      "runner_id": null,
+      "runner_name": null,
+      "runner_group_id": null,
+      "runner_group_name": null
+    }
+  ]
+}

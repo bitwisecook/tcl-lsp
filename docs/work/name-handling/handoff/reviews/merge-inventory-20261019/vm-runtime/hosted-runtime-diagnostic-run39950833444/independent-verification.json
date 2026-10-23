@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-23T12:19:11.391552+00:00",
+  "source_sha": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "tracked_source_paths": 124335,
+  "source_before_after_exact": true,
+  "source_clean_before_after": true,
+  "expected_selectors_exact": 16,
+  "statuses": {
+    "FAIL": 15,
+    "PASS": 1,
+    "PROTOCOL_FAILURE": 0,
+    "SIGNAL": 0
+  },
+  "owned_process_receipts_verified": 18,
+  "aggregate_child_log_bytes": 291832,
+  "aggregate_budget_final": {
+    "cap_bytes": 20971520,
+    "console_report_bytes_last_row": 429,
+    "remaining_bytes": 20672700
+  },
+  "actual_noTom_capability_verified": true,
+  "fresh_Cargo_artifact": true,
+  "signals_or_protocol_failures": 0,
+  "typing_or_release_admission": false
+}

@@ -1,0 +1,22 @@
+{
+  "decided_utc": "2026-10-23T12:41:04.274867+00:00",
+  "source": "User explicit replies to two new runtime gate/coverage questions",
+  "decisions": {
+    "runtime_capability_release_gates": {
+      "choice": "Split gates by actual capability",
+      "meaning": "Full-TomMath suite is semantic runtime release gate. Keep separate strict no-TomMath capability/refusal gate, the approved explicit absence assertion and unexpected-absence warning. Preserve original semantic assertions; original overflow test must pass with actual TomMath. No fabricated bignum cache or Native grant."
+    },
+    "irules_trace_test_coverage": {
+      "choice": "Verify table plus runtime refusal",
+      "meaning": "Correct the two iRules cases of the trace regression test to verify identical exact option-table outcomes through the pinned registry and explicitly assert unsupported native runtime refusal. Preserve every native Tcl execution case and expected string. No claim of physical TMM execution support.",
+      "reviewed_patch_sha256": "d1905b2ca036810b4b8a81b4038d5204160cdc600c0a47fc2ecd38c222013614"
+    }
+  },
+  "unchanged": [
+    "No weakening of semantic assertions",
+    "Fail-closed source/owner/currentness/native guards",
+    "Zero warnings",
+    "Section F and exact origin/rust baseline comparison before PR",
+    "All functional fixes on work; release branch cleanup/carry only"
+  ]
+}

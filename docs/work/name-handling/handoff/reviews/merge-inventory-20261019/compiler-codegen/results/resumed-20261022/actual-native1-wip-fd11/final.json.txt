@@ -1,0 +1,79 @@
+{
+  "all1_direct_child_timers_valid": true,
+  "all_artifacts_retained": true,
+  "artifact_stable": true,
+  "build_artifacts": {
+    "tcl-vm": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+        "features": [
+          "default",
+          "js-clock",
+          "test-support"
+        ],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "cmd_control_e2e",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+      "mtime_ns": 1792758774318460379,
+      "package": "tcl-vm",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "e5e30fd807bd45d2b8ae6045587952620ce9044a0bd9a8a0890037591c91eb1a",
+      "size": 121840776,
+      "stderr_sha256": "3cbe5245f1779e8660f5a044f6840de5702a86fb906a30a3e32a1372fa056e01",
+      "stdout_sha256": "da2d21052e346528230c066f491d9a8693e22dcf50e08c9161d8b9c3e0301497",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "cmd_control_e2e"
+    }
+  },
+  "eight_package_typing_admission": false,
+  "finished_utc": "2026-10-23T12:34:13.055536+00:00",
+  "overall_exit": 1,
+  "providers_stable": true,
+  "release_admission": false,
+  "remaining_log_bytes": 20903811,
+  "results": 1,
+  "root_go_sha256": "9255a3d431772f723f5e1135aca05538d281ef853686bf3eb7f8d6f0458d972e",
+  "selected": 1,
+  "selected_target_clean_compilation": true,
+  "source_count": 100653,
+  "source_stable": true,
+  "wip_diagnostic_only": true
+}

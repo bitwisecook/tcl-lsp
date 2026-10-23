@@ -1,0 +1,18 @@
+{
+  "independent-verification.json": {
+    "bytes": 714,
+    "sha256": "111f5420be8b9804e5f1fc5883a79ea39d14e122f28f746eb114d7334786a2ba"
+  },
+  "raw-artifact.zip": {
+    "bytes": 8021626,
+    "sha256": "6ccc593595acb927434feca84c98611f94a3e0af88dc7d3963eb5b41d0a86968"
+  },
+  "original16-first-causes.json": {
+    "bytes": 21772,
+    "sha256": "66ace735acda8676b4d39c56f82f429eeed0fed69f363feecfa44e958b29266f"
+  },
+  "final.json": {
+    "bytes": 380,
+    "sha256": "bbbd910698d95cf70175352eac97c876e071480dad5725cf91882ddc99030dae"
+  }
+}
