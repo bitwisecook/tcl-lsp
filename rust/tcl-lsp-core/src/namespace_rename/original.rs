@@ -311,68 +311,11 @@ impl OriginalNamespaceEdits<'_> {
     }
 }
 
-/// Rename a namespace selected from an authentic original operand. Inputs,
-/// exact namespace geometry and source currency precede every edit. Computed
-/// names without an original static container and unsupported callback homes
-/// refuse atomically. This supplies source edits, not execution/lifetime proof.
-///
-/// # Errors
-/// Returns a refusal when any required operand, source mapping or coverage
-/// obligation cannot be independently established.
-pub fn original_namespace_rename_edits(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+fn record_namespace_operands(
+    plan: &mut OriginalNamespaceEdits<'_>,
     analysis: &AnalysisResult,
     symbol: &OriginalNamespaceSymbol,
-    new_tail: &str,
-) -> Result<Vec<TextEdit>, RenameRefusal> {
-    use tcl_compiler::signature_scan::scope::{SignatureSourceCommand, SourceCommandPublication};
-    if analysis.resolved_profile() != Some(dialect) {
-        return Err(RenameRefusal::at(
-            "the requested profile differs from the retained analysis input".to_owned(),
-            source,
-            &LineIndex::new(source),
-            None,
-        ));
-    }
-    let image = SourceImage::document(source);
-    let tail_units = tcl_syntax::backslash::native_source_literal_bytes(
-        new_tail.as_bytes(),
-        image.channel(),
-        symbol.policy().string_protocol(),
-    )
-    .map_err(|_| {
-        RenameRefusal::at(
-            "the replacement namespace has no selected source channel recipe".to_owned(),
-            source,
-            &LineIndex::new(source),
-            None,
-        )
-    })?
-    .into_owned();
-    let mut plan = OriginalNamespaceEdits {
-        source,
-        image,
-        analysis,
-        symbol,
-        new_tail,
-        tail_units,
-        requests: Vec::new(),
-        roots: Vec::new(),
-        considered: Vec::new(),
-    };
-    let realm = analysis
-        .retained_command_realm()
-        .ok_or_else(|| plan.refusal(None, "the document has no retained original command owner"))?;
-    let config = analysis
-        .body_lexer_config
-        .ok_or_else(|| plan.refusal(None, "the document has no retained complete grammar"))?;
-    if !analysis.matches_original_source_image(&plan.image, config) {
-        return Err(plan.refusal(
-            None,
-            "the document no longer matches its complete original analysis/source owner",
-        ));
-    }
+) -> Result<(), RenameRefusal> {
     for row in &analysis.namespace_refs {
         let (Some(input), Some(current), Some(selected)) = (
             row.original_name_input.as_ref(),
@@ -435,6 +378,15 @@ pub fn original_namespace_rename_edits(
             pattern.span(),
         )?;
     }
+    Ok(())
+}
+
+fn record_namespace_declarations(
+    plan: &mut OriginalNamespaceEdits<'_>,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+) -> Result<(), RenameRefusal> {
+    use tcl_compiler::signature_scan::scope::{SignatureSourceCommand, SourceCommandPublication};
     for (input, site, publication) in analysis
         .original_procedure_declarations()
         .map(|row| (row.name_input(), row.declaration_site(), row.name()))
@@ -487,6 +439,54 @@ pub fn original_namespace_rename_edits(
             input.span(),
         )?;
     }
+    Ok(())
+}
+
+fn record_absolute_namespace_command(
+    plan: &mut OriginalNamespaceEdits<'_>,
+    input: &SignatureSourceNameInput,
+    invocation: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+) -> Result<(), RenameRefusal> {
+    // Original executable heads (including static expansions) have
+    // direct absolute namespace geometry. Mere catalogue roles and
+    // callback children need their independent receiver purpose.
+    if input.bytes().starts_with(b"::") {
+        if let Some(reference) = invocation.resolved_command_reference.as_ref() {
+            let slot = reference.original_slot().ok_or_else(|| {
+                plan.refusal(
+                    Some(invocation.range),
+                    "the consumed command has no exact original slot",
+                )
+            })?;
+            if reference.original_name_policy() != Some(input.policy())
+                || input
+                    .policy()
+                    .recipe()
+                    .command_lookup_slot(NativeNameContext::root(), input.bytes())
+                    .ok()
+                    .as_ref()
+                    != Some(slot)
+            {
+                return Err(plan.refusal(
+                    Some(invocation.range),
+                    "the consumed command's original input and called slot disagree",
+                ));
+            }
+            plan.record_command(input, NativeNameContext::root(), invocation.range)?;
+        } else if invocation.lookup.is_execution_site()
+            && input.original_static_list_container().is_some()
+        {
+            plan.record_command(input, NativeNameContext::root(), invocation.range)?;
+        }
+    }
+    Ok(())
+}
+
+fn record_namespace_invocations(
+    plan: &mut OriginalNamespaceEdits<'_>,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+) -> Result<(), RenameRefusal> {
     for invocation in &analysis.command_invocations {
         let Some(input) = invocation.original_name_input.as_ref() else {
             continue;
@@ -495,38 +495,7 @@ pub fn original_namespace_rename_edits(
             continue;
         }
         let Some(lookup) = invocation.original_lookup.as_ref() else {
-            // Original executable heads (including static expansions) have
-            // direct absolute namespace geometry. Mere catalogue roles and
-            // callback children need their independent receiver purpose.
-            if input.bytes().starts_with(b"::") {
-                if let Some(reference) = invocation.resolved_command_reference.as_ref() {
-                    let slot = reference.original_slot().ok_or_else(|| {
-                        plan.refusal(
-                            Some(invocation.range),
-                            "the consumed command has no exact original slot",
-                        )
-                    })?;
-                    if reference.original_name_policy() != Some(input.policy())
-                        || input
-                            .policy()
-                            .recipe()
-                            .command_lookup_slot(NativeNameContext::root(), input.bytes())
-                            .ok()
-                            .as_ref()
-                            != Some(slot)
-                    {
-                        return Err(plan.refusal(
-                            Some(invocation.range),
-                            "the consumed command's original input and called slot disagree",
-                        ));
-                    }
-                    plan.record_command(input, NativeNameContext::root(), invocation.range)?;
-                } else if invocation.lookup.is_execution_site()
-                    && input.original_static_list_container().is_some()
-                {
-                    plan.record_command(input, NativeNameContext::root(), invocation.range)?;
-                }
-            }
+            record_absolute_namespace_command(plan, input, invocation)?;
             continue;
         };
         if lookup.name_input() != input || lookup.site().source.source_image() != &plan.image {
@@ -596,6 +565,15 @@ pub fn original_namespace_rename_edits(
         };
         plan.record_command(input, context, invocation.range)?;
     }
+    Ok(())
+}
+
+fn record_namespace_aliases(
+    plan: &mut OriginalNamespaceEdits<'_>,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+    config: tcl_lexer::LexerConfig,
+) -> Result<(), RenameRefusal> {
     if let Some(world) = analysis.original_completed_command_world() {
         if world.source_image() != &plan.image || world.lexer_config() != config {
             return Err(plan.refusal(
@@ -621,18 +599,16 @@ pub fn original_namespace_rename_edits(
             }
         }
     }
-    if let Some(span) = analysis.namespace_path_computed.first() {
-        return Err(plan.refusal(
-            Some(*span),
-            "a computed namespace path has no complete original list container",
-        ));
-    }
-    let coverage = original_coverage(source, &plan.image, analysis, config).ok_or_else(|| {
-        plan.refusal(
-            None,
-            "the original lexical coverage cannot retain every command/body region",
-        )
-    })?;
+    Ok(())
+}
+
+fn record_unknown_namespace_operands(
+    plan: &mut OriginalNamespaceEdits<'_>,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+    coverage: &OriginalNamespaceCoverage,
+    config: tcl_lexer::LexerConfig,
+) -> Result<(), RenameRefusal> {
     for span in &analysis.namespace_name_unknowns {
         let word = coverage.word_at(*span).ok_or_else(|| {
             plan.refusal(
@@ -648,6 +624,16 @@ pub fn original_namespace_rename_edits(
         }
         plan.considered.push(*span);
     }
+    Ok(())
+}
+
+fn check_namespace_value_coverage(
+    plan: &OriginalNamespaceEdits<'_>,
+    realm: &tcl_compiler::realm::CommandBindingRealm,
+    coverage: &OriginalNamespaceCoverage,
+    config: tcl_lexer::LexerConfig,
+) -> Result<(), RenameRefusal> {
+    let symbol = plan.symbol;
     let mut hazard = None;
     for command in &coverage.commands {
         if hazard.is_some() {
@@ -688,6 +674,11 @@ pub fn original_namespace_rename_edits(
             "an original value may name this namespace in an unsupported callback or data position",
         ));
     }
+    Ok(())
+}
+
+fn namespace_plan_edits(plan: &OriginalNamespaceEdits<'_>) -> Result<Vec<TextEdit>, RenameRefusal> {
+    let source = plan.source;
     let edits = crate::original_name_edit::original_name_input_edits(&plan.image, &plan.requests)
         .ok_or_else(|| plan.refusal(None, "the namespace edit containers conflict or cannot preserve every unrelated original value"))?;
     let mut edits = edits
@@ -714,6 +705,88 @@ pub fn original_namespace_rename_edits(
             new_text,
         })
         .collect())
+}
+
+/// Rename a namespace selected from an authentic original operand. Inputs,
+/// exact namespace geometry and source currency precede every edit. Computed
+/// names without an original static container and unsupported callback homes
+/// refuse atomically. This supplies source edits, not execution/lifetime proof.
+///
+/// # Errors
+/// Returns a refusal when any required operand, source mapping or coverage
+/// obligation cannot be independently established.
+pub fn original_namespace_rename_edits(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    symbol: &OriginalNamespaceSymbol,
+    new_tail: &str,
+) -> Result<Vec<TextEdit>, RenameRefusal> {
+    if analysis.resolved_profile() != Some(dialect) {
+        return Err(RenameRefusal::at(
+            "the requested profile differs from the retained analysis input".to_owned(),
+            source,
+            &LineIndex::new(source),
+            None,
+        ));
+    }
+    let image = SourceImage::document(source);
+    let tail_units = tcl_syntax::backslash::native_source_literal_bytes(
+        new_tail.as_bytes(),
+        image.channel(),
+        symbol.policy().string_protocol(),
+    )
+    .map_err(|_| {
+        RenameRefusal::at(
+            "the replacement namespace has no selected source channel recipe".to_owned(),
+            source,
+            &LineIndex::new(source),
+            None,
+        )
+    })?
+    .into_owned();
+    let mut plan = OriginalNamespaceEdits {
+        source,
+        image,
+        analysis,
+        symbol,
+        new_tail,
+        tail_units,
+        requests: Vec::new(),
+        roots: Vec::new(),
+        considered: Vec::new(),
+    };
+    let realm = analysis
+        .retained_command_realm()
+        .ok_or_else(|| plan.refusal(None, "the document has no retained original command owner"))?;
+    let config = analysis
+        .body_lexer_config
+        .ok_or_else(|| plan.refusal(None, "the document has no retained complete grammar"))?;
+    if !analysis.matches_original_source_image(&plan.image, config) {
+        return Err(plan.refusal(
+            None,
+            "the document no longer matches its complete original analysis/source owner",
+        ));
+    }
+    record_namespace_operands(&mut plan, analysis, symbol)?;
+    record_namespace_declarations(&mut plan, analysis, symbol)?;
+    record_namespace_invocations(&mut plan, analysis, symbol)?;
+    record_namespace_aliases(&mut plan, analysis, symbol, config)?;
+    if let Some(span) = analysis.namespace_path_computed.first() {
+        return Err(plan.refusal(
+            Some(*span),
+            "a computed namespace path has no complete original list container",
+        ));
+    }
+    let coverage = original_coverage(source, &plan.image, analysis, config).ok_or_else(|| {
+        plan.refusal(
+            None,
+            "the original lexical coverage cannot retain every command/body region",
+        )
+    })?;
+    record_unknown_namespace_operands(&mut plan, analysis, symbol, &coverage, config)?;
+    check_namespace_value_coverage(&plan, realm, &coverage, config)?;
+    namespace_plan_edits(&plan)
 }
 
 fn literal_may_name_namespace(
