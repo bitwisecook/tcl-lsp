@@ -424,45 +424,26 @@ fn resume(
     // happens only after installing the frozen flow, so ordinary unwind fires
     // unset/leave traces and frame/temp-proc cleanup; queued injections remain
     // deliberately unexecuted.
-    let stale_message = vm.coro.live.get(key).and_then(|state| {
-        vm.activation_stack_stale_message_in_context(
-            &state.acts,
-            &state.parked.current_namespace_execution_context(),
-        )
-    });
-    // Borrow choreography: mark the entry Running and move its `acts`/`parked`
-    // out (a `Running` sentinel stays in the map) so no `coro.live` borrow is
-    // held across the `&mut self` drive.
-    let (mut acts, mut parked, was_fresh, injections, kind, currencies) = {
-        let state = vm.coro.live.get_mut(key).expect("presence checked above");
-        let was_fresh = state.status == CoroStatus::Fresh;
-        let currencies = state.original_currencies();
-        state.status = CoroStatus::Running;
-        (
-            std::mem::take(&mut state.acts),
-            std::mem::take(&mut state.parked),
-            was_fresh,
-            std::mem::take(&mut state.injections),
-            state.last_suspend,
-            currencies,
-        )
-    };
-
+    let setup = take_resume_state(vm, key);
+    let ResumeSetup {
+        stale_message,
+        acts,
+        mut parked,
+        was_fresh,
+        injections,
+        kind,
+        currencies,
+    } = setup;
     // Install the coroutine's flow; `parked` now holds the resumer's flow.
     vm.swap_flow(&mut parked);
-    let original = match vm.resume_original_activations(&mut acts) {
-        Ok(original) => original,
-        Err(error) => {
-            let original = vm.original_activation_cleanup(&currencies);
-            let first = crate::command::completion_from_cmd_error(vm, error);
-            vm.abort_refused_activations(&mut acts);
-            vm.finish_coroutine_flow();
-            vm.swap_flow(&mut parked);
-            teardown_coro(vm, key);
-            drop((acts, parked, injections));
-            let _ = vm.check_original_scopes(&original);
-            return first;
-        }
+    let ResumedActivations {
+        mut acts,
+        parked,
+        injections,
+        original,
+    } = match resume_original_activations(vm, key, acts, parked, injections, &currencies) {
+        Ok(state) => state,
+        Err(completion) => return completion,
     };
     // `activation_depth` lives on the engine (`Vm`) and `coro` on the current
     // interp state (reached through `Deref`), so read the depth into a local
@@ -483,24 +464,10 @@ fn resume(
     if !was_fresh && stale_message.is_none() {
         // A `yield` returns the single resume value (or `""`); a `yieldto`
         // returns the whole resume-argument list.
-        let initial = match kind {
-            SuspendKind::Yield => args.first().cloned().unwrap_or_else(Value::empty),
-            SuspendKind::YieldTo => {
-                let Some(protocol) = vm
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
-                    let result =
-                        vm.refuse_host_command("original coroutine resume List issuer".into());
-                    retire_resume_activations(vm, &mut acts);
-                    vm.finish_coroutine_flow();
-                    vm.coro.stack.pop();
-                    vm.swap_flow(&mut parked);
-                    teardown_coro(vm, key);
-                    drop((acts, parked, injections));
-                    return finish_original_coroutine(vm, &original, result);
-                };
-                Value::native_list_constructor(args.to_vec(), protocol)
+        let initial = match resume_delivery_value(vm, args, kind) {
+            Ok(initial) => initial,
+            Err(result) => {
+                return fail_resume_delivery(vm, key, acts, parked, injections, &original, result);
             }
         };
         match run_injections(vm, injections, kind, initial, &original) {
@@ -516,13 +483,144 @@ fn resume(
         }
     }
 
-    let mut exit = match (stale_message, injected) {
+    let exit = match (stale_message, injected) {
         (Some(message), _) => vm.unwind_stale_coroutine(&mut acts, message),
         (None, Some(r)) => vm.raise_in_coroutine(&mut acts, r),
         (None, None) => vm.drive_coro(&mut acts),
     };
 
-    if let Err(error) = vm.check_original_scopes(&original) {
+    finish_resume_exit(vm, key, &active_key, acts, parked, &original, exit)
+}
+
+struct ResumeSetup {
+    stale_message: Option<String>,
+    acts: Vec<Frame>,
+    parked: ParkedFlow,
+    was_fresh: bool,
+    injections: Vec<Vec<Value>>,
+    kind: SuspendKind,
+    currencies: Vec<crate::interp::native_operation_currency::NativeOperationCurrency>,
+}
+
+fn take_resume_state(vm: &mut Vm, key: &CommandSidecarKey) -> ResumeSetup {
+    let stale_message = vm.coro.live.get(key).and_then(|state| {
+        vm.activation_stack_stale_message_in_context(
+            &state.acts,
+            &state.parked.current_namespace_execution_context(),
+        )
+    });
+    // Borrow choreography: mark the entry Running and move its `acts`/`parked`
+    // out (a `Running` sentinel stays in the map) so no `coro.live` borrow is
+    // held across the `&mut self` drive.
+    let (acts, parked, was_fresh, injections, kind, currencies) = {
+        let state = vm.coro.live.get_mut(key).expect("presence checked above");
+        let was_fresh = state.status == CoroStatus::Fresh;
+        let currencies = state.original_currencies();
+        state.status = CoroStatus::Running;
+        (
+            std::mem::take(&mut state.acts),
+            std::mem::take(&mut state.parked),
+            was_fresh,
+            std::mem::take(&mut state.injections),
+            state.last_suspend,
+            currencies,
+        )
+    };
+
+    ResumeSetup {
+        stale_message,
+        acts,
+        parked,
+        was_fresh,
+        injections,
+        kind,
+        currencies,
+    }
+}
+
+struct ResumedActivations {
+    acts: Vec<Frame>,
+    parked: ParkedFlow,
+    injections: Vec<Vec<Value>>,
+    original: Vec<crate::interp::native_operation_currency::NativeOperationScope>,
+}
+
+fn resume_original_activations(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    mut acts: Vec<Frame>,
+    mut parked: ParkedFlow,
+    injections: Vec<Vec<Value>>,
+    currencies: &[crate::interp::native_operation_currency::NativeOperationCurrency],
+) -> Result<ResumedActivations, Completion<Value>> {
+    match vm.resume_original_activations(&mut acts) {
+        Ok(original) => Ok(ResumedActivations {
+            acts,
+            parked,
+            injections,
+            original,
+        }),
+        Err(error) => {
+            let original = vm.original_activation_cleanup(currencies);
+            let first = crate::command::completion_from_cmd_error(vm, error);
+            vm.abort_refused_activations(&mut acts);
+            vm.finish_coroutine_flow();
+            vm.swap_flow(&mut parked);
+            teardown_coro(vm, key);
+            drop((acts, parked, injections));
+            let _ = vm.check_original_scopes(&original);
+            Err(first)
+        }
+    }
+}
+
+fn resume_delivery_value(
+    vm: &mut Vm,
+    args: &[Value],
+    kind: SuspendKind,
+) -> Result<Value, Completion<Value>> {
+    match kind {
+        SuspendKind::Yield => Ok(args.first().cloned().unwrap_or_else(Value::empty)),
+        SuspendKind::YieldTo => {
+            let Some(protocol) = vm
+                .actual_native_invocation_dialect()
+                .native_string_protocol()
+            else {
+                return Err(vm.refuse_host_command("original coroutine resume List issuer".into()));
+            };
+            Ok(Value::native_list_constructor(args.to_vec(), protocol))
+        }
+    }
+}
+
+fn fail_resume_delivery(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    mut acts: Vec<Frame>,
+    mut parked: ParkedFlow,
+    injections: Vec<Vec<Value>>,
+    original: &[crate::interp::native_operation_currency::NativeOperationScope],
+    result: Completion<Value>,
+) -> Completion<Value> {
+    retire_resume_activations(vm, &mut acts);
+    vm.finish_coroutine_flow();
+    vm.coro.stack.pop();
+    vm.swap_flow(&mut parked);
+    teardown_coro(vm, key);
+    drop((acts, parked, injections));
+    finish_original_coroutine(vm, original, result)
+}
+
+fn finish_resume_exit(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    active_key: &CommandSidecarHandle,
+    mut acts: Vec<Frame>,
+    mut parked: ParkedFlow,
+    original: &[crate::interp::native_operation_currency::NativeOperationScope],
+    mut exit: RunExit,
+) -> Completion<Value> {
+    if let Err(error) = vm.check_original_scopes(original) {
         drop(exit);
         vm.abort_refused_activations(&mut acts);
         exit = RunExit::Done(crate::command::completion_from_cmd_error(vm, error));
@@ -572,7 +670,7 @@ fn resume(
             c
         }
     };
-    finish_original_coroutine(vm, &original, result)
+    finish_original_coroutine(vm, original, result)
 }
 
 fn retire_resume_activations(vm: &mut Vm, acts: &mut Vec<Frame>) {

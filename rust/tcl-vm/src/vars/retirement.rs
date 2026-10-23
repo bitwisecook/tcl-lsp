@@ -60,7 +60,7 @@ pub(crate) struct VariableRelease(Release);
 
 enum Release {
     State(VarState),
-    Cell(VarCell),
+    Cell(Box<VarCell>),
     Table(VarTable),
     Key(Rc<NativeHashEntryKey>),
     Default(Option<[Value; 2]>),
@@ -132,75 +132,133 @@ impl VariableRetirement {
         self.detached.take()
     }
 
+    fn release_static_reference(&mut self, arena: &mut VarArena, id: VarId) {
+        let cell = arena
+            .cells
+            .get_mut(&id)
+            .expect("retained static cell exists");
+        cell.static_refs = cell
+            .static_refs
+            .checked_sub(1)
+            .expect("static reference underflow");
+        self.pending.push(Step::Collect(id));
+    }
+
+    fn release_binding_reference(&mut self, arena: &mut VarArena, id: VarId) {
+        let cell = arena
+            .cells
+            .get_mut(&id)
+            .expect("binding must refer to a live variable cell");
+        cell.bindings = cell
+            .bindings
+            .checked_sub(1)
+            .expect("variable binding count underflow");
+        self.pending.push(Step::Collect(id));
+    }
+
+    fn release_pin_reference(&mut self, arena: &mut VarArena, id: VarId) {
+        let cell = arena
+            .cells
+            .get_mut(&id)
+            .expect("pin must refer to a live variable cell");
+        cell.pins = cell
+            .pins
+            .checked_sub(1)
+            .expect("variable pin count underflow");
+        self.pending.push(Step::Collect(id));
+    }
+
+    fn release_operation_reference(&mut self, arena: &mut VarArena, id: VarId) {
+        let cell = arena
+            .cells
+            .get_mut(&id)
+            .expect("operation reference must refer to a live variable cell");
+        cell.operation_refs = cell
+            .operation_refs
+            .checked_sub(1)
+            .expect("variable operation reference count underflow");
+        self.pending.push(Step::Collect(id));
+    }
+
+    fn detach_cell_state(
+        &mut self,
+        arena: &mut VarArena,
+        id: VarId,
+        ordinary: bool,
+        array_cleanup: bool,
+    ) {
+        if let Some(cell) = arena.cells.get_mut(&id) {
+            let old = std::mem::replace(&mut cell.state, VarState::Undefined);
+            cell.scalar_retirement = None;
+            if matches!(old, VarState::Array(_)) && array_cleanup {
+                // These are the old metadata owners, extracted before
+                // any release can install a new array on this cell.
+                let default = cell.array_default.take();
+                let searches = cell.array_searches.take_handles();
+                self.pending
+                    .push(Step::Release(VariableRelease(Release::Searches(searches))));
+                self.pending.push(Step::AdvanceArrayRevision(id));
+                if ordinary {
+                    self.pending.push(Step::SetOrdinaryLink(id));
+                }
+                self.pending
+                    .push(Step::Release(VariableRelease(Release::Default(default))));
+            } else if ordinary {
+                self.pending.push(Step::SetOrdinaryLink(id));
+            }
+            self.detached = Some(old);
+        }
+    }
+
+    fn collect_unreferenced_cell(&mut self, arena: &mut VarArena, id: VarId) {
+        let collectable = arena.cells.get(&id).is_some_and(|cell| {
+            cell.bindings == 0
+                && cell.link_refs == 0
+                && cell.pins == 0
+                && cell.operation_refs == 0
+                && cell.static_refs == 0
+        });
+        if collectable && let Some(cell) = arena.cells.remove(&id) {
+            self.pending.push(Step::Cell(cell));
+        }
+    }
+
+    fn decompose_retiring_cell(&mut self, mut cell: VarCell) -> Option<VariableRelease> {
+        // The old neutral worker did not move ignored scalar/name
+        // payloads: whole-cell field order remains the same.
+        if matches!(
+            &cell.state,
+            VarState::Undefined | VarState::Scalar(_) | VarState::NameLink(_)
+        ) {
+            return Some(VariableRelease(Release::Cell(Box::new(cell))));
+        }
+        let state = std::mem::replace(&mut cell.state, VarState::Undefined);
+        self.pending
+            .push(Step::Release(VariableRelease(Release::Cell(Box::new(
+                cell,
+            )))));
+        self.pending.push(Step::State(state));
+        None
+    }
+
     /// Advance only pure storage/count steps, returning before an owned release.
     pub(crate) fn next(&mut self, arena: &mut VarArena) -> Option<VariableRelease> {
         while let Some(step) = self.pending.pop() {
             match step {
-                Step::Collect(id) => {
-                    let collectable = arena.cells.get(&id).is_some_and(|cell| {
-                        cell.bindings == 0
-                            && cell.link_refs == 0
-                            && cell.pins == 0
-                            && cell.operation_refs == 0
-                            && cell.static_refs == 0
-                    });
-                    if collectable && let Some(cell) = arena.cells.remove(&id) {
-                        self.pending.push(Step::Cell(cell));
-                    }
-                }
+                Step::Collect(id) => self.collect_unreferenced_cell(arena, id),
                 Step::CollectStatics => {
                     let released = std::mem::take(&mut *arena.released_statics.borrow_mut());
                     self.pending
                         .extend(released.into_iter().rev().map(Step::ReleaseStatic));
                 }
-                Step::ReleaseStatic(id) => {
-                    let cell = arena
-                        .cells
-                        .get_mut(&id)
-                        .expect("retained static cell exists");
-                    cell.static_refs = cell
-                        .static_refs
-                        .checked_sub(1)
-                        .expect("static reference underflow");
-                    self.pending.push(Step::Collect(id));
-                }
+                Step::ReleaseStatic(id) => self.release_static_reference(arena, id),
                 Step::Unbind(id) => {
                     self.pending.push(Step::UnbindReady(id));
                     self.pending.push(Step::CollectStatics);
                 }
-                Step::UnbindReady(id) => {
-                    let cell = arena
-                        .cells
-                        .get_mut(&id)
-                        .expect("binding must refer to a live variable cell");
-                    cell.bindings = cell
-                        .bindings
-                        .checked_sub(1)
-                        .expect("variable binding count underflow");
-                    self.pending.push(Step::Collect(id));
-                }
-                Step::Unpin(id) => {
-                    let cell = arena
-                        .cells
-                        .get_mut(&id)
-                        .expect("pin must refer to a live variable cell");
-                    cell.pins = cell
-                        .pins
-                        .checked_sub(1)
-                        .expect("variable pin count underflow");
-                    self.pending.push(Step::Collect(id));
-                }
-                Step::ReleaseOperation(id) => {
-                    let cell = arena
-                        .cells
-                        .get_mut(&id)
-                        .expect("operation reference must refer to a live variable cell");
-                    cell.operation_refs = cell
-                        .operation_refs
-                        .checked_sub(1)
-                        .expect("variable operation reference count underflow");
-                    self.pending.push(Step::Collect(id));
-                }
+                Step::UnbindReady(id) => self.release_binding_reference(arena, id),
+                Step::Unpin(id) => self.release_pin_reference(arena, id),
+                Step::ReleaseOperation(id) => self.release_operation_reference(arena, id),
                 Step::ReleaseLink(id) => {
                     if let Some(cell) = arena.cells.get_mut(&id) {
                         cell.link_refs = cell
@@ -237,27 +295,7 @@ impl VariableRetirement {
                     ordinary,
                     array_cleanup,
                 } => {
-                    if let Some(cell) = arena.cells.get_mut(&id) {
-                        let old = std::mem::replace(&mut cell.state, VarState::Undefined);
-                        cell.scalar_retirement = None;
-                        if matches!(old, VarState::Array(_)) && array_cleanup {
-                            // These are the old metadata owners, extracted before
-                            // any release can install a new array on this cell.
-                            let default = cell.array_default.take();
-                            let searches = cell.array_searches.take_handles();
-                            self.pending
-                                .push(Step::Release(VariableRelease(Release::Searches(searches))));
-                            self.pending.push(Step::AdvanceArrayRevision(id));
-                            if ordinary {
-                                self.pending.push(Step::SetOrdinaryLink(id));
-                            }
-                            self.pending
-                                .push(Step::Release(VariableRelease(Release::Default(default))));
-                        } else if ordinary {
-                            self.pending.push(Step::SetOrdinaryLink(id));
-                        }
-                        self.detached = Some(old);
-                    }
+                    self.detach_cell_state(arena, id, ordinary, array_cleanup);
                 }
                 Step::AdvanceArrayRevision(id) => {
                     if let Some(cell) = arena.cells.get_mut(&id) {
@@ -288,19 +326,10 @@ impl VariableRetirement {
                     VarState::Undefined => {}
                     state => return Some(VariableRelease(Release::State(state))),
                 },
-                Step::Cell(mut cell) => {
-                    // The old neutral worker did not move ignored scalar/name
-                    // payloads: whole-cell field order remains the same.
-                    if matches!(
-                        &cell.state,
-                        VarState::Undefined | VarState::Scalar(_) | VarState::NameLink(_)
-                    ) {
-                        return Some(VariableRelease(Release::Cell(cell)));
+                Step::Cell(cell) => {
+                    if let Some(release) = self.decompose_retiring_cell(cell) {
+                        return Some(release);
                     }
-                    let state = std::mem::replace(&mut cell.state, VarState::Undefined);
-                    self.pending
-                        .push(Step::Release(VariableRelease(Release::Cell(cell))));
-                    self.pending.push(Step::State(state));
                 }
                 Step::Release(release) => return Some(release),
                 Step::Elements(mut elements) => {

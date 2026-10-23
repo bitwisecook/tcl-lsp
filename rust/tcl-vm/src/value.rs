@@ -152,6 +152,17 @@ enum NativeValueHandleOwnership {
 type NativeStringAccess<'a, E> = dyn FnMut(&Value) -> Result<Rc<[u8]>, E> + 'a;
 type NativeValueCheck<'a, E> = dyn FnMut(&Value) -> Result<(), E> + 'a;
 
+#[derive(Clone, Copy)]
+struct NativeScalarProbeRecipe<'a> {
+    protocol: NativeScalarGetterProtocol,
+    kind: NativeScalarGetterKind,
+    string_protocol: NativeStringProtocol,
+    environment: Option<&'a dyn tcl_platform::NumericEnvironment>,
+    target: Option<tcl_syntax::scalar_getter::NativeScalarGetterTarget>,
+    checked_jim: bool,
+    jim_abi: &'a Cell<Option<tcl_platform::NativeCIntegerAbi>>,
+}
+
 impl Clone for Value {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0), NativeValueHandleOwnership::Reference)
@@ -1776,6 +1787,19 @@ impl Value {
             return finish(duplicate, check, retain);
         }
         self.copy_native_variable_primary_to(&duplicate);
+        let duplicate =
+            self.copy_native_duplicate_primary_using(duplicate, protocol, check, strings, retain)?;
+        finish(duplicate, check, retain)
+    }
+
+    fn copy_native_duplicate_primary_using<E: From<ValueError>>(
+        &self,
+        duplicate: Self,
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
+        retain: &mut dyn FnMut(&E),
+    ) -> Result<Self, E> {
         // Neutral duplication retains its eager member snapshot. Checked
         // duplication captures allocation-only Dictionary identity/currentness;
         // each genuine target member hold follows its reached key insertion.
@@ -1830,41 +1854,15 @@ impl Value {
                 )
                 .into())
             };
-            let reached = (|| {
-                if check.is_some() {
-                    for index in 0..original_length {
-                        Self::native_stage_check(check)?;
-                        let key = dictionary_current()?.with_pairs(|original| {
-                            original[index].0.native_lifetime_lease().into_value()
-                        });
-                        if !protocol.is_jim084() {
-                            let bytes = match strings {
-                                Some(strings) => strings(&key)?,
-                                None => unreachable!(
-                                    "checked duplicate requires original String producer"
-                                ),
-                            };
-                            Self::native_stage_check(check)?;
-                            // The exact original table/epoch is verified before
-                            // native key/value references enter the target.
-                            drop(dictionary_current()?);
-                            hash_order.insert(&bytes);
-                        }
-                        Self::native_stage_check(check)?;
-                        let pair = dictionary_current()?.with_pairs(|original| {
-                            (key.into_native_reference(), original[index].1.clone())
-                        });
-                        pairs.push(pair);
-                    }
-                    Self::native_stage_check(check)?;
-                    drop(dictionary_current()?);
-                } else if !protocol.is_jim084() {
-                    for (key, _) in &pairs {
-                        hash_order.insert(&key.string_bytes());
-                    }
-                }
-                Ok::<(), E>(())
-            })();
+            let reached = Self::copy_native_dictionary_members_using(
+                protocol,
+                original_length,
+                &mut pairs,
+                &mut hash_order,
+                &dictionary_current,
+                check,
+                strings,
+            );
             if let Err(first) = reached {
                 retain(&first);
                 drop(pairs);
@@ -1894,7 +1892,48 @@ impl Value {
                 _ => {}
             }
         }
-        finish(duplicate, check, retain)
+        Ok(duplicate)
+    }
+
+    fn copy_native_dictionary_members_using<E: From<ValueError>>(
+        protocol: NativeStringProtocol,
+        original_length: usize,
+        pairs: &mut Vec<(Value, Value)>,
+        hash_order: &mut TclStringHashOrder,
+        dictionary_current: &dyn Fn() -> Result<Rc<DictRep>, E>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
+    ) -> Result<(), E> {
+        if check.is_some() {
+            for index in 0..original_length {
+                Self::native_stage_check(check)?;
+                let key = dictionary_current()?
+                    .with_pairs(|original| original[index].0.native_lifetime_lease().into_value());
+                if !protocol.is_jim084() {
+                    let bytes = match strings {
+                        Some(strings) => strings(&key)?,
+                        None => unreachable!("checked duplicate requires original String producer"),
+                    };
+                    Self::native_stage_check(check)?;
+                    // The exact original table/epoch is verified before
+                    // native key/value references enter the target.
+                    drop(dictionary_current()?);
+                    hash_order.insert(&bytes);
+                }
+                Self::native_stage_check(check)?;
+                let pair = dictionary_current()?.with_pairs(|original| {
+                    (key.into_native_reference(), original[index].1.clone())
+                });
+                pairs.push(pair);
+            }
+            Self::native_stage_check(check)?;
+            drop(dictionary_current()?);
+        } else if !protocol.is_jim084() {
+            for (key, _) in pairs.iter() {
+                hash_order.insert(&key.string_bytes());
+            }
+        }
+        Ok::<(), E>(())
     }
 
     /// Duplicate physical representations without reaching their string updater.
@@ -2781,14 +2820,11 @@ impl Value {
         }
     }
 
-    fn native_string_bytes_using<E>(
+    fn validate_native_string_primary<E>(
         &self,
         protocol: NativeStringProtocol,
-        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
         failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
-        check: &mut Option<&mut NativeValueCheck<'_, E>>,
-    ) -> Result<Rc<[u8]>, E> {
-        self.native_string_stage_check(check)?;
+    ) -> Result<(), E> {
         if !self.native_object_is_live() {
             #[cfg(test)]
             self.report_native_string_unavailable(protocol, "retired-header");
@@ -2830,6 +2866,18 @@ impl Value {
                 tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
             ));
         }
+        Ok(())
+    }
+
+    fn native_string_bytes_using<E>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
+    ) -> Result<Rc<[u8]>, E> {
+        self.native_string_stage_check(check)?;
+        self.validate_native_string_primary(protocol, failure)?;
         if let Some(resident) = self.resident_string_bytes() {
             return Ok(resident);
         }
@@ -2907,6 +2955,16 @@ impl Value {
                 }
             }
         }
+        self.materialize_native_selected_primary_using(protocol, formatter, failure, check)
+    }
+
+    fn materialize_native_selected_primary_using<E>(
+        &self,
+        protocol: NativeStringProtocol,
+        formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+        failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
+    ) -> Result<Rc<[u8]>, E> {
         self.native_string_stage_check(check)?;
         self.seal_compound_string_protocol(protocol)
             .map_err(failure)?;
@@ -4512,12 +4570,62 @@ impl Value {
         let conversion = if let Some(conversion) = cached {
             conversion
         } else {
+            self.fresh_native_scalar_conversion_using(
+                NativeScalarProbeRecipe {
+                    protocol,
+                    kind,
+                    string_protocol,
+                    environment,
+                    target,
+                    checked_jim,
+                    jim_abi: &jim_abi,
+                },
+                check,
+                string_provider,
+            )?
+        };
+        let (materialize, cache, outcome) = conversion.into_parts();
+        if materialize {
+            let reached = if let Some(provider) = string_provider {
+                provider()
+            } else {
+                self.native_string_bytes(string_protocol)
+                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
+                    .map_err(ValueError::from)
+                    .map_err(E::from)
+            };
+            Self::native_stage_check(check)?;
+            reached?;
+        }
+        if let Some(cache) = cache {
+            self.adopt_native_scalar_cache_using(cache, protocol, dialect, check)?;
+        }
+        Self::native_stage_check(check)?;
+        Ok(outcome)
+    }
+
+    fn fresh_native_scalar_conversion_using<E: From<ValueError>>(
+        &self,
+        recipe: NativeScalarProbeRecipe<'_>,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+        string_provider: &mut Option<&mut dyn FnMut() -> Result<Rc<[u8]>, E>>,
+    ) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterConversion, E> {
+        let NativeScalarProbeRecipe {
+            protocol,
+            kind,
+            string_protocol,
+            environment,
+            target,
+            checked_jim,
+            jim_abi,
+        } = recipe;
+        Ok({
             if kind != NativeScalarGetterKind::Boolean
                 && let Some(environment) = environment
             {
                 if checked_jim {
                     let context = Self::native_stage_result(self.native_jim_context(), check)?;
-                    context.numeric_stage_using(check, &jim_abi, |actual| {
+                    context.numeric_stage_using(check, jim_abi, |actual| {
                         tcl_cmd_core::native_numeric::scalar_getter_recipe_abi(
                             protocol,
                             kind,
@@ -4557,9 +4665,8 @@ impl Value {
                     .native_jim_context()
                     .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
                 if check.is_some() {
-                    context.fresh_numeric_conversion_using(
-                        protocol, kind, &original, check, &jim_abi,
-                    )?
+                    context
+                        .fresh_numeric_conversion_using(protocol, kind, &original, check, jim_abi)?
                 } else {
                     context.fresh_numeric_conversion(protocol, kind, &original)?
                 }
@@ -4579,25 +4686,7 @@ impl Value {
                     .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
                     .ok_or(ValueError::ScalarNumericInputUnavailable)?
             }
-        };
-        let (materialize, cache, outcome) = conversion.into_parts();
-        if materialize {
-            let reached = if let Some(provider) = string_provider {
-                provider()
-            } else {
-                self.native_string_bytes(string_protocol)
-                    .map_err(tcl_syntax::raw_string::NativeStringAccessError::Unavailable)
-                    .map_err(ValueError::from)
-                    .map_err(E::from)
-            };
-            Self::native_stage_check(check)?;
-            reached?;
-        }
-        if let Some(cache) = cache {
-            self.adopt_native_scalar_cache_using(cache, protocol, dialect, check)?;
-        }
-        Self::native_stage_check(check)?;
-        Ok(outcome)
+        })
     }
 
     pub(crate) fn prepare_native_expression_integer84_with_environment(
@@ -5283,7 +5372,9 @@ impl Value {
         } else {
             self.replace_primary_using(replacement, check)?;
         }
-        Self::native_stage_check(check)
+        let reached = Self::native_stage_check(check);
+        drop(value);
+        reached
     }
 
     fn from_parts(string: Option<Rc<str>>, intrep: IntRep) -> Self {
@@ -7166,109 +7257,13 @@ impl Value {
             self.native_string_stage_check(check)?;
             reached?
         } else {
-            match &*self.0.intrep.borrow() {
-                IntRep::Str
-                | IntRep::JimString(_)
-                | IntRep::JimSource(_)
-                | IntRep::JimScript(_)
-                | IntRep::JimDictionarySubstitution { .. }
-                | IntRep::JimInterpolated(_)
-                | IntRep::JimScriptLine { .. }
-                | IntRep::Expression(_) => (RawString::from_unicode(""), false),
-                IntRep::NativeBytecode(_) => {
-                    if check.is_some() {
-                        return Err(unavailable());
-                    }
-                    unreachable!("native Bytecode has resident source and no string updater")
-                }
-                IntRep::NativeString {
-                    protocol,
-                    unicode: Some(unicode),
-                    ..
-                } => {
-                    let version = protocol
-                        .tcl_version()
-                        .expect("native C String unit backing");
-                    let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
-                        .encode_units(unicode)
-                        .expect("validated native Unicode units");
-                    (RawString::from_bytes(bytes), false)
-                }
-                IntRep::NativeString {
-                    num_chars: Some(0),
-                    unicode: None,
-                    ..
-                } => (RawString::from_bytes(b"".as_slice()), false),
-                IntRep::NativeString { unicode: None, .. } => {
-                    if check.is_some() {
-                        return Err(unavailable());
-                    }
-                    panic!("native String has neither resident bytes nor Unicode backing")
-                }
-                IntRep::ByteArray(bytes) => (Self::raw_byte_array_string(&bytes.bytes), false),
-                cache @ (IntRep::Int(_)
-                | IntRep::Tcl84Long(_)
-                | IntRep::Tcl84Wide(_)
-                | IntRep::CoercedDouble(_)
-                | IntRep::Big { .. }
-                | IntRep::Double(_)
-                | IntRep::Bool(_)
-                | IntRep::WordBoolean { .. }
-                | IntRep::NativeIndex { .. }
-                | IntRep::NativeNamespaceName(_)
-                | IntRep::JimIndex(_)
-                | IntRep::NativeEndOffset(_)
-                | IntRep::NativeInstructionName(_)) => {
-                    if check.is_some() {
-                        let has_updater = match cache {
-                            IntRep::NativeEndOffset(offset) => offset.string_update().is_some(),
-                            IntRep::NativeIndex { cache, .. } => cache.word().is_ok(),
-                            IntRep::NativeNamespaceName(cache) => cache.string_update_bytes(
-                                tcl_syntax::native_namespace_name::NativeNamespaceNameRecipe::for_tcl_version(cache.version()),
-                            ).is_some(),
-                            IntRep::WordBoolean { version, .. } => *version == tcl_dialect::TclVersion::V8_4,
-                            _ => true,
-                        };
-                        if !has_updater {
-                            return Err(unavailable());
-                        }
-                    }
-                    (self.render_native_cache_bytes(cache), false)
-                }
-                IntRep::CompletionCode(_)
-                | IntRep::NativeArraySearch { .. }
-                | IntRep::FrameLevel { .. }
-                | IntRep::NativePropertyName(_)
-                | IntRep::NativeMethodName(_)
-                | IntRep::NativeRegexp(_)
-                | IntRep::JimRegexp(_)
-                | IntRep::NativeCommandName(_)
-                | IntRep::NativeCommandNameUnresolved(_)
-                | IntRep::JimCommand(_)
-                | IntRep::JimVariable(_)
-                | IntRep::JimOption(_)
-                | IntRep::JimSubcommand(_)
-                | IntRep::NativeParsedVariableName(_)
-                | IntRep::NativeLocalVariableName(_) => {
-                    if check.is_some() {
-                        return Err(unavailable());
-                    }
-                    panic!(
-                        "completion-code cache has no native string updater; use checked native string access"
-                    )
-                }
-                IntRep::List { items, .. } => {
-                    Self::render_list_bytes_using(items.iter(), depth, check, retain)?
-                }
-                IntRep::Dict(dict) => Self::render_list_bytes_using(
-                    dict.pairs_backing()
-                        .iter()
-                        .flat_map(|(key, value)| [key, value]),
-                    depth,
-                    check,
-                    retain,
-                )?,
-            }
+            self.render_independent_primary_using(
+                &self.0.intrep.borrow(),
+                depth,
+                check,
+                retain,
+                &unavailable,
+            )?
         };
         self.native_string_stage_check(check)?;
         if !past_cap {
@@ -7276,6 +7271,128 @@ impl Value {
         }
         self.native_string_stage_check(check)?;
         Ok((generated, past_cap))
+    }
+
+    fn render_independent_primary_using<E: From<ValueError>>(
+        &self,
+        cache: &IntRep,
+        depth: u32,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
+        retain: Option<&dyn Fn(&ValueError)>,
+        unavailable: &dyn Fn() -> E,
+    ) -> Result<(RawString, bool), E> {
+        Ok(match cache {
+            IntRep::Str
+            | IntRep::JimString(_)
+            | IntRep::JimSource(_)
+            | IntRep::JimScript(_)
+            | IntRep::JimDictionarySubstitution { .. }
+            | IntRep::JimInterpolated(_)
+            | IntRep::JimScriptLine { .. }
+            | IntRep::Expression(_) => (RawString::from_unicode(""), false),
+            IntRep::NativeBytecode(_) => {
+                if check.is_some() {
+                    return Err(unavailable());
+                }
+                unreachable!("native Bytecode has resident source and no string updater")
+            }
+            IntRep::NativeString {
+                protocol,
+                unicode: Some(unicode),
+                ..
+            } => {
+                let version = protocol
+                    .tcl_version()
+                    .expect("native C String unit backing");
+                let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+                    .encode_units(unicode)
+                    .expect("validated native Unicode units");
+                (RawString::from_bytes(bytes), false)
+            }
+            IntRep::NativeString {
+                num_chars: Some(0),
+                unicode: None,
+                ..
+            } => (RawString::from_bytes(b"".as_slice()), false),
+            IntRep::NativeString { unicode: None, .. } => {
+                if check.is_some() {
+                    return Err(unavailable());
+                }
+                panic!("native String has neither resident bytes nor Unicode backing")
+            }
+            IntRep::ByteArray(bytes) => (Self::raw_byte_array_string(&bytes.bytes), false),
+            cache @ (IntRep::Int(_)
+            | IntRep::Tcl84Long(_)
+            | IntRep::Tcl84Wide(_)
+            | IntRep::CoercedDouble(_)
+            | IntRep::Big { .. }
+            | IntRep::Double(_)
+            | IntRep::Bool(_)
+            | IntRep::WordBoolean { .. }
+            | IntRep::NativeIndex { .. }
+            | IntRep::NativeNamespaceName(_)
+            | IntRep::JimIndex(_)
+            | IntRep::NativeEndOffset(_)
+            | IntRep::NativeInstructionName(_)) => {
+                self.render_independent_scalar_cache(cache, check.is_some(), unavailable)?
+            }
+            IntRep::CompletionCode(_)
+            | IntRep::NativeArraySearch { .. }
+            | IntRep::FrameLevel { .. }
+            | IntRep::NativePropertyName(_)
+            | IntRep::NativeMethodName(_)
+            | IntRep::NativeRegexp(_)
+            | IntRep::JimRegexp(_)
+            | IntRep::NativeCommandName(_)
+            | IntRep::NativeCommandNameUnresolved(_)
+            | IntRep::JimCommand(_)
+            | IntRep::JimVariable(_)
+            | IntRep::JimOption(_)
+            | IntRep::JimSubcommand(_)
+            | IntRep::NativeParsedVariableName(_)
+            | IntRep::NativeLocalVariableName(_) => {
+                if check.is_some() {
+                    return Err(unavailable());
+                }
+                panic!(
+                    "completion-code cache has no native string updater; use checked native string access"
+                )
+            }
+            IntRep::List { items, .. } => {
+                Self::render_list_bytes_using(items.iter(), depth, check, retain)?
+            }
+            IntRep::Dict(dict) => Self::render_list_bytes_using(
+                dict.pairs_backing()
+                    .iter()
+                    .flat_map(|(key, value)| [key, value]),
+                depth,
+                check,
+                retain,
+            )?,
+        })
+    }
+
+    fn render_independent_scalar_cache<E>(
+        &self,
+        cache: &IntRep,
+        checked: bool,
+        unavailable: &dyn Fn() -> E,
+    ) -> Result<(RawString, bool), E> {
+        if checked {
+            let has_updater = match cache {
+                IntRep::NativeEndOffset(offset) => offset.string_update().is_some(),
+                IntRep::NativeIndex { cache, .. } => cache.word().is_ok(),
+                IntRep::NativeNamespaceName(cache) => cache.string_update_bytes(
+                    tcl_syntax::native_namespace_name::NativeNamespaceNameRecipe::for_tcl_version(cache.version()),
+                ).is_some(),
+                IntRep::WordBoolean { version, .. } => *version == tcl_dialect::TclVersion::V8_4,
+                _ => true,
+            };
+            if !has_updater {
+                return Err(unavailable());
+            }
+        }
+        Ok((self.render_native_cache_bytes(cache), false))
     }
 
     fn raw_byte_array_string(bytes: &[u8]) -> RawString {

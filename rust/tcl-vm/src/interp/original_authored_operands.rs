@@ -41,7 +41,7 @@ impl OriginalAuthoredOperandScope {
         original.check(vm)?;
         Ok(original)
     }
-    pub(crate) fn retain(&self, vm: &mut Vm, error: &CmdError) {
+    pub(crate) fn retain(vm: &mut Vm, error: &CmdError) {
         if let Some(first) = error.native_execution_refusal() {
             vm.retain_tcl_host_failure(TclHostFailure::Execution(first.clone()));
         }
@@ -52,7 +52,7 @@ impl OriginalAuthoredOperandScope {
             self.observed.check(vm)?;
             if !current {
                 let error: CmdError = ValueError::CommandProtocolUnavailable(purpose).into();
-                self.retain(vm, &error);
+                Self::retain(vm, &error);
                 return Err(error);
             }
             Ok(())
@@ -78,7 +78,7 @@ impl OriginalAuthoredOperandScope {
             &mut |vm| self.check(vm),
         );
         if let Err(error) = &reached {
-            self.retain(vm, error);
+            Self::retain(vm, error);
         }
         before?;
         self.check(vm)?;
@@ -110,7 +110,7 @@ impl OriginalAuthoredOperandScope {
                 .and_then(|protocol| self.string_with_recipe(vm, original.value(), protocol, false))
         };
         if let Err(error) = &reached {
-            self.retain(vm, error);
+            Self::retain(vm, error);
         }
         drop(original);
         self.current_for_value(vm, value)?;
@@ -145,7 +145,7 @@ impl OriginalAuthoredOperandScope {
             protocol,
             formatter,
             &mut |actual| self.current_for_value(&mut vm.borrow_mut(), actual),
-            &|error| self.retain(&mut vm.borrow_mut(), &error.clone().into()),
+            &|error| Self::retain(&mut vm.borrow_mut(), &error.clone().into()),
         )
     }
     /// The already captured object purpose supplies binary String conversion;
@@ -193,7 +193,7 @@ impl OriginalAuthoredOperandScope {
             &mut || self.binary_string(&mut vm.borrow_mut(), value),
         );
         if let Err(error) = &reached {
-            self.retain(&mut vm.borrow_mut(), error);
+            Self::retain(&mut vm.borrow_mut(), error);
         }
         self.current_for_value(&mut vm.borrow_mut(), value)?;
         let reached = match reached? {
@@ -221,7 +221,7 @@ impl OriginalAuthoredOperandScope {
             Err(error) => Err(error.into()),
         };
         if let Err(error) = &reached {
-            self.retain(&mut vm.borrow_mut(), error);
+            Self::retain(&mut vm.borrow_mut(), error);
         }
         self.current_for_value(&mut vm.borrow_mut(), value)?;
         reached
@@ -255,7 +255,7 @@ impl OriginalAuthoredOperandScope {
                 .bind_native_jim_context(&context)
                 .map_err(CmdError::from);
             if let Err(error) = &reached {
-                self.retain(vm, error);
+                Self::retain(vm, error);
             }
             self.current_for_value(vm, value)?;
             reached?;
@@ -270,7 +270,7 @@ impl OriginalAuthoredOperandScope {
             },
         );
         if let Err(error) = &reached {
-            self.retain(&mut vm.borrow_mut(), error);
+            Self::retain(&mut vm.borrow_mut(), error);
         }
         self.current_for_value(&mut vm.borrow_mut(), value)?;
         reached.map(|items| items.as_ref().clone())
@@ -282,7 +282,7 @@ impl OriginalAuthoredOperandScope {
         let vm = RefCell::new(vm);
         value.string_bytes_checked_for_value_retaining::<CmdError>(
             &mut |actual| self.current_for_value(&mut vm.borrow_mut(), actual),
-            &|error| self.retain(&mut vm.borrow_mut(), &error.clone().into()),
+            &|error| Self::retain(&mut vm.borrow_mut(), &error.clone().into()),
         )
     }
     pub(crate) fn unicode(&self, vm: &mut Vm, value: &Value) -> Result<String, CmdError> {
@@ -293,7 +293,7 @@ impl OriginalAuthoredOperandScope {
             .map_err(ValueError::from)
             .map_err(CmdError::from);
         if let Err(error) = &reached {
-            self.retain(vm, error);
+            Self::retain(vm, error);
         }
         self.current_for_value(vm, value)?;
         reached
@@ -316,7 +316,7 @@ pub(crate) fn with_original_authored_operands(
     };
     let reached = work(vm, &original);
     if let Err(error) = &reached {
-        original.retain(vm, error);
+        OriginalAuthoredOperandScope::retain(vm, error);
     }
     if let Err(first) = original.check(vm) {
         drop(reached);

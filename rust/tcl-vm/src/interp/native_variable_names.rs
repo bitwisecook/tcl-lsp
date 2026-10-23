@@ -27,6 +27,7 @@ type PreparedOriginalVariable = (
     ResolvedVar,
 );
 
+#[derive(Clone, Copy)]
 struct OriginalVariableLookup {
     protocol: tcl_syntax::native_variable_name::NativeVariableNameProtocol,
     namespace: Option<tcl_core_types::NsId>,
@@ -1789,13 +1790,15 @@ impl Vm {
             NativeVariableNameLookupPurpose::QuietWrite,
             Some(tcl_core_types::ROOT_NS),
         )?;
-        self.append_original_c84_selected_variable(
+        let reached = self.append_original_c84_selected_variable(
             original,
             &bytes,
             element.as_deref(),
             &source,
             resolved,
-        )
+        );
+        drop(source);
+        reached
     }
 
     fn store_original_c_variable_in(

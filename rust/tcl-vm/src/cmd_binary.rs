@@ -138,9 +138,8 @@ fn bytes_to_value(vm: &Vm, bytes: &[u8]) -> Value {
     {
         return Value::from_string_bytes(bytes);
     }
-    if let Some(recipe) = vm
-        .object_materialization()
-        .and_then(|materialization| materialization.byte_array_string_recipe())
+    if let Some(materialization) = vm.object_materialization()
+        && let Some(recipe) = materialization.byte_array_string_recipe()
     {
         return Value::from_byte_array_recipe(std::rc::Rc::from(bytes), recipe);
     }
@@ -813,7 +812,7 @@ fn binary_format_with_invocation(
                         &mut |field| binary_bad_field(grammar, field),
                     );
                     if let Err(error) = &reached {
-                        original.retain(ops.vm, error);
+                        crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(ops.vm, error);
                     }
                     original.check(ops.vm)?;
                     Ok(ok(original.binary_result(ops.vm, reached?)?))
@@ -888,7 +887,9 @@ impl tcl_cmd_core::binary::FormatValueOps for OriginalBinaryFormat<'_> {
             tcl_cmd_core::binary::integer_value(self.vm, value, self.syntax)
         };
         if let Err(error) = &reached {
-            self.original.retain(self.vm, error);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                self.vm, error,
+            );
         }
         self.original.current_for_value(self.vm, value)?;
         reached
@@ -906,7 +907,9 @@ impl tcl_cmd_core::binary::FormatValueOps for OriginalBinaryFormat<'_> {
             tcl_syntax::value::ValueOps::as_double(self.vm, value).map_err(Into::into)
         };
         if let Err(error) = &reached {
-            self.original.retain(self.vm, error);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                self.vm, error,
+            );
         }
         self.original.current_for_value(self.vm, value)?;
         reached

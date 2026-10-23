@@ -743,7 +743,13 @@ fn array_for_after_trace(
     };
     let script = body.clone();
     let result = array_for_loop(
-        vm, kvar, vvar, name, &script, target, &keys, revision, currency,
+        vm,
+        (kvar, vvar, &script),
+        name,
+        target,
+        &keys,
+        revision,
+        currency,
     );
     drop(script);
     drop(names);
@@ -759,15 +765,14 @@ fn array_for_after_trace(
 
 fn array_for_loop(
     vm: &mut Vm,
-    kvar: &Value,
-    vvar: &Value,
+    operands: (&Value, &Value, &Value),
     name: &[u8],
-    body: &Value,
     target: &ArrayTarget,
     keys: &[Vec<u8>],
     revision: Option<u64>,
     currency: &NativeOperationCurrency,
 ) -> Completion<Value> {
+    let (kvar, vvar, body) = operands;
     for key in keys {
         match same_array_target(vm, name, target, revision) {
             Ok(true) => {}

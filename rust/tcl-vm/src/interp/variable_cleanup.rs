@@ -29,6 +29,12 @@ use tcl_core_types::VarId;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::value::ValueError;
 
+pub(super) struct ElementRetirementPolicy {
+    pub(super) preserve: bool,
+    pub(super) table_holds: bool,
+    pub(super) dying: bool,
+}
+
 /// Physical storage observation is separate from an entered operation. Neither
 /// this receipt nor a weak cell creates a native Var/reference or name purpose.
 pub(super) struct OriginalVariableCleanup {
@@ -385,10 +391,13 @@ impl OriginalVariableCleanup {
         parent: Option<VarId>,
         elements: crate::vars::VarTable,
         reported: Option<&[u8]>,
-        preserve: bool,
-        table_holds: bool,
-        dying: bool,
+        policy: ElementRetirementPolicy,
     ) -> Vec<VarId> {
+        let ElementRetirementPolicy {
+            preserve,
+            table_holds,
+            dying,
+        } = policy;
         let mut retired = Vec::new();
         let Ok(elements) = self.in_original(vm, |_| elements.into_iter()) else {
             return retired;
@@ -506,9 +515,11 @@ impl OriginalVariableCleanup {
                     Some(id),
                     elements,
                     reported,
-                    preserve,
-                    table_holds,
-                    true,
+                    ElementRetirementPolicy {
+                        preserve,
+                        table_holds,
+                        dying: true,
+                    },
                 );
                 for id in retired {
                     let _ = self.retire(vm, VariableRetirement::unbind(id));
@@ -874,6 +885,59 @@ impl OriginalVariableCleanup {
         let _ = self.check(vm);
     }
 
+    fn retire_jim_namespace(
+        &self,
+        vm: &mut Vm,
+        canonical: &[u8],
+        owner: super::VarTableOwner,
+        table_birth: &Weak<()>,
+    ) {
+        let prefix = (!canonical.is_empty()).then(|| {
+            let mut prefix = canonical.to_vec();
+            prefix.extend_from_slice(b"::");
+            prefix
+        });
+        let names = self
+            .state_mut(vm)
+            .ok()
+            .and_then(|state| table(state, owner))
+            .map(|table| {
+                table
+                    .iter()
+                    .filter(|(name, _)| {
+                        prefix
+                            .as_ref()
+                            .is_none_or(|prefix| name.as_bytes().starts_with(prefix))
+                    })
+                    .map(|(name, raw)| (name.clone(), *raw))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        for (name, raw) in names {
+            let binding = super::VarBinding {
+                owner,
+                name: name.clone(),
+            };
+            if self.check(vm).is_ok() {
+                let mut written = b"::".to_vec();
+                written.extend_from_slice(name.as_bytes());
+                let _ = self.in_original(vm, |vm| vm.unset_var_bytes(&written));
+            } else {
+                let selected = VariableSlot {
+                    binding: Some(binding),
+                    key: name,
+                    table: table_birth.clone(),
+                    frame: None,
+                    parent: None,
+                    raw,
+                };
+                self.remove_selected(vm, &selected, true, true);
+                self.purge(vm, raw);
+            }
+        }
+        let _ = self.check(vm);
+    }
+
     pub(super) fn namespace(
         &self,
         vm: &mut Vm,
@@ -890,50 +954,7 @@ impl OriginalVariableCleanup {
             return;
         };
         if jim {
-            let prefix = (!canonical.is_empty()).then(|| {
-                let mut prefix = canonical.to_vec();
-                prefix.extend_from_slice(b"::");
-                prefix
-            });
-            let names = self
-                .state_mut(vm)
-                .ok()
-                .and_then(|state| table(state, owner))
-                .map(|table| {
-                    table
-                        .iter()
-                        .filter(|(name, _)| {
-                            prefix
-                                .as_ref()
-                                .is_none_or(|prefix| name.as_bytes().starts_with(prefix))
-                        })
-                        .map(|(name, raw)| (name.clone(), *raw))
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            for (name, raw) in names {
-                let binding = super::VarBinding {
-                    owner,
-                    name: name.clone(),
-                };
-                if self.check(vm).is_ok() {
-                    let mut written = b"::".to_vec();
-                    written.extend_from_slice(name.as_bytes());
-                    let _ = self.in_original(vm, |vm| vm.unset_var_bytes(&written));
-                } else {
-                    let selected = VariableSlot {
-                        binding: Some(binding),
-                        key: name,
-                        table: table_birth.clone(),
-                        frame: None,
-                        parent: None,
-                        raw,
-                    };
-                    self.remove_selected(vm, &selected, true, true);
-                    self.purge(vm, raw);
-                }
-            }
-            let _ = self.check(vm);
+            self.retire_jim_namespace(vm, canonical, owner, &table_birth);
             return;
         }
         loop {

@@ -575,48 +575,59 @@ fn lookup_property_entered(
     match verdict {
         Ok(index) => selected_property_member(vm, header.value(), operation, index),
         Err(message) => {
-            let other = vm
-                .native_all_property_header(target, false, !writable)
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
-            let other = operation
-                .list(vm, other.value())
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
-            let mut other_words = Vec::new();
-            for name in other.iter() {
-                other_words.push(
-                    operation
-                        .string(vm, name)
-                        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?,
-                );
-            }
-            let other_borrowed: Vec<_> = other_words
-                .iter()
-                .map(std::convert::AsRef::as_ref)
-                .collect();
-            let mut error = message;
-            if let Ok(index) = recipe.lookup(&bytes, &other_borrowed) {
-                error = b"property \"".to_vec();
-                error.extend_from_slice(tcl_core_types::c_string_extent(&other_words[index]));
-                error.extend_from_slice(if writable {
-                    b"\" is read only"
-                } else {
-                    b"\" is write only"
-                });
-            }
-            let protocol = vm
-                .actual_native_invocation_dialect()
-                .native_index_lookup_protocol()
-                .expect("selected C91 property Index recipe");
-            Err(crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::with_error_code_bytes(
-                    error,
-                    protocol.error_code(b"property", &bytes),
-                )
-                .with_native_string_result(recipe.strings()),
-            ))
+            property_lookup_failure(vm, target, writable, operation, &bytes, recipe, message)
         }
     }
+}
+
+fn property_lookup_failure(
+    vm: &mut Vm,
+    target: OoId,
+    writable: bool,
+    operation: &OriginalPropertyOperation,
+    bytes: &[u8],
+    recipe: tcl_registry::native_property_lookup::NativePropertyLookupProtocol,
+    mut error: Vec<u8>,
+) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
+    let other = vm
+        .native_all_property_header(target, false, !writable)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    let other = operation
+        .list(vm, other.value())
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
+    let mut other_words = Vec::new();
+    for name in other.iter() {
+        other_words.push(
+            operation
+                .string(vm, name)
+                .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?,
+        );
+    }
+    let other_borrowed: Vec<_> = other_words
+        .iter()
+        .map(std::convert::AsRef::as_ref)
+        .collect();
+    if let Ok(index) = recipe.lookup(bytes, &other_borrowed) {
+        error = b"property \"".to_vec();
+        error.extend_from_slice(tcl_core_types::c_string_extent(&other_words[index]));
+        error.extend_from_slice(if writable {
+            b"\" is read only"
+        } else {
+            b"\" is write only"
+        });
+    }
+    let protocol = vm
+        .actual_native_invocation_dialect()
+        .native_index_lookup_protocol()
+        .expect("selected C91 property Index recipe");
+    Err(crate::command::completion_from_cmd_error(
+        vm,
+        tcl_cmd_core::CmdError::with_error_code_bytes(
+            error,
+            protocol.error_code(b"property", bytes),
+        )
+        .with_native_string_result(recipe.strings()),
+    ))
 }
 
 fn selected_property_member(
@@ -1050,6 +1061,79 @@ fn write_original_property(
     invoke_original_accessor(vm, target, property, true, Some(value)).map(|_| ())
 }
 
+fn read_property_definition_options(
+    vm: &mut Vm,
+    args: &[Value],
+    cursor: &mut usize,
+    original_names: &mut super::original_name_operands::OriginalOoNameScope,
+    recipe: tcl_registry::native_property_lookup::NativePropertyNameProtocol,
+    options: &tcl_registry::native_index_lookup::NativeStaticIndexTable,
+    kinds: &tcl_registry::native_index_lookup::NativeStaticIndexTable,
+) -> Result<(TclOoPropertyKind, Option<Value>, Option<Value>), Completion<Value>> {
+    let mut kind = TclOoPropertyKind::ReadWrite;
+    let mut getter = None;
+    let mut setter = None;
+    while *cursor < args.len() {
+        let bytes = match original_names.read(vm, &args[*cursor]) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return Err(crate::command::completion_from_cmd_error(vm, error));
+            }
+        };
+        if bytes.first() != Some(&b'-') {
+            break;
+        }
+        let reached = vm.native_index_operand_checked(&args[*cursor], options, false, "option");
+        if let Err(error) = original_names.check_target(vm) {
+            return Err(crate::command::completion_from_cmd_error(vm, error));
+        }
+        let option = match reached {
+            Ok(option) => option,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        *cursor += 1;
+        let Some(value) = args.get(*cursor) else {
+            let message = if option == 1 {
+                b"missing kind value to go with -kind option".as_slice()
+            } else if option == 0 {
+                b"missing body to go with -get option".as_slice()
+            } else {
+                b"missing body to go with -set option".as_slice()
+            };
+            return Err(crate::command::completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::with_error_code_bytes(
+                    message.to_vec(),
+                    b"TCL WRONGARGS".to_vec(),
+                )
+                .with_native_string_result(recipe.strings()),
+            ));
+        };
+        match option {
+            0 => getter = Some(value.clone()),
+            2 => setter = Some(value.clone()),
+            1 => {
+                let reached = vm.native_index_operand_checked(value, kinds, false, "kind");
+                if let Err(error) = original_names.check_target(vm) {
+                    return Err(crate::command::completion_from_cmd_error(vm, error));
+                }
+                kind = match reached {
+                    Ok(0) => TclOoPropertyKind::Readable,
+                    Ok(1) => TclOoPropertyKind::ReadWrite,
+                    Ok(2) => TclOoPropertyKind::Writable,
+                    Ok(_) => unreachable!("closed native kind roster"),
+                    Err(error) => {
+                        return Err(crate::command::completion_from_cmd_error(vm, error));
+                    }
+                };
+            }
+            _ => unreachable!("closed native property option roster"),
+        }
+        *cursor += 1;
+    }
+    Ok((kind, getter, setter))
+}
+
 pub(super) fn define_original_properties(
     vm: &mut Vm,
     class: bool,
@@ -1073,68 +1157,18 @@ pub(super) fn define_original_properties(
                 }
             };
             cursor += 1;
-            let mut kind = TclOoPropertyKind::ReadWrite;
-            let mut getter = None;
-            let mut setter = None;
-            while cursor < args.len() {
-                let bytes = match original_names.read(vm, &args[cursor]) {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return crate::command::completion_from_cmd_error(vm, error);
-                    }
-                };
-                if bytes.first() != Some(&b'-') {
-                    break;
-                }
-                let reached =
-                    vm.native_index_operand_checked(&args[cursor], &options, false, "option");
-                if let Err(error) = original_names.check_target(vm) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
-                let option = match reached {
-                    Ok(option) => option,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-                cursor += 1;
-                let Some(value) = args.get(cursor) else {
-                    let message = if option == 1 {
-                        b"missing kind value to go with -kind option".as_slice()
-                    } else if option == 0 {
-                        b"missing body to go with -get option".as_slice()
-                    } else {
-                        b"missing body to go with -set option".as_slice()
-                    };
-                    return crate::command::completion_from_cmd_error(
-                        vm,
-                        tcl_cmd_core::CmdError::with_error_code_bytes(
-                            message.to_vec(),
-                            b"TCL WRONGARGS".to_vec(),
-                        )
-                        .with_native_string_result(recipe.strings()),
-                    );
-                };
-                match option {
-                    0 => getter = Some(value.clone()),
-                    2 => setter = Some(value.clone()),
-                    1 => {
-                        let reached = vm.native_index_operand_checked(value, &kinds, false, "kind");
-                        if let Err(error) = original_names.check_target(vm) {
-                            return crate::command::completion_from_cmd_error(vm, error);
-                        }
-                        kind = match reached {
-                            Ok(0) => TclOoPropertyKind::Readable,
-                            Ok(1) => TclOoPropertyKind::ReadWrite,
-                            Ok(2) => TclOoPropertyKind::Writable,
-                            Ok(_) => unreachable!("closed native kind roster"),
-                            Err(error) => {
-                                return crate::command::completion_from_cmd_error(vm, error);
-                            }
-                        };
-                    }
-                    _ => unreachable!("closed native property option roster"),
-                }
-                cursor += 1;
-            }
+            let (kind, getter, setter) = match read_property_definition_options(
+                vm,
+                args,
+                &mut cursor,
+                original_names,
+                recipe,
+                &options,
+                &kinds,
+            ) {
+                Ok(options) => options,
+                Err(error) => return error,
+            };
             if let Err(message) = recipe.validate_declaration(&name) {
                 return crate::command::completion_from_cmd_error(
                     vm,

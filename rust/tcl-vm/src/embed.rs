@@ -278,13 +278,17 @@ impl Vm {
                     .current_for_value(&mut vm.borrow_mut(), actual)
             },
             &|error| {
-                original
-                    .original
-                    .retain(&mut vm.borrow_mut(), &error.clone().into());
+                crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                    &mut vm.borrow_mut(),
+                    &error.clone().into(),
+                );
             },
         );
         if let Err(error) = &reached {
-            original.original.retain(&mut vm.borrow_mut(), error);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                &mut vm.borrow_mut(),
+                error,
+            );
         }
         original
             .original
@@ -358,7 +362,9 @@ impl Vm {
             .map_err(tcl_syntax::value::ValueError::from)
             .map_err(tcl_cmd_core::CmdError::from);
         if let Err(error) = &reached {
-            original.original.retain(self, error);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                self, error,
+            );
         }
         original
             .original
@@ -428,7 +434,9 @@ impl Vm {
     ) -> TclError {
         let first = self.retain_tcl_host_failure(failure);
         let error = tcl_cmd_core::CmdError::from_execution_refusal(first.clone());
-        original.original.retain(self, &error);
+        crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+            self, &error,
+        );
         TclError::from_execution_failure(first)
     }
 

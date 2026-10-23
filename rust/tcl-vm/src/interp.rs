@@ -7483,7 +7483,7 @@ impl Vm {
         published_token: CommandTokenIdentity,
         original: &[u8],
     ) -> Result<Result<(), tcl_cmd_core::CmdError>, tcl_cmd_core::CmdError> {
-        self.in_interp(src, |vm| {
+        let reached = self.in_interp(src, |vm| {
             let scope = native_name_consumers::OriginalNameConsumerScope::enter_for_namespace(
                 vm,
                 Some(ROOT_NS),
@@ -7519,7 +7519,9 @@ impl Vm {
                 vm.replace_c84_alias_registration(src_cmd, &published_token, &scope)
             })();
             vm.original_name_finish(scope, reached)
-        })
+        });
+        drop(published_token);
+        reached
     }
 
     fn check_published_alias_loop(
@@ -21137,9 +21139,11 @@ impl Vm {
             parent,
             elements,
             Some(name),
-            preserve_definition,
-            table_holds_vars,
-            false,
+            variable_cleanup::ElementRetirementPolicy {
+                preserve: preserve_definition,
+                table_holds: table_holds_vars,
+                dying: false,
+            },
         )
     }
 

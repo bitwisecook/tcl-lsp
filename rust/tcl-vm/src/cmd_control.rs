@@ -282,7 +282,7 @@ enum ControlKind {
         original: Value,
         words: crate::NativeListItems,
         label: &'static str,
-        restore: Option<crate::interp::SelectedFrameRestore>,
+        restore: Option<Box<crate::interp::SelectedFrameRestore>>,
         report_body_frame: bool,
     },
     If {
@@ -341,7 +341,7 @@ pub(crate) enum ControlStep {
 impl ControlState {
     pub(crate) fn selected_frame_restore(&self) -> Option<&crate::interp::SelectedFrameRestore> {
         match &self.kind {
-            ControlKind::ObjectEval { restore, .. } => restore.as_ref(),
+            ControlKind::ObjectEval { restore, .. } => restore.as_deref(),
             _ => None,
         }
     }
@@ -350,7 +350,7 @@ impl ControlState {
         &mut self,
     ) -> Option<crate::interp::SelectedFrameRestore> {
         match &mut self.kind {
-            ControlKind::ObjectEval { restore, .. } => restore.take(),
+            ControlKind::ObjectEval { restore, .. } => restore.take().map(|restore| *restore),
             _ => None,
         }
     }
@@ -366,7 +366,7 @@ impl ControlState {
                 original,
                 words,
                 label,
-                restore,
+                restore: restore.map(Box::new),
                 report_body_frame: true,
             },
             phase: ControlPhase::ObjectCommand,
@@ -401,7 +401,7 @@ impl ControlState {
                 // The activation keeps the original container even if a callback
                 // replaces its internal representation during dispatch.
                 let _ = original;
-                report_body_frame.then(|| (*label, restore.take()))
+                report_body_frame.then(|| (*label, restore.take().map(|restore| *restore)))
             }
             _ => None,
         }

@@ -915,8 +915,7 @@ impl Vm {
             &world,
             table,
             protocol,
-            namespace,
-            source_namespace,
+            (namespace, source_namespace),
             context,
             |effect| {
                 original.with_vm(|vm| match effect {

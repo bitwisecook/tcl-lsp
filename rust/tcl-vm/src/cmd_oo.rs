@@ -2393,40 +2393,7 @@ fn builtin_method(
         };
         match method {
             "variable" => builtin_variable(vm, obj_key, args),
-            "varname" => {
-                if args.len() != 1 {
-                    return crate::command::native_wrong_args(vm, "my varname varName");
-                }
-                if let Err(error) = original_names.select_declaring_provider(vm) {
-                    return crate::command::completion_from_cmd_error(vm, error);
-                }
-                let Some(namespace) = vm
-                    .oo
-                    .objects
-                    .get(&obj_key)
-                    .and_then(|object| object.namespace_token)
-                else {
-                    return vm
-                        .refuse_host_command("actual TclOO variable namespace unavailable".into());
-                };
-                let bytes = match original_names.read(vm, &args[0]) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                };
-                let storage = frame_private_storage_name(
-                    vm,
-                    &bytes,
-                    tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
-                );
-                match vm.original_c_oo_varname(
-                    &args[0],
-                    namespace,
-                    storage.as_ref().map_or(bytes.as_ref(), NameBytes::as_bytes),
-                ) {
-                    Ok(result) => ok(result),
-                    Err(error) => error,
-                }
-            }
+            "varname" => builtin_varname(vm, obj_key, args, original_names),
             "eval" => {
                 if args.is_empty() {
                     return crate::command::native_wrong_args(vm, "my eval arg ?arg ...?");
@@ -2492,6 +2459,45 @@ fn builtin_method(
             _ => unreachable!("builtin_method called with {method}"),
         }
     })
+}
+
+fn builtin_varname(
+    vm: &mut Vm,
+    obj_key: OoId,
+    args: &[Value],
+    original_names: &mut original_name_operands::OriginalOoNameScope,
+) -> Completion<Value> {
+    if args.len() != 1 {
+        return crate::command::native_wrong_args(vm, "my varname varName");
+    }
+    if let Err(error) = original_names.select_declaring_provider(vm) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let Some(namespace) = vm
+        .oo
+        .objects
+        .get(&obj_key)
+        .and_then(|object| object.namespace_token)
+    else {
+        return vm.refuse_host_command("actual TclOO variable namespace unavailable".into());
+    };
+    let bytes = match original_names.read(vm, &args[0]) {
+        Ok(bytes) => bytes,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let storage = frame_private_storage_name(
+        vm,
+        &bytes,
+        tcl_syntax::naming::NativeOoPrivateVariablePurpose::Varname,
+    );
+    match vm.original_c_oo_varname(
+        &args[0],
+        namespace,
+        storage.as_ref().map_or(bytes.as_ref(), NameBytes::as_bytes),
+    ) {
+        Ok(result) => ok(result),
+        Err(error) => error,
+    }
 }
 
 fn builtin_variable(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Value> {
@@ -2604,32 +2610,48 @@ fn cmd_self(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+fn self_outside_method(vm: &mut Vm) -> Completion<Value> {
+    let Some(original) = vm.invoked_name_value() else {
+        return vm.refuse_host_command("original self invocation head is unavailable".into());
+    };
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+    else {
+        return vm
+            .refuse_host_command("native self invocation string getter is unavailable".into());
+    };
+    let head = match original.native_string_bytes(protocol) {
+        Ok(head) => head,
+        Err(error) => {
+            return crate::command::completion_from_cmd_error(
+                vm,
+                tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
+            );
+        }
+    };
+    native_context::helper_context_error(vm, &head)
+}
+
+fn self_call_chain(vm: &Vm, fr: &OoFrame) -> Completion<Value> {
+    let steps: Vec<Value> = fr
+        .chain
+        .iter()
+        .map(|s| Value::from_native_string_bytes(display_oo_bytes(vm, s.provider)))
+        .collect();
+    ok(Value::list(vec![
+        Value::list(steps),
+        Value::int(i64::try_from(fr.index).unwrap_or(0)),
+    ]))
+}
+
 fn cmd_self_entered(
     vm: &mut Vm,
     args: &[Value],
     context: &crate::interp::native_name_consumers::OriginalNameConsumerScope,
 ) -> Completion<Value> {
     let Some(original_frame) = native_context::OriginalMethodFrame::capture(vm) else {
-        let Some(original) = vm.invoked_name_value() else {
-            return vm.refuse_host_command("original self invocation head is unavailable".into());
-        };
-        let Some(protocol) = vm
-            .actual_native_invocation_dialect()
-            .native_string_protocol()
-        else {
-            return vm
-                .refuse_host_command("native self invocation string getter is unavailable".into());
-        };
-        let head = match original.native_string_bytes(protocol) {
-            Ok(head) => head,
-            Err(error) => {
-                return crate::command::completion_from_cmd_error(
-                    vm,
-                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
-                );
-            }
-        };
-        return native_context::helper_context_error(vm, &head);
+        return self_outside_method(vm);
     };
     let fr = native_context::current_method(vm).expect("captured original method frame");
     let self_name = frame_object_name(vm, fr);
@@ -2710,17 +2732,7 @@ fn cmd_self_entered(
                 )
             }
         }
-        Some("call") => {
-            let steps: Vec<Value> = fr
-                .chain
-                .iter()
-                .map(|s| Value::from_native_string_bytes(display_oo_bytes(vm, s.provider)))
-                .collect();
-            ok(Value::list(vec![
-                Value::list(steps),
-                Value::int(i64::try_from(fr.index).unwrap_or(0)),
-            ]))
-        }
+        Some("call") => self_call_chain(vm, fr),
         Some("target") => {
             let step = &fr.chain[fr.index];
             ok(Value::list(vec![
@@ -3299,13 +3311,90 @@ fn active_target(vm: &Vm) -> Option<(bool, OoId)> {
     })
 }
 
+/// Read original variable operands and select their native slot operation.
+fn read_declared_variable_selection(
+    vm: &mut Vm,
+    args: &[Value],
+    private: bool,
+    selected_mapping: bool,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    original_names: &original_name_operands::OriginalOoNameScope,
+) -> Result<
+    (
+        Vec<DeclaredVariable>,
+        tcl_syntax::naming::NativeOoVariableSlotOperation,
+    ),
+    Completion<Value>,
+> {
+    use tcl_syntax::naming::{NativeOoVariableSlotOperation, native_oo_variable_slot};
+    let mut incoming = Vec::new();
+    for original in args {
+        let bytes = match original_names.read(vm, original) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
+        };
+        incoming.push(DeclaredVariable {
+            original: if selected_mapping {
+                original.native_lifetime_lease().into_value()
+            } else {
+                original.clone()
+            },
+            name: NameBytes::from(bytes.as_ref()),
+            full_name: None,
+        });
+    }
+    let selection = match native_oo_variable_slot(
+        policy.recipe(),
+        incoming.first().map(|entry| entry.name.as_bytes()),
+    ) {
+        Ok(Ok(selection)) => selection,
+        Ok(Err(error)) => return Err(declared_variable_error(error)),
+        Err(error) => return Err(vm.refuse_host_command(format!("{error:?}"))),
+    };
+    if selection.consumes_first {
+        incoming.remove(0);
+    }
+    if selection.operation == NativeOoVariableSlotOperation::Clear && !incoming.is_empty() {
+        let words = if private {
+            vec![
+                Value::string("private"),
+                Value::string("variable"),
+                args[0].clone(),
+            ]
+        } else {
+            vec![Value::string("variable"), args[0].clone()]
+        };
+        let usage = match vm.native_argument_usage_header(&words) {
+            Ok(usage) => usage,
+            Err(completion) => return Err(completion),
+        };
+        return Err(crate::command::native_wrong_args_bytes(vm, &usage));
+    }
+    Ok((incoming, selection.operation))
+}
+
+fn updated_declared_variables(
+    selected_mapping: bool,
+    existing: Vec<DeclaredVariable>,
+    incoming: Vec<DeclaredVariable>,
+    operation: tcl_syntax::naming::NativeOoVariableSlotOperation,
+) -> Vec<DeclaredVariable> {
+    if selected_mapping {
+        tcl_syntax::naming::apply_native_oo_slot_records(existing, incoming, operation, |entry| {
+            entry.name.as_bytes()
+        })
+    } else {
+        tcl_syntax::naming::apply_native_oo_variable_slot(existing, incoming, operation, |entry| {
+            entry.name.as_bytes()
+        })
+    }
+}
+
 /// Write one `variable` declaration into the target's public or private slot.
 fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Value> {
     let target = active_target(vm);
     original_name_operands::run(vm, target, |vm, original_names| {
-        use tcl_syntax::naming::{
-            NativeOoVariableSlotOperation, native_oo_variable_slot, validate_native_oo_variable,
-        };
+        use tcl_syntax::naming::{NativeOoVariableSlotOperation, validate_native_oo_variable};
         let Some((is_class, target)) = active_target(vm) else {
             return err_code(
                 "this command may only be called from within the context of an ::oo::define or ::oo::objdefine command",
@@ -3318,52 +3407,20 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
             );
         };
         let selected_mapping = variable_mapping::selected(policy);
-        let mut incoming = Vec::new();
-        for original in args {
-            let bytes = match original_names.read(vm, original) {
-                Ok(bytes) => bytes,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            };
-            incoming.push(DeclaredVariable {
-                original: if selected_mapping {
-                    original.native_lifetime_lease().into_value()
-                } else {
-                    original.clone()
-                },
-                name: NameBytes::from(bytes.as_ref()),
-                full_name: None,
-            });
-        }
-        let selection = match native_oo_variable_slot(
-            policy.recipe(),
-            incoming.first().map(|entry| entry.name.as_bytes()),
+        let (incoming, operation) = match read_declared_variable_selection(
+            vm,
+            args,
+            private,
+            selected_mapping,
+            policy,
+            original_names,
         ) {
-            Ok(Ok(selection)) => selection,
-            Ok(Err(error)) => return declared_variable_error(error),
-            Err(error) => return vm.refuse_host_command(format!("{error:?}")),
+            Ok(selected) => selected,
+            Err(completion) => return completion,
         };
-        if selection.consumes_first {
-            incoming.remove(0);
-        }
-        if selection.operation == NativeOoVariableSlotOperation::Clear && !incoming.is_empty() {
-            let words = if private {
-                vec![
-                    Value::string("private"),
-                    Value::string("variable"),
-                    args[0].clone(),
-                ]
-            } else {
-                vec![Value::string("variable"), args[0].clone()]
-            };
-            let usage = match vm.native_argument_usage_header(&words) {
-                Ok(usage) => usage,
-                Err(completion) => return completion,
-            };
-            return crate::command::native_wrong_args_bytes(vm, &usage);
-        }
         if incoming.is_empty()
             && !matches!(
-                selection.operation,
+                operation,
                 NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear
             )
         {
@@ -3371,7 +3428,7 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
         }
         let existing = if selected_mapping
             && matches!(
-                selection.operation,
+                operation,
                 NativeOoVariableSlotOperation::Set | NativeOoVariableSlotOperation::Clear
             ) {
             Some(Vec::new())
@@ -3390,21 +3447,7 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
             };
             entry.name = NameBytes::from(bytes.as_ref());
         }
-        let updated = if selected_mapping {
-            tcl_syntax::naming::apply_native_oo_slot_records(
-                existing,
-                incoming,
-                selection.operation,
-                |entry| entry.name.as_bytes(),
-            )
-        } else {
-            tcl_syntax::naming::apply_native_oo_variable_slot(
-                existing,
-                incoming,
-                selection.operation,
-                |entry| entry.name.as_bytes(),
-            )
-        };
+        let updated = updated_declared_variables(selected_mapping, existing, incoming, operation);
         for entry in &updated {
             match validate_native_oo_variable(policy.recipe(), entry.name.as_bytes()) {
                 Ok(None) => {}

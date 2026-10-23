@@ -1060,9 +1060,7 @@ fn populate_dictionary_with_variables(
             Ok(name) => name,
             Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error)),
         };
-        if let Err(error) = vm.store_var_result_bytes(&written, value) {
-            return Err(error);
-        }
+        vm.store_var_result_bytes(&written, value)?;
         mappings.push((key.clone(), key));
     }
     Ok(mappings)
@@ -1262,9 +1260,7 @@ fn populate_dictionary_update_variables(
             Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
         };
         if exists {
-            if let Err(error) = vm.store_var_result_bytes(&name, selected) {
-                return Err(error);
-            }
+            vm.store_var_result_bytes(&name, selected)?;
         } else {
             let _ = vm.unset_var_bytes(&name);
             if let Some(refusal) = vm.refused_completion() {
