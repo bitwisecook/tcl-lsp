@@ -1,0 +1,32 @@
+{
+  "scope": "release candidate process-script cleanup; no lockfile or policy edits",
+  "branch": "release/lsp-naming",
+  "candidate_root": "/workspace/naming-lsp-release/tcl-lsp",
+  "script": "scripts/dev/cargo-deny-all.sh",
+  "before_sha256": "a1ca3354b2fce7d755317b57b23b86953b0087f8233da0af03f33b8f1ba47b26",
+  "after_sha256": "b926062d54749b33b838290eb64f25c7683356abb69b1d234de4669c6bba44d2",
+  "change": "Removed the obsolete docs/work/name-handling/scratchpad-mirror path exclusion from git ls-files and updated its explanatory comment.",
+  "lockfile_set_before_and_after": [
+    "Cargo.lock",
+    "editors/zed/Cargo.lock",
+    "runtime/rust/Cargo.lock",
+    "rust/bigip-query-wasm/Cargo.lock",
+    "rust/bigip-report-gen/python/Cargo.lock",
+    "rust/bigip-report-gen/wasm/Cargo.lock",
+    "rust/tcl-explorer-wasm/Cargo.lock",
+    "rust/tcl-lsp-server-wasi/Cargo.lock",
+    "rust/tcl-lsp-server-wasm/Cargo.lock",
+    "rust/tcl-spec-studio-wasm/Cargo.lock",
+    "rust/tcl-vm-wasm/Cargo.lock",
+    "rust/zed-query-check/Cargo.lock"
+  ],
+  "checks": {
+    "set_with_and_without_exclusion_equal": true,
+    "current_tracked_matches_under_excluded_prefix": 0,
+    "all_adjacent_cargo_toml_present": true,
+    "cargo_deny_invocation_unchanged": true,
+    "lockfiles_edited": false,
+    "cargo_or_cargo_deny_executed": false,
+    "bash_syntax_check_passed": true
+  }
+}

@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T10:05:31Z: candidate-only contract cleanup applied: obsolete appliance report and migration ledger removed; current embedded-Tcl and value-transfer consumer contracts retain semantic ownership and exact28 executable ratchet limits. All39 new/retargeted Markdown links resolve; no old basenames remain. No gate disabled/assertion removed/Cargo/Git. Latebound direct4v3 Names focused staticCLEAR42a3521c; actual failedv10 and reported v11 E0603 do not satisfy typing prerequisite, no GO or materialization. Root source HOLD persists.
+Current status 2026-10-23T10:38:25Z: candidate-only capability/releasecontract update done3docs,30local links checked0broken. Durablecurrentcapabilities explicitly bound sharedsource/profile/revision lookup, conservativeeditabstention, ILXopaque-stop, SpecTclEDA/UPF/Jim declaredexecution and deferredgeneralVMparity. Unreleased unsupported by exacttagheading guard; originalv2.2.5 release notes/generatedPerformance unchanged. Noallgreen/migrationcomplete/runtimeclaim; rootsoleCI/typing/source/Git. Priorstaticinputclosure and exacttokenpreserving forceimportcommentcleanup archived.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T10:05:31Z
+Last updated: 2026-10-23T10:38:25Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T10:05:31Z: review `lsp/candidate-contract-cleanup-20261023/final-pins.json`, comparison patch and linkcheck39/0; candidate new docs preserve driftgate and exact28 ratchet rows. Existing interface value-transfers.md retained. Names peer42a3521c closes lateboundv3 static review; require root actual successful final AND launcher plus tuple/map before materialization. No current successful typing claim; no LSP shared source/Cargo/Git/GO.
+Latest resume pointer 2026-10-23T10:38:25Z: root review `lsp/candidate-capability-notes-20261023/candidate-docs.patch` andproof; RELEASE_NOTES.md unchanged, durablecapabilities nowcurationinput viaexistingreleasecontract. NoGO/Cargo/Git/productfixes. Fullrepositorylink rerun PASS4342links0missingpaths; same2intentionaltemplateanchors, changed3docs30links resolve.
 
 
 

@@ -2,11 +2,17 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T10:09:51.368851+00:00 (ACTIVE; E0277 fix/CIv4 reviewed, firstcause pending)
+Last updated: 2026-10-23T10:25:40.796457+00:00 (ACTIVE; reviewed candidate-only cleanup applied, work instrumented)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Actual candidate-only cleanup, 2026-10-23T10:25:40.796457+00:00:** Root carryv16 PASS/CLOSED0 session85800, functionaldbc42; root explicitly authorised candidate-only db405 after Names semantic peer20ba3292/exactbeforepins. Applied only `/workspace/naming-lsp-release/tcl-lsp`14 ownedpaths (13retained/1diagnostichelperdeleted). Frozen patch `/tmp/ccg-candidate-probe-removal-v2/proposal.patch` db405f66 / manifest63d6a5e7; initial applyreceiptbe78a924 contains everybefore/afterpin and work14exactunchanged. Assertion preservationproof78932b83 verifies complete original pack_source nonblank lines exact after removing diagnostic module+reportcall only; helper had noassertions. Same actualguards/queryonce/?/shortcircuit/cache/budget/refusal ordering independently reviewed. Work remains instrumented/HOLD for actualtypev12/firstcause.
+
+Root separately authorised removal of pure `.or_else(||None)` observer residue; applied candidate propagation8dbf914f→ad4ab88e9d0319b9ddc19b7e7047c653e3f3bf383abf4904f65029e2b14e5267, same as_deref?/matches_module/return. Successor finalmap receipt `/tmp/ccg-candidate-probe-removal-residue-v1/candidate-final-after-residue-receipt.json` SHA60dc28bdb9dee5b9d3823ca932372d713ab4b0737dfcc40c21cf5da5abefbfb1 references immutableinitialreceipt and records work14stillunchanged. PinnedfilefmtPASS; fullcandidatefmt/typing/runtime/perf/rootGit remain unrun by role. Candidate still had11 NativeCodegen envblocks in Names compiler_inventory/compiled_invocation; Names preparing separate currentcandidate purecleanup, no blanket probe-free claim. Names sharedcommand_binding afterpin26674a64 supplied for exactrebase.
+
+Focused5v2 is already count-dynamic from actualidentity/map, with generic runtimeGO source_manifest_sha256; no hard122/sharedtypinghelper rejects upcomingsource135. Actualmaterialisation still waits root realtypingPASS0W+explicitidentity and independently authenticated completedlifecycle/fullsource/providerseals. No Cargo/worksource edits.
 
 **Compile repair and formatted CI successor, 2026-10-23T10:09:51.368851+00:00:** Actual typingv11closed101/sevenerrors0W (not acceptance): compiler handles4private-module E0603; own3E0277 ProcedureId trace Display mistakes fixed solely by `name={qname:?}` in frozen b479821f `/tmp/ccg-n17-procedureid-debug-format-fix-v1`, current34457b1c→96b7baa8, pinnedfmt and compilerboundedpeerCLEAR. V12union static delta CCG peerf3877d27 preserves32oldcomponents/86oldfinals, only3expected compile-repairpaths; next actualtyping required.
 

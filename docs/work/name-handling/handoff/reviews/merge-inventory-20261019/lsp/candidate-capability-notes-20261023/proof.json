@@ -1,0 +1,20 @@
+{
+  "actual_utc": "2026-10-23T10:37:53.568293+00:00",
+  "changes": {
+    "docs/capabilities.md": {
+      "before_sha256": "c20c19b229b4b85938cc627129550d331045f7f229caa43cbe1b0bde98b140a5",
+      "after_sha256": "97f7d723ac6435e5499b89921116541ae1764de996e95fe22525354cebf9034a"
+    },
+    "docs/design/contracts/lsp-feature-providers.md": {
+      "before_sha256": "f204d3b8c1c2da642746f8d66f3b017eea74174fcc700e815e2ef997287852d7",
+      "after_sha256": "ffdc6be325d2a59f38262ca6664c59e4552a71dfef1bb96c7dcc3b9ceee2a509"
+    },
+    "docs/design/contracts/release-and-publish.md": {
+      "before_sha256": "08c95ace6f54506958c28f01cc99e6b4d8f9da91555519d619304e4806e308b7",
+      "after_sha256": "edc8647608e7904ebfa224895456ea2f63ba99136c029db60aaa435033e8f846"
+    }
+  },
+  "released_v225_notes_and_generated_performance_byte_identical": "1dc32d1bd84e228397e4d85305f73bf5bf08b2804832384c5ad6ba69b6f6f949",
+  "unreleased_unsupported_evidence": "scripts/release/rust_release.sh cmd_tag exact first-line # v$v; github_release.sh --notes-file RELEASE_NOTES.md",
+  "functional_source_or_version_changed": false
+}

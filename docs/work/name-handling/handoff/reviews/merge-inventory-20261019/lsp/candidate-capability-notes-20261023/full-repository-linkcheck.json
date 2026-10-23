@@ -1,0 +1,103 @@
+{
+  "actual_utc": "2026-10-23T10:38:16.170156+00:00",
+  "markdown_files": 779,
+  "links_checked": 4342,
+  "missing_paths": [],
+  "missing_fragments": [
+    {
+      "source": "docs/kcs/templates/kcs-template-diagnostic.md",
+      "url": "../../GLOSSARY.md#<pass-anchor"
+    },
+    {
+      "source": "docs/kcs/templates/kcs-template-optimisation.md",
+      "url": "../../GLOSSARY.md#<pass-anchor"
+    }
+  ],
+  "process_language_candidates": [
+    {
+      "path": "docs/design/contracts/release-and-publish.md",
+      "line": 160,
+      "text": "The release graph keeps the handoff explicit: `linux-release-portability`"
+    },
+    {
+      "path": "docs/design/contracts/release-and-publish.md",
+      "line": 170,
+      "text": "for the normal same-run handoff, but it is not a recovery store. A tag run"
+    },
+    {
+      "path": "docs/design/contracts/native-scalar-getters.md",
+      "line": 455,
+      "text": "this handoff with a pure String call."
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 380,
+      "text": "| native original Jim key producer handoff | `runtime/rust/src/interp/native_command_names.rs`; `runtime/rust/src/interp/native_ensemble_objects.rs`; `runtime/rust/src/interp.rs`; `runtime/rust/src/namespace.rs`; `runtime/rust/src/cmd_namespace.rs` | `OriginalByteCommandRegistration`; `Interp::remember_original_byte_command_registration`; `Interp::"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 385,
+      "text": "| original child completion handoff | `rust/tcl-vm/src/exec.rs` | `Vm::try_invoke_command` | actual parent activation, retained Subst/Each/Expression/JimScript/Control driver and original Completion result/options; synchronous tailcall and ordinary popped-child results share ordered driver consumption; parent compiler and namespace liveness are val"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 963,
+      "text": "| native original Jim key producer handoff | `runtime/rust/src/interp/native_command_names.rs` | `tcl-runtime` | `crate::interp::native_command_names` | `OriginalByteCommandRegistration` | pub(super) | `runtime/rust/src/interp/native_command_names.rs` | `crate::interp::native_command_names` | `Interp::remember_original_byte_command_registration` | "
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 964,
+      "text": "| native original Jim key producer handoff | `runtime/rust/src/interp/native_command_names.rs` | `tcl-runtime` | `crate::interp::native_command_names` | `Interp::prune_original_byte_command_registrations` | pub(super) | `runtime/rust/src/interp/native_command_names.rs` | `crate::interp::native_command_names` | `Interp::remember_original_byte_comman"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 965,
+      "text": "| native original Jim key producer handoff | `runtime/rust/src/interp/native_command_names.rs` | `tcl-runtime` | `crate::interp::native_command_names` | `Interp::remember_original_byte_command_registration` | pub(super) | `runtime/rust/src/interp.rs` | `crate::interp` | `Interp::bind_builtin_publication` | `self` |"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 966,
+      "text": "| native original Jim key producer handoff | `runtime/rust/src/interp/native_command_names.rs` | `tcl-runtime` | `crate::interp::native_command_names` | `Interp::publish_original_jim_registration_keys` | pub(super) | `runtime/rust/src/interp.rs` | `crate::interp` | `Interp::install_pin` | `self` |"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 2918,
+      "text": "before compiler-header handoff, token activation or another store. Copied"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 3793,
+      "text": "The Runtime's private serialised handoff transfers an owning reference to the"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 4762,
+      "text": "The VM's `OriginalProcedureCallReq` transports the actual prepared lambda declaration and unchanged caller argv through the shared activation stack. Its early argument/body selection and `ensure_proc_ready_in` admission remain the native procedure owners; no generated source, List header, extra lookup or command trace is created for the handoff. Co"
+    },
+    {
+      "path": "docs/design/contracts/shared-utility-contracts-rust.md",
+      "line": 5506,
+      "text": "creation handoff. They are software controls with genuine registration/storage"
+    },
+    {
+      "path": "docs/design/contracts/logical-call-targets.md",
+      "line": 15,
+      "text": "Finite source/API controls refer to logical-call-target-owner. Those controls establish source selection and handoff only; provider execution requires independently retained evidence."
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "line": 3418,
+      "text": "constructor when modifying this handoff."
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "line": 3606,
+      "text": "Runtime's private serialised original-object handoff preserves yielded, resumed"
+    },
+    {
+      "path": "docs/design/compiler/name-resolution-implementer-guide.md",
+      "line": 11072,
+      "text": "Use `resolve_original_encoding_name` for entered encoding system operands and `prepare_source_file` for the source encoding/path/backend handoff. Keep the existing Runtime `OriginalArguments` or VM `OriginalNameConsumerScope` around every reached stage and cleanup. A successful or failed getter, Host callback, catalogue lookup, file open, read or c"
+    }
+  ]
+}

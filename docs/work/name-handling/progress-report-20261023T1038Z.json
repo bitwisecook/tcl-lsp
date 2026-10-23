@@ -1,0 +1,55 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T10:38:48.098295+00:00",
+  "scheduled_report_utc": "2026-10-23T10:38:47.986744+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T10:55:37+00:00",
+  "change_since_previous_report": [
+    "Current work1dd5e095e repairs one API-doc attachment error from actualfailedtypev12 and four separatelymeasuredcapturety/Pyright errors. Reviewedv17source135identityd9a49f09/mapb3d8f347 verified; typev13root62473 GO4eed5b4e running, no PASS/runtime/PRadmission.",
+    "Candidate-onlyprobes/comment/fixture/document cleanup continues with all functionalfixescarriedfromwork; no releasebranchCI/perfdispatchyet."
+  ],
+  "committed": [
+    "1dd5e095e4b62e6f4b6c4f6fea357d874972876f"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Complete source135typev13 then focusedruntimegroups; fullcleancandidateCI/pairedTclcorpusperf/zeroP2F/sectionF beforeauthorisedPR."
+  ],
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

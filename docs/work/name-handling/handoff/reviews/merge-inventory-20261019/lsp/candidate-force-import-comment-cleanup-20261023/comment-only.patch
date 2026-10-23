@@ -1,0 +1,145 @@
+--- before/force_import_shadow_consumers.rs
++++ candidate/force_import_shadow_consumers.rs
+@@ -40,13 +40,10 @@
+ //! visible in its output — parameter labels, signature text, the item detail,
+ //! the inlined body — and not only in a span.
+ //!
+-//! Shadowed direction (user decision 2026-10-22T07:18Z,
+-//! `force_import_shadow_direction`): tclsh gives `SRC/1/2` only when the
+-//! sibling runs *before* MAIN, and cross-document execution order stays
+-//! conditional (decision 2026-10-17T20:30Z `export_order`) while MAIN alone is
+-//! analysed as a fresh interpreter (decision 2026-10-19T14:20Z). Neither
+-//! answer is proven there, so every provider abstains; the not-shadowed
+-//! direction keeps the local answer.
++//! In the shadowed direction, tclsh gives `SRC/1/2` only when the sibling
++//! runs before MAIN. Cross-document execution order remains conditional;
++//! MAIN alone is analysed as a fresh interpreter. Neither target is proven,
++//! so every provider abstains. The unshadowed direction keeps the local answer.
+ //!
+ //! The call sits at global scope deliberately. A `-force` import rewrites a
+ //! bare name in the *importing* namespace, and `::` is the one importing
+@@ -176,11 +173,8 @@
+             .count(),
+     )
+     .expect("tiny");
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert_eq!(
+         shadowed,
+         Vec::<u32>::new(),
+@@ -213,11 +207,8 @@
+     });
+ 
+     // Abstain: neither proc's parameters label the arguments `1` and `2`.
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert!(
+         !shadowed
+             .iter()
+@@ -249,11 +240,8 @@
+         .map(|h| h.signatures[0].label.clone())
+     });
+ 
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert_eq!(
+         shadowed, None,
+         "an unproven sibling export renders no signature"
+@@ -285,11 +273,8 @@
+     // The two procs differ in arity, which the item detail carries — so this
+     // pins *which* definition the hierarchy is rooted at, not merely that one
+     // was found.
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert!(
+         shadowed.is_empty(),
+         "an unproven sibling export roots no hierarchy: {shadowed:?}"
+@@ -323,11 +308,8 @@
+ 
+     // Inlining either body over a call whose target is unproven could
+     // silently change what the program does.
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert_eq!(
+         shadowed, None,
+         "an unproven sibling export offers no inline"
+@@ -367,11 +349,8 @@
+         .join("\n")
+     });
+ 
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert!(
+         shadowed.is_empty(),
+         "an unproven sibling export offers no inline-proc body: {shadowed:?}"
+@@ -560,11 +539,8 @@
+     )
+     .expect("tiny");
+ 
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert!(
+         shadowed.is_err(),
+         "an unproven sibling export refuses the rename: {shadowed:?}"
+@@ -594,11 +570,8 @@
+             .count(),
+     )
+     .expect("tiny");
+-    // User decision 2026-10-22T07:18Z (`force_import_shadow_direction`,
+-    // docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/
+-    // user-decisions-20261022T0718Z.json): the shadow depends on a sibling's
+-    // export whose execution order relative to MAIN is not proven, so the
+-    // provider abstains in the shadowed direction.
++    // The sibling's export can replace the local command, but its execution
++    // order relative to MAIN is unproven. Abstain from selecting either target.
+     assert_eq!(
+         shadowed, None,
+         "an unproven sibling export prepares no rename"
+@@ -610,9 +583,9 @@
+     );
+ }
+ 
+-// References and rename settle the shadowed call once, the same way (user
+-// decision 2026-10-22T07:18Z): a call only the whole-program view shadows is
+-// neither reported for the local declaration nor edited by its rename.
++// References and rename use the same abstention: a call shadowed only in
++// the whole-program view is neither reported for the local declaration nor
++// edited by its rename.
+ #[test]
+ fn rename_and_references_from_the_local_declaration_agree_on_the_unproven_call() {
+     let local_line = u32::try_from(

@@ -8,6 +8,24 @@ Maintained by the vm-runtime agent. It lists what this agent considers it must s
 
 ## Resume
 
+Expanded VM26 draft `/tmp/vm26-latebound-template-v2/` plus materializer-v2
+manifest3d25edfc adds exact existing10 stack/trace/reentry/oracle controls to
+original16 across11 fresh artifacts; VM4 targets all-features, original7
+argv unchanged. Dynamic actualidentity/map count uses sharedproofv5
+1681443a (Names focusedpeer pending). Root explicitly authorizes full source/
+provider start+final only, continuous sourceHOLD, perphase currentmap/HEAD/
+inputs/GO/typing/artifact88125 checks; all26rows provisional until final
+seals, finalfailure invalidates group. AST/Bash/noGO refusal pass; actual
+failedv10 normal/-O refuses before output. Codegen bounded loop/providerpeer
+pending, no actual materialization/GO/Cargo. NoTom16 successor still next.
+
+Candidate-only C84 pureobserver removal pending Codegen semanticpeer:
+`/tmp/vm-candidate-c84-observer-removal-v1/proposal.patch` SHA561f9f5c,
+atomic runtime interp/cmd_error/native_error_variables. Removes test helper
+and15directcalls plus duplicate testsetter observer branches; actual setters
+remain once in original order. Work untouched; candidate apply only after
+peerCLEAR. Durable approvedNoTom README doc draft8618c9d5 sent root.
+
 Current actual source122 is bfa5e524/tree6e889d1a; the five registry fielddocs and
 four Jimcall API docs are integrated. V11 typing closed10:05:44 Cargo101 with seven errors/0warnings; compiler/root
 own corrections and newv13 composition including reviewedheld6. No actual typing/runtime acceptance inferred. New-public-API

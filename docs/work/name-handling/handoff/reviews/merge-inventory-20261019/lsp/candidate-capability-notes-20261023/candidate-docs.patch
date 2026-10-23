@@ -1,0 +1,99 @@
+--- before/docs/capabilities.md
++++ candidate/docs/capabilities.md
+@@ -57,6 +57,44 @@
+ 
+ ---
+ 
++## Source-aware editor behaviour and execution limits
++
++Navigation, references, rename and refactoring share the selected document's
++execution context, dialect profile and revision-aware source analysis. A result
++belongs to that source and registry configuration; changing the document,
++profile, imported definitions or registry invalidates it. A displayed command
++name alone does not prove which command a call reaches.
++
++When ordering, binding or source ownership is uncertain, providers may omit a
++navigation result or decline an edit. In particular, a cross-file force import
++whose execution order is unproven does not select either competing definition.
++This abstention keeps rename and references consistent and prevents rewrites
++from assuming a target that the program has not established.
++
++For iRulesLX, supported same-frame source tracking can relate an ILX handle to
++its initialisation and the first remote operation. An opaque remote call ends
++that tracking: later calls and notifications cannot recover the earlier binding
++merely from a matching variable or method name. This is a navigation boundary,
++not a claim to execute or inspect the remote JavaScript service.
++
++Bundled SpecTcl packs describe EDA and UPF commands and provide their declared
++analysis and execution hooks. UPF option scanning and declared script-body
++traversal follow the selected pack's grammar; list data is not treated as an
++executable body. These hooks model the supported command surface, not an
++installed vendor EDA tool or a power simulator. Jim likewise uses its own
++selected command, procedure and naming rules rather than borrowing stock Tcl
++behaviour from a displayed version.
++
++Execution support is specific to the selected profile, command route and host.
++General bytecode-VM parity with every native Tcl/Jim backend, arbitrary vendor
++command or callback is deferred. A successful source analysis does not certify
++runtime executability, backend parity or identical editor-host behaviour.
++
++These are capability bounds, not a statement that every release gate has
++passed. See the [provider contract](design/contracts/lsp-feature-providers.md)
++and [environment selection](design/contracts/environment-selection.md) for the
++corresponding ownership rules.
++
+ ## 3. The BIG-IP registries
+ 
+ Command + event registries and the `f5-irules` dialect: what backs hover/completion,
+--- before/docs/design/contracts/lsp-feature-providers.md
++++ candidate/docs/design/contracts/lsp-feature-providers.md
+@@ -14,6 +14,22 @@
+ 
+ That split is what lets the same providers back the LSP, the `tcl` CLI verbs,
+ and the MCP tool surface without three copies of the behaviour.
++
++## Current source and uncertainty
++
++A shared lookup retains the actual source, complete profile/configuration,
++registry selection and document revision. Provider publication and edit
++application must rejoin that current owner; a name, range or display label
++cannot reconstruct it. Navigation and edits may have different proof purposes:
++a source-only relationship does not grant runtime binding or rewrite authority.
++
++Unproven cross-document execution order, replaced bindings, stale analysis and
++opaque effects remain unavailable. Providers preserve that uncertainty rather
++than choosing a convenient candidate. ILX source tracking ends at an opaque
++remote operation; later notifications do not restore the earlier handle binding.
++The [capabilities page](../../capabilities.md#source-aware-editor-behaviour-and-execution-limits)
++states these limits for users, including profile-specific execution support and
++the deferred general VM/backend parity boundary.
+ 
+ ## Decision rules / contracts
+ 
+--- before/docs/design/contracts/release-and-publish.md
++++ candidate/docs/design/contracts/release-and-publish.md
+@@ -224,6 +224,24 @@
+ that did attach (`TCL_LSP_NO_VERIFY=1` is the documented escape hatch, and is not one
+ to recommend).  Fix forward and re-run the failed jobs on the same tag; the
+ assets that already uploaded are overwritten in place.
++
++## Curated capability notes
++
++`RELEASE_NOTES.md` is the curated publication input consumed by
++`scripts/release/github_release.sh`. Its first line must be the selected
++`# vX.Y.Z`: `rust_release.sh tag` checks that exact heading. An `Unreleased`
++heading is not a separate supported staging mechanism, and the generated
++Performance section belongs to `perf_notes.py`.
++
++Use the current [capability bounds](../../capabilities.md#source-aware-editor-behaviour-and-execution-limits)
++as the input when curating the next release's prose: shared context/profile and
++revision-aware lookups; uncertainty that declines unsafe edits; the ILX opaque
++call boundary; the declared SpecTcl EDA, UPF and Jim execution surfaces; and the
++deferred general VM/backend parity limit. Describe only the capabilities and
++validation established for that release. Those contracts do not imply passing
++CI, complete host coverage or migration completion. Preserve a released
++version's notes and its generated performance record until preparing a distinct
++version through the release mechanism below.
+ 
+ ## The pre-release sequence is a program, not a procedure
+ 

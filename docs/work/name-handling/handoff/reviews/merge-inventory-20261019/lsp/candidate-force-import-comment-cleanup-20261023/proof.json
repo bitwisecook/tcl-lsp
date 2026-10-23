@@ -1,0 +1,10 @@
+{
+  "actual_utc": "2026-10-23T10:28:39.852489+00:00",
+  "candidate_path": "/workspace/naming-lsp-release/tcl-lsp/rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs",
+  "before_sha256": "7c1231886e59cd50c820cf1d163d5dec28eb6660f95b46d928abe9b65e41eaf8",
+  "after_sha256": "08a1a8b953fe90dcf8f655167652246d164b47b4b0a3e6f907788e347de17221",
+  "eight_process_reference_blocks_replaced": true,
+  "module_and_references_comments_updated": true,
+  "all_noncomment_tokens_and_literal_bytes_identical": true,
+  "cargo_git_or_tests_run": false
+}

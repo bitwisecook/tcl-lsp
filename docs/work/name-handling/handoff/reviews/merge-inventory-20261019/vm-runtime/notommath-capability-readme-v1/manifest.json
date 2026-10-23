@@ -1,0 +1,7 @@
+{
+  "path": "runtime/rust/README.md",
+  "before_sha256": "6a4c3b045dd6ebb8742746c950e7dbff8d49bb3f4b263aa21dbcaab977849321",
+  "after_sha256": "41567a6e0b3b3698c4c8d6fb37d509bff9a99cbe36ccb95c4a334363fb0113ea",
+  "patch_sha256": "8618c9d57d7bc1a2eca5a78c12ffc9531c7494b0147d73f832e4126daeae82ce",
+  "status": "off-tree documentation only; approved B behavior; no canonical changes"
+}
