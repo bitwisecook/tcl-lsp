@@ -672,24 +672,7 @@ fn call_graph_for_input(
     }
 
     // Top-level calls (outside any proc body), in first-seen order.
-    let mut top_level: std::collections::BTreeMap<ProcedureId, Value> =
-        std::collections::BTreeMap::new();
-    for inv in &analysis.command_invocations {
-        if is_inside_proc(inv.range, ir_module) {
-            continue;
-        }
-        if let Some(target) =
-            resolve_invocation_target(&analysis, inv, &proc_names, source, ir_module)
-        {
-            let pos = pos_value(&line_index, source, inv.range.start());
-            top_level
-                .entry(target)
-                .or_insert_with(|| Value::Array(Vec::new()))
-                .as_array_mut()
-                .expect("call-site list is an array")
-                .push(pos);
-        }
-    }
+    let top_level = top_level_call_sites(source, &analysis, &proc_names, ir_module, &line_index);
     let has_top_level_calls = !top_level.is_empty();
     for (callee, sites) in &top_level {
         called_set.insert(*callee);
@@ -702,6 +685,76 @@ fn call_graph_for_input(
         }));
     }
 
+    let (root_ids, roots, leaf_ids, leaf_procs) = call_graph_extrema(
+        &analysis,
+        ir_module,
+        interproc,
+        &proc_names,
+        &called_set,
+        &has_outgoing,
+        has_top_level_calls,
+    );
+    let compiled = json!({
+        "projection": "compiled-ir",
+        "nodes": nodes,
+        "edges": edges,
+        "roots": roots,
+        "root_ids": root_ids,
+        "leaf_ids": leaf_ids,
+        "leaf_procs": leaf_procs,
+    });
+    if let Some(mut original) =
+        original::procedure_view(source, &analysis, Some((ir_module, interproc)))
+    {
+        original
+            .as_object_mut()
+            .expect("graph object")
+            .insert("compiled".to_owned(), compiled);
+        original
+    } else {
+        compiled
+    }
+}
+
+fn top_level_call_sites(
+    source: &str,
+    analysis: &AnalysisResult,
+    proc_names: &[ProcedureId],
+    ir_module: &IrModule,
+    line_index: &LineIndex,
+) -> std::collections::BTreeMap<ProcedureId, Value> {
+    let mut top_level: std::collections::BTreeMap<ProcedureId, Value> =
+        std::collections::BTreeMap::new();
+    for inv in &analysis.command_invocations {
+        if is_inside_proc(inv.range, ir_module) {
+            continue;
+        }
+        if let Some(target) =
+            resolve_invocation_target(analysis, inv, proc_names, source, ir_module)
+        {
+            let pos = pos_value(line_index, source, inv.range.start());
+            top_level
+                .entry(target)
+                .or_insert_with(|| Value::Array(Vec::new()))
+                .as_array_mut()
+                .expect("call-site list is an array")
+                .push(pos);
+        }
+    }
+    top_level
+}
+
+type GraphExtrema = (Vec<String>, Vec<String>, Vec<String>, Vec<String>);
+
+fn call_graph_extrema(
+    analysis: &AnalysisResult,
+    ir_module: &IrModule,
+    interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
+    proc_names: &[ProcedureId],
+    called_set: &std::collections::HashSet<ProcedureId>,
+    has_outgoing: &std::collections::HashSet<ProcedureId>,
+    has_top_level_calls: bool,
+) -> GraphExtrema {
     // Roots = uncalled procs, sorted; `<top-level>` prepended when any
     // invocation sits outside a proc body.
     let mut root_ids: Vec<String> = proc_names
@@ -737,26 +790,7 @@ fn call_graph_for_input(
         .filter(|id| !has_outgoing.contains(id))
         .map(|id| body_key(*id))
         .collect();
-    let compiled = json!({
-        "projection": "compiled-ir",
-        "nodes": nodes,
-        "edges": edges,
-        "roots": roots,
-        "root_ids": root_ids,
-        "leaf_ids": leaf_ids,
-        "leaf_procs": leaf_procs,
-    });
-    if let Some(mut original) =
-        original::procedure_view(source, &analysis, Some((ir_module, interproc)))
-    {
-        original
-            .as_object_mut()
-            .expect("graph object")
-            .insert("compiled".to_owned(), compiled);
-        original
-    } else {
-        compiled
-    }
+    (root_ids, roots, leaf_ids, leaf_procs)
 }
 
 // dataflow graph
@@ -1047,32 +1081,9 @@ fn dataflow_graph_for_input(
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let mut effect_names: Vec<_> = interproc.procedures.keys().collect();
-    effect_names.sort_by(|left, right| {
-        interproc.procedures[*left]
-            .qualified_name
-            .cmp(&interproc.procedures[*right].qualified_name)
-            .then(left.cmp(right))
-    });
-    let mut proc_effects: Vec<Value> = Vec::new();
-    let mut pure_count = 0i64;
-    let mut impure_count = 0i64;
-    for qname in &effect_names {
-        let summary = &interproc.procedures[*qname];
-        if summary.pure {
-            pure_count += 1;
-        } else {
-            impure_count += 1;
-        }
-        proc_effects.push(json!({
-            "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
-            "name": summary.qualified_name,
-            "pure": summary.pure,
-            "reads": effect_region_str(summary.effect_reads),
-            "writes": effect_region_str(summary.effect_writes),
-            "has_barrier": summary.has_barrier,
-        }));
-    }
+    let effect_names = procedure_effect_names(interproc);
+    let (mut proc_effects, pure_count, impure_count) =
+        procedure_effect_cards(interproc, &effect_names);
 
     let unavailable_replays = taint_replays
         .unavailable_replays()
@@ -1115,6 +1126,46 @@ fn dataflow_graph_for_input(
             "source_only_proc_count": source_declarations.len(),
         },
     })
+}
+
+fn procedure_effect_names(
+    interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
+) -> Vec<&ProcedureId> {
+    let mut effect_names: Vec<_> = interproc.procedures.keys().collect();
+    effect_names.sort_by(|left, right| {
+        interproc.procedures[*left]
+            .qualified_name
+            .cmp(&interproc.procedures[*right].qualified_name)
+            .then(left.cmp(right))
+    });
+    effect_names
+}
+
+fn procedure_effect_cards(
+    interproc: &tcl_compiler::interprocedural::InterproceduralAnalysis,
+    effect_names: &[&ProcedureId],
+) -> (Vec<Value>, i64, i64) {
+    let mut proc_effects: Vec<Value> = Vec::new();
+    let mut pure_count = 0i64;
+    let mut impure_count = 0i64;
+    for qname in effect_names {
+        let summary = &interproc.procedures[*qname];
+        if summary.pure {
+            pure_count += 1;
+        } else {
+            impure_count += 1;
+        }
+        proc_effects.push(json!({
+            "bodyId": qname.ordinal(), "bodyKey": qname.reporting_key(),
+            "name": summary.qualified_name,
+            "pure": summary.pure,
+            "reads": effect_region_str(summary.effect_reads),
+            "writes": effect_region_str(summary.effect_writes),
+            "has_barrier": summary.has_barrier,
+        }));
+    }
+
+    (proc_effects, pure_count, impure_count)
 }
 
 // def-use / SSA data-flow graph
