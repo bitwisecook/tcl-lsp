@@ -160,17 +160,39 @@ fn renamed_slot(
     })
 }
 
+// WORK-only identity observer: the original producer getter above runs once.
+fn trace_missing_rename_world(
+    document: &OriginalDeclarationDocument<'_>,
+    ordinal: usize,
+    count: usize,
+) {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *ENABLED.get_or_init(|| std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1")) {
+        eprintln!(
+            "RENAME_WORLD declined ordinal={ordinal} count={count} uri={} source_bytes={} resolved_input={} unavailable={} body_config={:?}",
+            document.uri,
+            document.source.len(),
+            document.analysis.resolved_input.is_some(),
+            document.analysis.analysis_context_unavailable.is_some(),
+            document.analysis.body_lexer_config,
+        );
+    }
+}
+
 fn occupied(
     documents: &[OriginalDeclarationDocument<'_>],
     slot: &ByteCommandSlot,
     policy: NamePolicyProtocol,
 ) -> Result<bool, OriginalCommandRenameRefusal> {
     let mut present = false;
-    for document in documents {
+    for (ordinal, document) in documents.iter().enumerate() {
         let world = document
             .analysis
             .original_completed_command_world()
-            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
+            .ok_or_else(|| {
+                trace_missing_rename_world(document, ordinal, documents.len());
+                OriginalCommandRenameRefusal::UnknownWorld
+            })?;
         present |= world
             .command_slot_occupied(slot, policy)
             .ok_or(OriginalCommandRenameRefusal::UnknownDestination)?;

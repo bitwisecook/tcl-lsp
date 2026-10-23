@@ -1231,11 +1231,15 @@ fn configured_coarse_semantic_tokens(
     text: &str,
     analysis: &AnalysisResult,
 ) -> jsonrpc::Result<Vec<u32>> {
-    let input = analysis
-        .resolved_input
-        .as_ref()
-        .ok_or_else(coarse_semantic_source_changed)?;
-    if tcl_compiler::source_graph::current_analysis(text, analysis).is_none() {
+    let input = analysis.resolved_input.as_ref().ok_or_else(|| {
+        readonly_reference_reports::trace_coarse_source_check("tokens.resolved_input", false);
+        coarse_semantic_source_changed()
+    })?;
+    readonly_reference_reports::trace_coarse_source_check("tokens.resolved_input", true);
+    if !readonly_reference_reports::trace_coarse_source_check(
+        "tokens.current_analysis",
+        tcl_compiler::source_graph::current_analysis(text, analysis).is_some(),
+    ) {
         return Err(coarse_semantic_source_changed());
     }
     Ok(core_semantic_tokens::full_with_cu_and_analysis(
@@ -32936,7 +32940,17 @@ impl LanguageServer for Backend {
             let mut data = Some(core.data);
             return self
                 .with_current_coarse_semantic_source(&source, || {
-                    let mut cache = self.last_semantic_tokens.try_lock().ok()?;
+                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
+                        readonly_reference_reports::trace_coarse_source_check(
+                            "final.token_cache_lock",
+                            false,
+                        );
+                        return None;
+                    };
+                    readonly_reference_reports::trace_coarse_source_check(
+                        "final.token_cache_lock",
+                        true,
+                    );
                     let data = data.take()?;
                     let mut wire = wire.take()?;
                     let result_id = next_semantic_tokens_id();
@@ -33001,7 +33015,17 @@ impl LanguageServer for Backend {
             let mut data = Some(core.data);
             return self
                 .with_current_coarse_semantic_source(&source, || {
-                    let mut cache = self.last_semantic_tokens.try_lock().ok()?;
+                    let Ok(mut cache) = self.last_semantic_tokens.try_lock() else {
+                        readonly_reference_reports::trace_coarse_source_check(
+                            "final.token_cache_lock",
+                            false,
+                        );
+                        return None;
+                    };
+                    readonly_reference_reports::trace_coarse_source_check(
+                        "final.token_cache_lock",
+                        true,
+                    );
                     let data = data.take()?;
                     let result_id = next_semantic_tokens_id();
                     let baseline_current = baseline.as_ref().is_some_and(|(id, _)| {
