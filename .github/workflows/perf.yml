@@ -604,7 +604,7 @@ jobs:
               "json",
           ]
           focused_tests = (
-              "interp::tests::active_original_command_keeps_client_data_until_dispatch_releases_its_handle",
+              "interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
               "cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
               "builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
           )

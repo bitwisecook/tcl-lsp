@@ -21314,11 +21314,15 @@ mod tests {
     }
 
     #[test]
-    fn active_original_command_keeps_client_data_until_dispatch_releases_its_handle() {
+    fn active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        // This tests this adapter's documented active Rc lifetime separately
-        // from C Tcl's callback timing.
+        // Public creation calls token deletion before replacement returns:
+        // tclBasic.c C8.4.20:1737-1869/2550-2696, C8.5.19:1998-2153/2774-2939,
+        // C8.6.18:2334-2502/3147-3320, C9.0.4:2924-3077/3727-3902,
+        // C9.1.0:2879-3033/3697-3872. Active handles retain allocation only.
+        // Witness671 measures active explicit deletion with stack client records;
+        // self-replacement's path comes from source, not that explicit-deletion witness.
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             let state = retirement_state(interpreter, 0);
@@ -21339,13 +21343,13 @@ mod tests {
             assert_eq!(interpreter.dispatch(&[word.as_ptr()]), Code::Ok);
             assert_eq!(
                 active_calls.get(),
-                0,
-                "clientData stayed live inside the actual call"
+                1,
+                "public replacement retired clientData inside the actual call"
             );
             assert_eq!(
                 calls.get(),
                 1,
-                "dispatch released the last original command handle"
+                "the original delete procedure ran exactly once"
             );
             assert_ne!(
                 interpreter.resolve_cmd_token(b"retiring").unwrap(),
