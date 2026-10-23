@@ -151,6 +151,10 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "supplemental-readflow1-",
         )
     ):
+        require(
+            argv and Path(argv[0]).resolve() == Path(artifact).resolve(),
+            "transport child must be the explicit selected test artifact",
+        )
         argv = [
             str(tools["python"]),
             str(tools["table_filter"]),
@@ -159,6 +163,7 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
             "--",
             *argv,
         ]
+        artifact = tools["python"]
     return owner.run(
         argv,
         cwd=root,
@@ -644,6 +649,7 @@ try:
                 "dependency_fetch_seconds": 600,
                 "aggregate_log_bytes": CAP,
                 "transport_filter": "Only exact ORIGINAL_COMMAND_INSTALLED SourceCommandTable observer lines become counted SHA256 summaries; every other stderr byte and all stdout remain verbatim.",
+                "transport_artifact_contract": "Owned argv0/artifact is the sealed outer Python; the unchanged pinned filter launches the exact selected Rust ELF argv. Each row seals that fresh Cargo-ledger ELF before/after the owned operation; existing child-status/one-test terminal, Python/filter source-tool seals and all final artifact seals remain required.",
                 "execution_order": "Separate Native35three then SH21two diagnostic duplicates then ReadFlowone first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
@@ -887,6 +893,18 @@ try:
                 remaining > 512 * 1024,
                 "insufficient log budget after original exact selector list",
             )
+            child_before = sha(executable)
+            require(
+                child_before == artifact["sha256"],
+                "selected Rust test artifact changed before transport spawn",
+            )
+            row["selected_test_artifact"] = {
+                "path": str(executable),
+                "expected_sha256": artifact["sha256"],
+                "before_sha256": child_before,
+                "after_sha256": None,
+                "unchanged": False,
+            }
             row["state"] = "RUNNING"
             save(out / "outcomes.json", rows)
             print("RUN " + group_label + " " + selector, flush=True)
@@ -906,6 +924,16 @@ try:
             )
             processes.append(receipt)
             remaining -= receipt["retained_bytes"]
+            child_after = sha(executable)
+            row["selected_test_artifact"]["after_sha256"] = child_after
+            row["selected_test_artifact"]["unchanged"] = (
+                child_before == child_after == artifact["sha256"]
+            )
+            save(out / "outcomes.json", rows)
+            require(
+                row["selected_test_artifact"]["unchanged"],
+                "selected Rust test artifact changed during transport",
+            )
             transport_path = out / (prefix + ".transport.json")
             if lifecycle(receipt):
                 require(
