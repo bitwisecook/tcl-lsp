@@ -357,23 +357,7 @@ fn scalar_alpha_compaction(
         return Err(MinifyRefusal::AlphaRenameGeometryUnavailable);
     }
     let index = LineIndex::new(source);
-    let mut byte_edits = Vec::new();
-    for edit in edits {
-        let start = index.offset_at_utf16(
-            edit.range.start_line,
-            Utf16Col::new(edit.range.start_character),
-            source,
-        );
-        let end = index.offset_at_utf16(
-            edit.range.end_line,
-            Utf16Col::new(edit.range.end_character),
-            source,
-        );
-        let written = source
-            .get(start as usize..end as usize)
-            .ok_or(MinifyRefusal::AlphaRenameGeometryUnavailable)?;
-        byte_edits.push((start as usize, written.len(), edit.new_text));
-    }
+    let byte_edits = scalar_alpha_byte_edits(source, &index, edits)?;
     // A native value can have several source-text inverses. Report the actual
     // declaration's written label after the receipt and edit owner select its cell.
     let mut original_formals = analysis.original_variable_symbols.iter().filter(|occurrence| {
@@ -406,6 +390,31 @@ fn scalar_alpha_compaction(
         .insert(reported, short);
     plan.renamed_symbols = 1;
     Ok(plan)
+}
+
+fn scalar_alpha_byte_edits(
+    source: &str,
+    index: &LineIndex,
+    edits: Vec<crate::rename::TextEdit>,
+) -> Result<Vec<super::Edit>, MinifyRefusal> {
+    let mut byte_edits = Vec::new();
+    for edit in edits {
+        let start = index.offset_at_utf16(
+            edit.range.start_line,
+            Utf16Col::new(edit.range.start_character),
+            source,
+        );
+        let end = index.offset_at_utf16(
+            edit.range.end_line,
+            Utf16Col::new(edit.range.end_character),
+            source,
+        );
+        let written = source
+            .get(start as usize..end as usize)
+            .ok_or(MinifyRefusal::AlphaRenameGeometryUnavailable)?;
+        byte_edits.push((start as usize, written.len(), edit.new_text));
+    }
+    Ok(byte_edits)
 }
 
 /// Explicit driver inputs: profile and store are retained before the analyser
@@ -632,30 +641,7 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
         if plan.fatal_tail.is_some() {
             return Err(MinifyRefusal::IncompleteOriginalSyntax);
         }
-        let mut cursor = region.start();
-        for (ordinal, command) in plan.commands.iter().enumerate() {
-            for (index, word) in command.words.iter().enumerate() {
-                let replacement = if index != 0 {
-                    " "
-                } else if ordinal != 0 {
-                    ";"
-                } else {
-                    ""
-                };
-                edits.push(SourceGapEdit {
-                    span: Span::new(cursor, word.span().start()),
-                    replacement: replacement.to_owned(),
-                });
-                if let Some(delimiters) = static_quoted_source_edits(word) {
-                    edits.extend(delimiters);
-                }
-                cursor = word.span().end();
-            }
-        }
-        edits.push(SourceGapEdit {
-            span: Span::new(cursor, region.end()),
-            replacement: String::new(),
-        });
+        append_script_gap_edits(region, &plan, &mut edits);
         plans.push((region, plan));
     }
     let input = analysis
@@ -677,79 +663,14 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     };
     let mut expressions = Vec::new();
     for command in &structure.commands {
-        let selected = tcl_compiler::registry_invocation::source_structure::source_registry_words(
-            source, analysis, command,
-        );
-        let selected = if selected.as_ref().is_none_or(|words| {
-            !matches!(words.source(), tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected)
-                || !words.operands_preserve_source_lookup()
-        }) {
-            structure.compiler_body_syntax.as_ref().and_then(|inventory| {
-                inventory.words(source, analysis, command)
-            })
-        } else { selected };
-        let mut native_arguments = Vec::new();
-        if let Some(words) = selected {
-            for &(argument, role) in words.roles().unwrap_or_default() {
-                if role != tcl_registry::ArgRole::Expr {
-                    continue;
-                }
-                let Some(word) = words
-                    .original_argument_word(argument)
-                    .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
-                else {
-                    continue;
-                };
-                let Ok(inner_span) = word.content_span() else {
-                    continue;
-                };
-                let Some(inner) = source.get(inner_span.as_range()) else {
-                    continue;
-                };
-                if let Some(edit) =
-                    boolean_inversion_edit(source, analysis, command, argument, inner, env)?
-                {
-                    native_arguments.push(argument);
-                    edits.push(edit);
-                    continue;
-                }
-                // Child scripts keep their independently authenticated script gaps.
-                let compacted_candidate =
-                    super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
-                let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
-                source, analysis, command, argument, &compacted_candidate,
-            ).or_else(|| structure.compiler_body_syntax.as_ref().and_then(|inventory| {
-                inventory.expression_gaps(source, analysis, command, argument, &compacted_candidate)
-            })) else { continue; };
-                if !proof.matches_source(&image, config)
-                    || !proof.matches_registry(context.commands())
-                {
-                    return Err(MinifyRefusal::SourceCorrespondenceChanged);
-                }
-                edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
-                    span,
-                    replacement: String::new(),
-                }));
-                native_arguments.push(argument);
-                expressions.push(proof);
-            }
-        }
-        if let Some(inventory) = structure.compiler_body_syntax.as_ref() {
-            for proof in source_body_expression_gap_proofs(
-                source,
-                analysis,
-                command,
-                inventory,
-                env,
-                &native_arguments,
-            )? {
-                edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
-                    span,
-                    replacement: String::new(),
-                }));
-                expressions.push(proof);
-            }
-        }
+        append_command_expression_gaps(
+            command,
+            structure.compiler_body_syntax.as_ref(),
+            env,
+            &image,
+            &mut edits,
+            &mut expressions,
+        )?;
     }
     edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement.as_str()));
     edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
@@ -769,45 +690,193 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     // Compose expression gaps with independently selected descendant scripts.
     // Every whole emitted word is checked again under the original grammar.
     for proof in expressions {
-        let original = proof.original_operand().span();
-        let emitted = Span::new(
-            emitted_boundary(original.start(), &edits)?,
-            emitted_boundary(original.end(), &edits)?,
-        );
-        if output.get(emitted.as_range())
-            != Some(source_gap_output(source, original, &edits)?.as_str())
-        {
-            return Err(MinifyRefusal::SourceCorrespondenceChanged);
-        }
+        validate_expression_gap_output(source, &output, &edits, &proof)?;
     }
     // Every selected script is checked independently. Parent words may differ
     // only by selected descendant script gaps or the expression proofs above.
     for (region, plan) in plans {
-        let emitted_region = Span::new(
-            emitted_boundary(region.start(), &edits)?,
-            emitted_boundary(region.end(), &edits)?,
-        );
-        let emitted =
-            tcl_lexer::native_script_words_in(emitted_image.clone(), emitted_region, config)
-                .map_err(|_| MinifyRefusal::SourceCorrespondenceChanged)?;
-        if emitted.fatal_tail.is_some() || emitted.commands.len() != plan.commands.len() {
+        validate_emitted_script_gap_plan(env, region, &plan, &output, &edits, &emitted_image)?;
+    }
+    Ok(output)
+}
+
+fn validate_expression_gap_output(
+    source: &str,
+    output: &str,
+    edits: &[SourceGapEdit],
+    proof: &tcl_compiler::registry_invocation::source_structure::OriginalExpressionSyntaxGapCompaction,
+) -> Result<(), MinifyRefusal> {
+    let original = proof.original_operand().span();
+    let emitted = Span::new(
+        emitted_boundary(original.start(), edits)?,
+        emitted_boundary(original.end(), edits)?,
+    );
+    if output.get(emitted.as_range()) != Some(source_gap_output(source, original, edits)?.as_str())
+    {
+        return Err(MinifyRefusal::SourceCorrespondenceChanged);
+    }
+
+    Ok(())
+}
+
+fn validate_emitted_script_gap_plan(
+    env: super::MinifyEnv<'_>,
+    region: Span,
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    output: &str,
+    edits: &[SourceGapEdit],
+    emitted_image: &SourceImage,
+) -> Result<(), MinifyRefusal> {
+    let source = env.original_source;
+    let config = env.config;
+    let emitted_region = Span::new(
+        emitted_boundary(region.start(), edits)?,
+        emitted_boundary(region.end(), edits)?,
+    );
+    let emitted = tcl_lexer::native_script_words_in(emitted_image.clone(), emitted_region, config)
+        .map_err(|_| MinifyRefusal::SourceCorrespondenceChanged)?;
+    if emitted.fatal_tail.is_some() || emitted.commands.len() != plan.commands.len() {
+        return Err(MinifyRefusal::SourceCorrespondenceChanged);
+    }
+    for (next, old) in emitted.commands.iter().zip(&plan.commands) {
+        if next.words.len() != old.words.len() {
             return Err(MinifyRefusal::SourceCorrespondenceChanged);
         }
-        for (next, old) in emitted.commands.iter().zip(&plan.commands) {
-            if next.words.len() != old.words.len() {
+        for (next, old) in next.words.iter().zip(&old.words) {
+            if next.group().expand != old.group().expand
+                || next.written_bytes() != source_gap_output(source, old.span(), edits)?.as_bytes()
+            {
                 return Err(MinifyRefusal::SourceCorrespondenceChanged);
-            }
-            for (next, old) in next.words.iter().zip(&old.words) {
-                if next.group().expand != old.group().expand
-                    || next.written_bytes()
-                        != source_gap_output(source, old.span(), &edits)?.as_bytes()
-                {
-                    return Err(MinifyRefusal::SourceCorrespondenceChanged);
-                }
             }
         }
     }
-    Ok(output)
+
+    Ok(())
+}
+
+fn append_script_gap_edits(
+    region: Span,
+    plan: &tcl_lexer::NativeScriptWordsPlan,
+    edits: &mut Vec<SourceGapEdit>,
+) {
+    let mut cursor = region.start();
+    for (ordinal, command) in plan.commands.iter().enumerate() {
+        for (index, word) in command.words.iter().enumerate() {
+            let replacement = if index != 0 {
+                " "
+            } else if ordinal != 0 {
+                ";"
+            } else {
+                ""
+            };
+            edits.push(SourceGapEdit {
+                span: Span::new(cursor, word.span().start()),
+                replacement: replacement.to_owned(),
+            });
+            if let Some(delimiters) = static_quoted_source_edits(word) {
+                edits.extend(delimiters);
+            }
+            cursor = word.span().end();
+        }
+    }
+    edits.push(SourceGapEdit {
+        span: Span::new(cursor, region.end()),
+        replacement: String::new(),
+    });
+}
+
+fn append_command_expression_gaps(
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    inventory: Option<
+        &tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory,
+    >,
+    env: super::MinifyEnv<'_>,
+    image: &SourceImage,
+    edits: &mut Vec<SourceGapEdit>,
+    expressions: &mut Vec<
+        tcl_compiler::registry_invocation::source_structure::OriginalExpressionSyntaxGapCompaction,
+    >,
+) -> Result<(), MinifyRefusal> {
+    let source = env.original_source;
+    let analysis = env.analysis;
+    let config = env.config;
+    let selected = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+        source, analysis, command,
+    );
+    let selected = if selected.as_ref().is_none_or(|words| {
+        !matches!(
+            words.source(),
+            tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected
+        ) || !words.operands_preserve_source_lookup()
+    }) {
+        inventory.and_then(|inventory| inventory.words(source, analysis, command))
+    } else {
+        selected
+    };
+    let mut native_arguments = Vec::new();
+    if let Some(words) = selected {
+        for &(argument, role) in words.roles().unwrap_or_default() {
+            if role != tcl_registry::ArgRole::Expr {
+                continue;
+            }
+            let Some(word) = words
+                .original_argument_word(argument)
+                .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+            else {
+                continue;
+            };
+            let Ok(inner_span) = word.content_span() else {
+                continue;
+            };
+            let Some(inner) = source.get(inner_span.as_range()) else {
+                continue;
+            };
+            if let Some(edit) =
+                boolean_inversion_edit(source, analysis, command, argument, inner, env)?
+            {
+                native_arguments.push(argument);
+                edits.push(edit);
+                continue;
+            }
+            // Child scripts keep their independently authenticated script gaps.
+            let compacted_candidate =
+                super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
+            let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
+            source, analysis, command, argument, &compacted_candidate,
+        ).or_else(|| inventory.and_then(|inventory| {
+            inventory.expression_gaps(source, analysis, command, argument, &compacted_candidate)
+        })) else { continue; };
+            if !proof.matches_source(image, config)
+                || !proof.matches_registry(env.context.commands())
+            {
+                return Err(MinifyRefusal::SourceCorrespondenceChanged);
+            }
+            edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
+                span,
+                replacement: String::new(),
+            }));
+            native_arguments.push(argument);
+            expressions.push(proof);
+        }
+    }
+    if let Some(inventory) = inventory {
+        for proof in source_body_expression_gap_proofs(
+            source,
+            analysis,
+            command,
+            inventory,
+            env,
+            &native_arguments,
+        )? {
+            edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
+                span,
+                replacement: String::new(),
+            }));
+            expressions.push(proof);
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
