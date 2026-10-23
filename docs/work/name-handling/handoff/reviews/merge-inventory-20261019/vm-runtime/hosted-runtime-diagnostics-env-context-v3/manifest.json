@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T11:46:58.528671+00:00",
+  "published_work_head": "03832ee401564200743431606d84e032422fc69c",
+  "path": ".github/workflows/perf.yml",
+  "before_sha256": "5f8bffde63e101334f7c27c000fd5a3221dadd61164b99998823cfe884dc8568",
+  "after_sha256": "3f2dee19b791616d276c7109278e1e405327ca3ad9d2bb1119fa76ae4b0736d3",
+  "patch_sha256": "dd95a64cd62a5bf89ef860f29dba8c2397561b3b4282e1d92bebab9a2fda0737",
+  "status": "v2 dispatch422 invalid runner context; runtime neverstarted; exact jobenv-to-stepenv correction only"
+}

@@ -1,0 +1,477 @@
+--- a/docs/design/f5/f5-query-engine-internals.md
++++ b/docs/design/f5/f5-query-engine-internals.md
+@@ -268,6 +268,16 @@
+ they are unavailable rather than reaching for a filesystem that isn't
+ there.
+ 
++`FilesReader::Inventory` supplies forensic discovery for `files`, `glob` and
++`grep`. An explicit `file(path)` uses `FileOp::Exact`: the host selects one
++exact original UTF-8 archive path without leaf-name fallback, then returns
++metadata computed from its original bytes and a lossy UTF-8 `content` preview.
++Missing members return null; duplicate exact paths and archive failures return
++errors. `is_text` still reports valid UTF-8 without NUL and does not suppress an
++explicit preview. The CLI retains the selected original member and checks its
++path/content fidelity before publishing any mutation. Identical preview strings
++cannot replace that original-byte admission.
++
+ Core entry points:
+ 
+ - `evaluate_statement(stmt, ctx) -> Result<Vec<Value>, QueryError>` — runs
+--- a/docs/kcs/features/kcs-feature-bigip-query.md
++++ b/docs/kcs/features/kcs-feature-bigip-query.md
+@@ -29,6 +29,15 @@
+ ```
+ 
+ `q` is an alias for the same verb.
++
++For a UCS archive, `file("etc/donor") | .content` reads that exact member,
++including files outside the forensic inventory. It displays invalid UTF-8 with
++replacement characters; `.size` and `.sha256` describe the original bytes, and
++`.is_text` says whether those bytes are valid UTF-8 without NUL. `files`, `glob`
++and `grep` discover the forensic subset. An absent explicit path returns null;
++ambiguous duplicate paths refuse. A mutation using an invalid UTF-8 donor is
++refused before any rewritten output or file is published, even if its preview
++looks the same as a literal replacement character.
+ 
+ The DSL carries its own offline help screens:
+ 
+--- a/rust/f5-cli/src/commands/query.rs
++++ b/rust/f5-cli/src/commands/query.rs
+@@ -162,9 +162,20 @@
+     )
+ }
+ 
+-/// Build the `files` / `file` / `glob` / `grep` reader the query engine injects:
+-/// enumerate a source's forensic UCS members (metadata) or read one member's
+-/// content, decrypting the archive as needed with the shared passphrase.
++/// Wire metadata comes from the selected original archive entry.
++fn file_entry_fields(entry: &tcl_bigip_io::UcsFileEntry) -> [(String, Value); 4] {
++    [
++        ("path".to_owned(), Value::Str(entry.path.clone())),
++        (
++            "size".to_owned(),
++            Value::Int(i64::try_from(entry.size).unwrap_or(i64::MAX)),
++        ),
++        ("sha256".to_owned(), Value::Str(entry.sha256.clone())),
++        ("is_text".to_owned(), Value::Bool(entry.is_text)),
++    ]
++}
++
++/// Enumerate forensic members or read an explicit member under the UCS owner.
+ fn make_files_reader(sources: ProviderSources) -> tcl_bigip_query::eval::FilesReader {
+     use tcl_bigip_io::{MemberScope, list_ucs_members};
+     use tcl_bigip_query::eval::FileOp;
+@@ -191,20 +202,31 @@
+                     })?;
+                     let list = entries
+                         .iter()
+-                        .map(|e| {
+-                            Value::object([
+-                                ("path".to_owned(), Value::Str(e.path.clone())),
+-                                (
+-                                    "size".to_owned(),
+-                                    Value::Int(i64::try_from(e.size).unwrap_or(i64::MAX)),
+-                                ),
+-                                ("sha256".to_owned(), Value::Str(e.sha256.clone())),
+-                                ("is_text".to_owned(), Value::Bool(e.is_text)),
+-                            ])
+-                        })
++                        .map(|entry| Value::object(file_entry_fields(entry)))
+                         .collect();
+                     sources.borrow_mut().entries.extend(entries);
+                     Ok(Value::List(list))
++                }
++                FileOp::Exact(member_path) => {
++                    let member = tcl_bigip_io::find_exact_ucs_member_source(
++                        &raw,
++                        member_path,
++                        &provider,
++                        &path,
++                    )
++                    .map_err(|error| QueryError::builtin(format!("file: {path}: {error}")))?;
++                    let Some(member) = member else {
++                        return Ok(Value::Null);
++                    };
++                    let entry = member.file_entry();
++                    let content = Value::Str(String::from_utf8_lossy(member.bytes()).into_owned());
++                    let value = Value::object(
++                        file_entry_fields(&entry)
++                            .into_iter()
++                            .chain(std::iter::once(("content".to_owned(), content))),
++                    );
++                    sources.borrow_mut().members.push(member);
++                    Ok(value)
+                 }
+                 FileOp::Content(member) => {
+                     match tcl_bigip_io::find_ucs_member_source(&raw, member, &provider, &path) {
+@@ -1140,6 +1162,62 @@
+ mod certificate_test_fixture;
+ 
+ #[cfg(test)]
++mod provider_source_tests {
++    use super::{ProviderSources, make_files_reader};
++    use tcl_bigip_query::eval::FileOp;
++    use tcl_bigip_query::value::Value;
++
++    #[test]
++    fn archive_content_donors_retain_original_bytes_before_mutation() {
++        let path = std::env::temp_dir().join(format!(
++            "f5-query-provider-source-{}.ucs",
++            std::process::id()
++        ));
++        for (donor, faithful) in [
++            (b"new\xff".as_slice(), false),
++            ("new\u{fffd}".as_bytes(), true),
++        ] {
++            let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
++            let mut archive = tar::Builder::new(gzip);
++            let mut header = tar::Header::new_gnu();
++            header.set_size(u64::try_from(donor.len()).unwrap());
++            header.set_mode(0o644);
++            header.set_cksum();
++            archive.append_data(&mut header, "etc/motd", donor).unwrap();
++            let original = archive.into_inner().unwrap().finish().unwrap();
++            std::fs::write(&path, &original).unwrap();
++            let sources = ProviderSources::default();
++            let reader = make_files_reader(sources.clone());
++            let value = reader(
++                path.to_str().unwrap(),
++                &FileOp::Exact("etc/motd".to_owned()),
++            )
++            .unwrap();
++            let Value::Object(preview) = value else {
++                panic!("the exact reader must return member metadata and content");
++            };
++            assert!(
++                matches!(preview.get("content"), Some(Value::Str(text)) if text == "new\u{fffd}")
++            );
++            assert!(
++                matches!(preview.get("size"), Some(Value::Int(size)) if *size == i64::try_from(donor.len()).unwrap())
++            );
++            assert!(matches!(preview.get("is_text"), Some(Value::Bool(text)) if *text == faithful));
++            let retained = sources.borrow();
++            assert_eq!(retained.members.len(), 1);
++            assert_eq!(retained.members[0].bytes(), donor);
++            let admission = retained.require_faithful();
++            assert_eq!(admission.is_ok(), faithful);
++            if !faithful {
++                assert!(admission.unwrap_err().to_string().contains("invalid UTF-8"));
++            }
++            assert_eq!(std::fs::read(&path).unwrap(), original);
++        }
++        std::fs::remove_file(path).unwrap();
++    }
++}
++
++#[cfg(test)]
+ mod ucs_cert_tests {
+     use super::{ProviderSources, make_ucs_cert_reader, percent_decode, ucs_uri_to_path};
+     use tcl_bigip_query::value::Value;
+--- a/rust/f5-cli/tests/cli.rs
++++ b/rust/f5-cli/tests/cli.rs
+@@ -350,7 +350,7 @@
+         assert!(!split.exists());
+     }
+     let report = Command::new(env!("CARGO_BIN_EXE_f5-query"))
+-        .args(["query", ".ltm.pool[].name", input_arg])
++        .args(["query", ".ltm.pool[].full-path", input_arg])
+         .output()
+         .unwrap();
+     assert!(report.status.success(), "{:?}", report.stderr);
+@@ -390,7 +390,7 @@
+         (
+             "--name",
+             format!("donor={}", donor.display()),
+-            r#"rename("/Common/old", $donor.ltm.pool[].name)"#,
++            r#"rename("/Common/old", $donor.ltm.pool[].full-path)"#,
+             Some(donor.as_path()),
+         ),
+         (
+--- a/rust/tcl-bigip-io/src/lib.rs
++++ b/rust/tcl-bigip-io/src/lib.rs
+@@ -49,7 +49,8 @@
+ };
+ pub use ucs::{
+     DEFAULT_PASSPHRASE_ENV, MemberScope, PassphraseProvider, UcsError, UcsFileEntry,
+-    UcsMemberSource, UcsScfSource, decrypt_if_encrypted, find_ucs_member_source, is_pgp_bytes,
+-    is_ucs_bytes, list_ucs_members, read_ucs_member, read_ucs_member_source, ucs_archive_to_scf,
+-    ucs_archive_to_scf_source, ucs_to_scf, ucs_to_scf_source,
++    UcsMemberSource, UcsScfSource, decrypt_if_encrypted, find_exact_ucs_member_source,
++    find_ucs_member_source, is_pgp_bytes, is_ucs_bytes, list_ucs_members, read_ucs_member,
++    read_ucs_member_source, ucs_archive_to_scf, ucs_archive_to_scf_source, ucs_to_scf,
++    ucs_to_scf_source,
+ };
+--- a/rust/tcl-bigip-io/src/ucs.rs
++++ b/rust/tcl-bigip-io/src/ucs.rs
+@@ -147,8 +147,14 @@
+ }
+ 
+ /// Strip leading `.`/`/` characters.
+-fn lstrip_dot_slash(name: &str) -> &str {
+-    name.trim_start_matches(['.', '/'])
++fn lstrip_dot_slash(mut name: &str) -> &str {
++    loop {
++        name = name.trim_start_matches('/');
++        let Some(rest) = name.strip_prefix("./") else {
++            return name;
++        };
++        name = rest;
++    }
+ }
+ 
+ /// Case-sensitive `.conf` suffix test, mirroring `endswith(".conf")`.
+@@ -439,6 +445,18 @@
+     #[must_use]
+     pub fn path(&self) -> &str {
+         &self.member.name
++    }
++
++    /// Metadata computed from the selected original member, before preview decoding.
++    #[must_use]
++    pub fn file_entry(&self) -> UcsFileEntry {
++        UcsFileEntry {
++            path: self.member.name.clone(),
++            original_path: self.member.path.clone(),
++            size: u64::try_from(self.member.bytes.len()).unwrap_or(u64::MAX),
++            sha256: sha256_hex(&self.member.bytes),
++            is_text: is_text_bytes(&self.member.bytes),
++        }
+     }
+ 
+     fn require_faithful_path(&self) -> Result<(), UcsError> {
+@@ -534,6 +552,40 @@
+     }))
+ }
+ 
++/// Select one exact UTF-8 archive path, without leaf or filestore fallback.
++///
++/// # Errors
++/// Returns decryption, archive or duplicate exact-path failure. A lossy path
++/// preview never substitutes for the requested path.
++pub fn find_exact_ucs_member_source(
++    raw: &[u8],
++    member_path: &str,
++    provider: &PassphraseProvider<'_>,
++    label: &str,
++) -> Result<Option<UcsMemberSource>, UcsError> {
++    let data = decrypt_if_encrypted(raw, provider, label)?;
++    if !is_ucs_bytes(&data) {
++        return Err(UcsError::new(format!("{label}: not a valid UCS archive")));
++    }
++    let want = lstrip_dot_slash(member_path);
++    let members = read_original_members(&data)?;
++    let mut matching = members.into_iter().filter(|member| {
++        std::str::from_utf8(&member.path).ok().map(lstrip_dot_slash) == Some(want)
++    });
++    let Some(member) = matching.next() else {
++        return Ok(None);
++    };
++    if matching.next().is_some() {
++        return Err(UcsError::new(format!(
++            "multiple UCS members match exact path: {member_path}"
++        )));
++    }
++    Ok(Some(UcsMemberSource {
++        matching_paths: vec![member.path.clone()],
++        member,
++    }))
++}
++
+ /// Read bytes from the original selected member without decoding its contents.
+ ///
+ /// # Errors
+@@ -849,6 +901,83 @@
+     }
+ 
+     #[test]
++    fn exact_member_reads_preserve_dot_names_and_directory_components() {
++        let raw = build_ucs(&[
++            (".hidden", "dot"),
++            ("hidden", "bare"),
++            ("elsewhere/donor", "other"),
++        ]);
++        let no_passphrase = || Ok(String::new());
++        let dot = find_exact_ucs_member_source(&raw, "./.hidden", &no_passphrase, "test")
++            .unwrap()
++            .unwrap();
++        assert_eq!(dot.bytes(), b"dot");
++        assert_eq!(dot.path(), ".hidden");
++        assert_eq!(dot.file_entry().path, ".hidden");
++        let bare = find_exact_ucs_member_source(&raw, "hidden", &no_passphrase, "test")
++            .unwrap()
++            .unwrap();
++        assert_eq!(bare.bytes(), b"bare");
++        assert!(
++            find_exact_ucs_member_source(&raw, "donor", &no_passphrase, "test")
++                .unwrap()
++                .is_none()
++        );
++    }
++
++    #[cfg(unix)]
++    #[test]
++    fn exact_member_reads_do_not_use_leafs_or_lossy_path_aliases() {
++        let gzip = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
++        let mut archive = tar::Builder::new(gzip);
++        for (path, bytes) in [
++            ("etc/donor", "first"),
++            ("other/donor", "second"),
++            ("etc/\u{fffd}", "literal"),
++        ] {
++            let mut header = tar::Header::new_gnu();
++            header.set_size(u64::try_from(bytes.len()).unwrap());
++            header.set_mode(0o644);
++            header.set_cksum();
++            archive
++                .append_data(&mut header, path, bytes.as_bytes())
++                .unwrap();
++        }
++        let mut header = tar::Header::new_gnu();
++        header.set_path("etc/z").unwrap();
++        header.as_mut_bytes()[..5].copy_from_slice(b"etc/\xff");
++        header.set_size(6);
++        header.set_mode(0o644);
++        header.set_cksum();
++        archive.append(&header, b"opaque".as_slice()).unwrap();
++        let raw = archive.into_inner().unwrap().finish().unwrap();
++        let no_passphrase = || Ok(String::new());
++        assert!(
++            find_exact_ucs_member_source(&raw, "donor", &no_passphrase, "test")
++                .unwrap()
++                .is_none()
++        );
++        let selected = find_exact_ucs_member_source(&raw, "./etc/donor", &no_passphrase, "test")
++            .unwrap()
++            .unwrap();
++        assert_eq!(selected.bytes(), b"first");
++        assert_eq!(selected.file_entry().size, 5);
++        assert!(selected.require_faithful().is_ok());
++        let literal = find_exact_ucs_member_source(&raw, "etc/\u{fffd}", &no_passphrase, "test")
++            .unwrap()
++            .unwrap();
++        assert_eq!(literal.bytes(), b"literal");
++        assert!(literal.require_faithful().is_ok());
++        let duplicate = build_ucs(&[("etc/donor", "a"), ("etc/donor", "b")]);
++        assert!(
++            find_exact_ucs_member_source(&duplicate, "etc/donor", &no_passphrase, "test")
++                .unwrap_err()
++                .to_string()
++                .contains("multiple UCS members")
++        );
++    }
++
++    #[test]
+     fn list_members_forensic_vs_full_tree() {
+         use std::collections::BTreeSet;
+         let ucs = build_ucs(&[
+--- a/rust/tcl-bigip-query/src/builtins/files.rs
++++ b/rust/tcl-bigip-query/src/builtins/files.rs
+@@ -23,8 +23,9 @@
+ //! in-browser console, where they error clearly). Each returns file objects
+ //! `{path, size, sha256, is_text, content?}` whose fields are ordinary `.field`
+ //! navigation — so `file("etc/passwd").content` and `glob("home/*/.ssh/*").path`
+-//! just work. The inventory is scoped to the forensically-relevant members (the
+-//! same set the report's Forensics tab uses).
++//! just work. Discovery is scoped to the forensic inventory. An explicit `file`
++//! reads its exact archive path and supplies a lossy UTF-8 content preview;
++//! the host retains original bytes for mutation admission.
+ 
+ use indexmap::IndexMap;
+ use tcl_syntax::glob::string_match;
+@@ -102,26 +103,18 @@
+     ))
+ }
+ 
+-/// `file(path)` — one member by exact path, with `content` attached for text
+-/// files (`null` for binary / missing / sensitive). Returns `null` if absent.
++/// `file(path)` — one exact archive member with a lossy content preview.
++/// Returns `null` only for completed absence, without discovery or leaf fallback.
+ fn bi_file(args: &[Value], ctx: &mut EvalContext) -> Result<Value, QueryError> {
+     let want = as_str(&args[0], "file", 1)?;
+-    let inv = inventory(ctx, "file")?;
+-    let Some(entry) = inv.into_iter().find(|f| path_of(f) == Some(want.as_str())) else {
+-        return Ok(Value::Null);
+-    };
+-    let text = is_text(&entry);
+-    let mut m = match entry {
+-        Value::Object(m) => m,
+-        _ => IndexMap::new(),
+-    };
+-    let content = if text {
+-        read_content(ctx, "file", &want)?.map_or(Value::Null, Value::Str)
+-    } else {
+-        Value::Null
+-    };
+-    m.insert("content".into(), content);
+-    Ok(Value::Object(m))
++    let read = reader(ctx, "file")?;
++    match read(&ctx.root.uri, &FileOp::Exact(want))? {
++        value @ (Value::Object(_) | Value::Null) => Ok(value),
++        other => Err(QueryError::builtin(format!(
++            "file: reader returned {} (expected a member object or null)",
++            other.type_name()
++        ))),
++    }
+ }
+ 
+ /// `grep(pattern[, path_glob])` — regex-search text members (optionally
+--- a/rust/tcl-bigip-query/src/eval.rs
++++ b/rust/tcl-bigip-query/src/eval.rs
+@@ -233,6 +233,8 @@
+     /// List the archive's forensic members with metadata (`path`, `size`,
+     /// `sha256`, `is_text`) and no content — a light inventory.
+     Inventory,
++    /// Read one exact archive member with original metadata and a lossy content preview.
++    Exact(String),
+     /// Read one member's content as a UTF-8-lossy string.
+     Content(String),
+ }
+--- a/rust/tcl-bigip-query/tests/integration/files.rs
++++ b/rust/tcl-bigip-query/tests/integration/files.rs
+@@ -59,6 +59,25 @@
+             "root/.ssh/authorized_keys" => Value::Str("ssh-rsa AAAA attacker\n".to_owned()),
+             _ => Value::Null,
+         }),
++        FileOp::Exact(path) => {
++            let (content, size, text) = match path.as_str() {
++                "etc/passwd" => (
++                    "root:x:0:0::/root:/bin/bash\nbackdoor:x:0:0::/root:/bin/bash\n",
++                    60,
++                    true,
++                ),
++                "root/.ssh/authorized_keys" => ("ssh-rsa AAAA attacker\n", 40, true),
++                "etc/donor" => ("new\u{fffd}", 4, false),
++                _ => return Ok(Value::Null),
++            };
++            Ok(Value::object([
++                ("path".to_owned(), Value::Str(path.clone())),
++                ("size".to_owned(), Value::Int(size)),
++                ("sha256".to_owned(), Value::Str("cc".to_owned())),
++                ("is_text".to_owned(), Value::Bool(text)),
++                ("content".to_owned(), Value::Str(content.to_owned())),
++            ]))
++        }
+     })
+ }
+ 
+@@ -101,6 +120,20 @@
+ }
+ 
+ #[test]
++fn file_reads_explicit_lossy_members_without_expanding_discovery() {
++    let out = run(r#"file("etc/donor") | .content"#);
++    assert_eq!(
++        serde_json::from_str::<serde_json::Value>(&out).unwrap(),
++        serde_json::json!(["new\u{fffd}"])
++    );
++    assert!(!run("files").contains("etc/donor"));
++    assert_eq!(
++        serde_json::from_str::<serde_json::Value>(&run(r#"file("donor")"#)).unwrap(),
++        serde_json::json!([null])
++    );
++}
++
++#[test]
+ fn grep_returns_matching_lines_scoped_by_glob() {
+     let out = run(r#"grep("backdoor", "etc/passwd")"#);
+     assert!(

@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T11:49:38.787371+00:00",
+  "owner": "perf (separate user session)",
+  "source": "current-0322 reportcontrols12PASS3FAIL both modes; existing diagnostics requested by compiler and compiler-names",
+  "request": "On the already-built current controls executable, rerun only the two original alias role controls and genuine_hosted_event_report_retains_a_separate_actual_domain with TCL_LSP_TRACE_AUTHENTICATED_REPORT=1 and TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1 and TCL_LSP_TRACE_ORIGINAL_DECLARATION=1, --exact --nocapture. Retain source/provider/executable identity and bounded lifecycle controls. No new build or new probe is requested. Preserve original assertions and Native/Logical separation.",
+  "reason": "Current stdout shows CurrentOwnerUnavailable and alias role expectations; exact first declining gate and actual body inventory are absent. Compiler v2 event-word geometry is statically cleared but causality unproven. Earlier source46 Native fixture published authentic Installed + NativeSource Unit bodies with distinct extent semantics, not Named + NamespaceScript. Current actual inventory needed before any narrow documented test correction. Logical path independently can retain Named/NamespaceScript and cannot be dismissed or coerced.",
+  "known_external_artifact": {
+    "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "sha256": "926794a218d9458cc190001228ee24437c32b69dfebe5243473758fb1790d8de"
+  },
+  "root_local_queue": "Compiler61 row01 already traces authenticated reports; local build waits focused5 global lock. Do not duplicate external perf work.",
+  "not_accepted": [
+    "perf-realm-interprocedural.patch",
+    "full corpus equality proof",
+    "alias fixture replacement86ebb"
+  ],
+  "gate_admissions": []
+}

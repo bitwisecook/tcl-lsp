@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T11:50:47.514213+00:00",
+  "status": "current external actual12PASS3FAIL; alias producer premise pending exact existing-binary trace",
+  "sha256": {
+    "analysis-equality-routing.md.txt": "c6098aad79aa72bca1ce96ff3f72712af86f11c8be43fcce1b8dbfd680db19d6",
+    "controls-binary.json": "37d158c75b0247057351772423276a210f8a68292a19b556c9d5802940bb6ed4",
+    "report-controls-summary.json": "d1c3431e776a2a0ffd5feeafc1a9a7000535b0a91c1d1c18df482cdaabc6fbf4",
+    "triage.json": "24f0b3395da7ff4cb2de9e2a995e318b5d92c6acac936590b0733c30ec2ab24f",
+    "triage-v1.tar.gz": "20b2513c68ea2c2a056b7d17f9baa46dd7c9bf1c9d56baa0e74d2f3d448e8c08"
+  },
+  "limits": "No source/Git/Cargo/test/GO actions; full corpus acceptance remains blocked"
+}

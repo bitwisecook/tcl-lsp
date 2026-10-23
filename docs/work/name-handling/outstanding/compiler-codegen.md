@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T11:17:21.066906+00:00 (ACTIVE; actualv13 PASS0W; focused5 root37487 RUNNING freshbuild)
+Last updated: 2026-10-23T11:41:57.038713+00:00 (ACTIVE; actualv13 PASS0W; focused5 root37487 RUNNING second freshbuild)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Live measurement update, 2026-10-23T11:41:57.038713+00:00:** Focused5 original five-row group still RUNNING under root37487. First fresh tcl-vm build completed with strict0W/lifecycle guards and exact cmd_control_e2e executable SHA578365d7; second fresh tcl-spectcl build now compiling compiler/VM after registry. Frozen suite builds both artifacts before any selected row. No selected test assertion/first-cause or runtime PASS yet. Initial full source/provider seals passed; final seals remain pending. Work unchanged/instrumented/HOLD; no candidate functional edits. Hosted runtime diagnostics draft a288 independently reviewed workflow/lifecycle/backend/original16 controls; readiness held for pinned Python checks and explicit fresh-target enforcement, VM preparing successor. Review `/tmp/vm-hosted-runtime-diagnostics-v1/ccg-bounded-static-review.json` SHA0d5ad827.
 
 **Actual current typing/runtime handoff, 2026-10-23T11:17:21.066906+00:00:** Work source135 at1dd5e095/tree93fb1634 has genuine actualeight-package v13 **PASS0W**, parent62473 CLOSED0/LOCK_RELEASED; finald72c992c/launcher45f2b775 independentlyvalidated/root rawwarnings/errors0. This is typing, not Clippy/runtime validation. Focused5actual materialised `/tmp/ccg-focused5-source135-typed-v13` plan6ccc2556/input78e558ae/GO73772e21, root37487 **RUNNING**, start11:15Z. Actualreceipt `/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z` passed initial fullsource/providerbaseline and started firstfresh CargoJSON tcl-vm/cmd_control_e2e build, registrycompiling. Originalnative1+N17derived2+livehookpositive+hostlessnegative exact5, originalassertions and timers/budgets intact. No firstrow/firstcause/runtimePASS claim yet; this role monitors native/N17gate/census markers and willdraft narrowofftreefix only fromactualevidence. Work sourceHOLD; no candidatefunctionalfixes.
 

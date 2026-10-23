@@ -1,0 +1,18 @@
+--- a/.github/workflows/perf.yml
++++ b/.github/workflows/perf.yml
+@@ -455,7 +455,6 @@
+       CARGO_PROFILE_DEV_DEBUG: "0"
+       CARGO_BUILD_JOBS: "2"
+       CARGO_TERM_COLOR: never
+-      CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-diagnostics-target
+       TCL_RUNTIME_EXPECT_NO_TOMMATH: "1"
+       RUST_BACKTRACE: short
+     steps:
+@@ -473,6 +472,7 @@
+           cache: false
+       - name: Capture isolated original runtime failures
+         env:
++          CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-diagnostics-target
+           EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+           DIAGNOSTIC_OUTPUT: ${{ runner.temp }}/runtime-diagnostics-output
+         run: |

@@ -1,0 +1,48 @@
+{
+  "utc": "2026-10-23T11:44:08.531544+00:00",
+  "new_helper_checks": [
+    {
+      "argv": [
+        "/tmp/ccg-uv-cache/archive-v0/g7_toCsGujunha5P/bin/ruff",
+        "format",
+        "--check",
+        "/tmp/vm-hosted-runtime-diagnostics-v2/proposed/docs/work/name-handling/validation-tools/runtime-diagnostics.py"
+      ],
+      "exit": 0,
+      "stdout": "1 file already formatted\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/tmp/ccg-uv-cache/archive-v0/g7_toCsGujunha5P/bin/ruff",
+        "check",
+        "/tmp/vm-hosted-runtime-diagnostics-v2/proposed/docs/work/name-handling/validation-tools/runtime-diagnostics.py"
+      ],
+      "exit": 0,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/tmp/ccg-uv-cache/archive-v0/E2Lc3scvM3e3X8Qu/bin/ty",
+        "check",
+        "--python-version",
+        "3.12",
+        "--project",
+        "/tmp/vm-hosted-runtime-diagnostics-v2",
+        "/tmp/vm-hosted-runtime-diagnostics-v2/proposed/docs/work/name-handling/validation-tools/runtime-diagnostics.py"
+      ],
+      "exit": 0,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    }
+  ],
+  "pyright": {
+    "filesAnalyzed": 1,
+    "errorCount": 0,
+    "warningCount": 0,
+    "informationCount": 0,
+    "timeInSec": 5.648
+  },
+  "executor": "byte-exact reviewed88125 retained unchanged, not newly authored/formatted; own sourceevidence provenance"
+}

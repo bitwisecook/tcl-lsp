@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T11:47:40.419123+00:00",
+  "status": "STATIC_CLEAR",
+  "patch_sha256": "dd95a64cd62a5bf89ef860f29dba8c2397561b3b4282e1d92bebab9a2fda0737",
+  "independent_published_before_copy_apply_zero_fuzz_nooffset_after": true,
+  "parsed_workflow_exact_after_only_relocation": true,
+  "value_unchanged": "${{ runner.temp }}/runtime-diagnostics-target",
+  "all_job_env_runner_context_references_absent": true,
+  "capture_step_env_runner_context_supported": true,
+  "v2_dispatch422": "workflow rejection before runtime; not test result",
+  "review_correction": "v2 static review missed job-level runner context; this successor corrects exact context placement",
+  "no_source_cargo_dispatch": true
+}

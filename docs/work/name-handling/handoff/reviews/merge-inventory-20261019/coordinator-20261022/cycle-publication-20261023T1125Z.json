@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-23T11:37:04.124663+00:00",
+  "scheduled": "2026-10-23T11:25:37+00:00",
+  "source_snapshot": "9c08d2e06b8bf546b4172e9fadae8be1b8d26bc7",
+  "published_snapshot": "46a94508bd99fda7e4fa2ef9f693a002ae8407bb",
+  "source_commits": [
+    "9c08d2e06b8bf546b4172e9fadae8be1b8d26bc7"
+  ],
+  "product_tree_diff": [
+    "docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md",
+    "docs/design/f5/f5-query-engine-internals.md",
+    "docs/design/f5/iruleslx-remote-methods.md",
+    "docs/kcs/features/kcs-feature-bigip-query.md",
+    "docs/kcs/kcs-qa-what-config-sections-are-valid.md",
+    "rust/f5-cli/src/commands/query.rs",
+    "rust/f5-cli/tests/cli.rs",
+    "rust/tcl-bigip-io/src/lib.rs",
+    "rust/tcl-bigip-io/src/ucs.rs",
+    "rust/tcl-bigip-query/src/builtins/files.rs",
+    "rust/tcl-bigip-query/src/eval.rs",
+    "rust/tcl-bigip-query/tests/integration/files.rs",
+    "rust/tcl-irules/src/ilx.rs",
+    "rust/tcl-irules/src/lib.rs",
+    "rust/tcl-lsp-core/src/ilx_navigation.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs"
+  ],
+  "external_product_base": "08c7d8fbd3499ceccacfa6ffd255a8dba737f210",
+  "external_changes_preserved_not_validated": true,
+  "remote_confirmed": "46a94508bd99fda7e4fa2ef9f693a002ae8407bb",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

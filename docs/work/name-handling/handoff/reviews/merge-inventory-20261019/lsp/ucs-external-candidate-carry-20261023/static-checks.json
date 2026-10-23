@@ -1,0 +1,8 @@
+{
+  "exact_nine_paths_apply_zero_fuzz_nooffset": true,
+  "all_final_candidate_hashes_match": true,
+  "rustfmt_1_99_1_check_exit": 0,
+  "owner_work_evidence_note_not_carried": true,
+  "actual_runtime_typing_validation": "UNRUN",
+  "candidate_WORK_unchanged": true
+}

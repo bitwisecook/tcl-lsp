@@ -1,0 +1,23 @@
+Actual CI job120386569196 / source76c7d2e396bb273cdc958aa54bf2da863402eb6d.
+Independent GitHub job logs show intentionalabsence flag1 present, compile52.20s,
+no old libtommath missing-source warning, then2147 tests started.
+Printed984ok/107FAIL before fatal SIGABRT; not whole-suite completion.
+The one1PASS2146filtered summary is nested child proof, not main result.
+Original16 join: C84catchPASS, remaining15FAIL. Their ordinary buffered panic
+reports were lost by processabort, so no cause assigned from failure names.
+Fatalactual assertion frame/member_materialisation_tests.rs107 compares callback
+var_get(a(k)) None with Some(V); externC panic cannot unwind and aborts process.
+No missing oracle/file/spawn errors observed. includestr originalfixtures compile.
+Native alias test uses actual with_native_core; envtrace10 instead uses
+with_host+set_runtime_version. Distinct setup paths; no shared cause proved.
+Modern smallinteger increment has checked_add before the fullTommath closure,
+so simple incrementfailure is not evidence of missing bignum capability.
+C84cleanup audit: exact source76 fetched through GitHub explicitref; VarError
+is Copy enum without owned payloads. Both original cfg(test) setter blocks
+called same var_set once, observed is_ok only, and left scope before later
+checks; collapsed production statements preserve setter arguments/order,
+flags, currency checks and all operational effects. No functional testinjection
+was removed. Actual C84catchPASS supports its own scope only.
+No functional patch justified from raw swallowedNone; no Cargo/source/Git.
+Prepared isolated originalNoTom16 --exact --nocapture processes will preserve
+missing originalassertion messages without disabling tests or changing expectations.

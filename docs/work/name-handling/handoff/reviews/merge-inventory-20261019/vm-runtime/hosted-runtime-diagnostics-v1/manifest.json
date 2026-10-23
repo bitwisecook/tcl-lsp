@@ -1,0 +1,42 @@
+{
+  "utc": "2026-10-23",
+  "scope": "WORK ONLY temporary hosted diagnostic; never carry to release candidate",
+  "patch_sha256": "a288df179cc10e4c2234c124c50143d8f81701d0fe0f10224eae6d6b135fbcad",
+  "paths": [
+    {
+      "path": ".github/workflows/perf.yml",
+      "before_sha256": "6b8c82c80f1cb6e0fc483e0274d89f9f95d77dfde0db952473d65177722d30ba",
+      "after_sha256": "5f8bffde63e101334f7c27c000fd5a3221dadd61164b99998823cfe884dc8568"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-diagnostics.py",
+      "before_sha256": null,
+      "after_sha256": "49476cbf692700369a441f4ef0e1255b08c7d90251ac8a35fecbd3108951f7c6"
+    },
+    {
+      "path": "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py",
+      "before_sha256": null,
+      "after_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    }
+  ],
+  "original16": [
+    "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+    "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+    "cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name",
+    "codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version",
+    "codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c",
+    "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+    "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+    "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+    "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+    "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+    "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+    "env_trace::tests::the_home_directory_follows_env_home",
+    "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+    "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+    "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it"
+  ],
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "runtime_started": false
+}

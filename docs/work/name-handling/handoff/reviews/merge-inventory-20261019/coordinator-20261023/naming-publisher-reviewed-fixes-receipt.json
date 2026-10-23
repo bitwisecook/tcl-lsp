@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-23T11:45:21.595511+00:00",
+  "branch": "work",
+  "before": "cd9620c6bdec0c663cc9326a8056a5caa5c00349",
+  "published": "a814651cb0bd5a8a0dfd886f7a80c5267f4c4d63",
+  "patches": [
+    [
+      "/tmp/lsp-ctutils044-lock-update-v1/proposal.patch",
+      "3ded960e23aa52c34340cc422f880c6f671beee4ee9f9cf9a0bf72e07045061d"
+    ],
+    [
+      "/tmp/lsp-server-empty-assertions-current-v1/proposal.patch",
+      "e59d5fb1e5783b38226d12e5ee492704d8e1e944e8cfc2b9a80af61937d1500b"
+    ]
+  ],
+  "paths": [
+    "Cargo.lock",
+    "rust/tcl-spec-studio-wasm/Cargo.lock",
+    "rust/tcl-lsp-server-wasm/Cargo.lock",
+    "rust/bigip-report-gen/wasm/Cargo.lock",
+    "rust/bigip-report-gen/python/Cargo.lock",
+    "rust/tcl-explorer-wasm/Cargo.lock",
+    "rust/bigip-query-wasm/Cargo.lock",
+    "rust/tcl-lsp-server-wasi/Cargo.lock",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs",
+    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+    "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "active_frozen_source_changed": false,
+  "runtime_validation": "pending CI; static peers cleared",
+  "gate_admissions": []
+}

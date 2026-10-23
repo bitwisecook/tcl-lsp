@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-23T11:31:58.954273+00:00",
+  "status": "Actual candidate cleanup regressions fixed after independentpeer; no actualcandidatecompile verdict claimed",
+  "archive_sha256": "b982aedcc2ff8ee85934f5ab99d3b72cf07b06069295338e05778c63835d6595",
+  "files": [
+    {
+      "path": "after/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "d7acff0f5f0cc9a5f6d7db7210a8bd5b9889b4286368f0abe65de9ca1b57b498"
+    },
+    {
+      "path": "after/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "sha256": "aa4be97fa908e6584989f3f33ed036ebf8d27654ca02c9f61f9199fc8cca09c3"
+    },
+    {
+      "path": "before/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "c72b9aa6ba8e7f02da6c1b96df4d84490933e9329ff93d6fbdd14e2faff8acf7"
+    },
+    {
+      "path": "before/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "sha256": "d8ec7d5f9338e9964c6a00d52592de8408772d97e05f4c08bb0ba6a1721d4dd1"
+    },
+    {
+      "path": "candidate-application-receipt.json",
+      "sha256": "bd75126c8bc1ce7c7ae42760052c0fc08981eaf5668212edd4fc7b04c3d59a31"
+    },
+    {
+      "path": "cfg-attachment-audit.json",
+      "sha256": "d174b4e5c95674659ee1c177e3734ae81cb059e43d5ab50d1c46276bd52d8f59"
+    },
+    {
+      "path": "compiler-static-peer.json",
+      "sha256": "738f3a6f293cfe4d8b2da94745c2ddf98b27fa2422a6f10e7e98bf16e393c515"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "9fe3aed6918a7bccce59ebbada679e6cc3c6f2768aafe9c5934265330a4e6e4d"
+    },
+    {
+      "path": "proposal.patch",
+      "sha256": "028e77fcd9b3bb3c483f136a429b6352a6a2a5c692a189daa7621ab55f2a3658"
+    }
+  ],
+  "limits": "Work remained unchanged; rootfocusedcandidatecheck and CI rerun mandatory. Staticpeers did not prevent initial cleanup regressions."
+}

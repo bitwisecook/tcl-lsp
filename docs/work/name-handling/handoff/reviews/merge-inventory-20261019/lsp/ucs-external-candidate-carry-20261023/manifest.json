@@ -1,0 +1,82 @@
+{
+  "actual_utc": "2026-10-23T11:47:07.052795+00:00",
+  "source_export": "a814651cb0bd5a8a0dfd886f7a80c5267f4c4d63",
+  "scope": "Nine external-owned product paths only; ownerevidence note excluded; user explicit lossy preview decision retained, mutation fidelity unchanged",
+  "conflicts": [],
+  "files": [
+    {
+      "path": "docs/design/f5/f5-query-engine-internals.md",
+      "active_work_base_sha256": "2a9e996113d3bc5bad7881fce31b6484c682b5758b736240075ae7fa34192624",
+      "export_after_sha256": "5d519c5952ac9ad5767d488f66483306b7efb645de19e0a19580b312824b0aaf",
+      "candidate_before_sha256": "2a9e996113d3bc5bad7881fce31b6484c682b5758b736240075ae7fa34192624",
+      "candidate_after_sha256": "5d519c5952ac9ad5767d488f66483306b7efb645de19e0a19580b312824b0aaf",
+      "diff3_exit": 0
+    },
+    {
+      "path": "docs/kcs/features/kcs-feature-bigip-query.md",
+      "active_work_base_sha256": "066b9b53c4842747cf2dd17c41285a34b5e53b9a4035cda9f78546251a003ad9",
+      "export_after_sha256": "795f56c5fb6cd4b91d1ebd9962c8ae2106cbe87dcccfdfaf63b4dbd3f0363e4d",
+      "candidate_before_sha256": "066b9b53c4842747cf2dd17c41285a34b5e53b9a4035cda9f78546251a003ad9",
+      "candidate_after_sha256": "795f56c5fb6cd4b91d1ebd9962c8ae2106cbe87dcccfdfaf63b4dbd3f0363e4d",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/f5-cli/src/commands/query.rs",
+      "active_work_base_sha256": "275de83cb27970474179cd6a588600809342eab9142ca8fbd483187dca864d60",
+      "export_after_sha256": "569e5f733f016fe12759be66045c62e396bc6572b3f12fee235f20825be0f715",
+      "candidate_before_sha256": "275de83cb27970474179cd6a588600809342eab9142ca8fbd483187dca864d60",
+      "candidate_after_sha256": "569e5f733f016fe12759be66045c62e396bc6572b3f12fee235f20825be0f715",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/f5-cli/tests/cli.rs",
+      "active_work_base_sha256": "4a65561f2e6fad004bf6155c8739ac6a2e714251a119e75708a75334a9f97ec6",
+      "export_after_sha256": "1d4825f4a2c3c81d2e2f8d5b15dc411f55ef13f5e1161b25a07a5b23b471eb2b",
+      "candidate_before_sha256": "4a65561f2e6fad004bf6155c8739ac6a2e714251a119e75708a75334a9f97ec6",
+      "candidate_after_sha256": "1d4825f4a2c3c81d2e2f8d5b15dc411f55ef13f5e1161b25a07a5b23b471eb2b",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-bigip-io/src/lib.rs",
+      "active_work_base_sha256": "94da35f61a772a6eb95cdd7532d890f24392c42241f1ee688d10597dda052d3e",
+      "export_after_sha256": "ee93d971e8a210913a632b086301e6af440d83d77365904a97ae9ee644431afa",
+      "candidate_before_sha256": "94da35f61a772a6eb95cdd7532d890f24392c42241f1ee688d10597dda052d3e",
+      "candidate_after_sha256": "ee93d971e8a210913a632b086301e6af440d83d77365904a97ae9ee644431afa",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-bigip-io/src/ucs.rs",
+      "active_work_base_sha256": "0bb9475ed40c3ba77be5a738bb9cdb307ad71c87e6bd7a1a5dedb56323a1bc42",
+      "export_after_sha256": "2c9df9d9f3023f4b360e9a97b54d397331eef0d71c76eee634b14904c98375b2",
+      "candidate_before_sha256": "0bb9475ed40c3ba77be5a738bb9cdb307ad71c87e6bd7a1a5dedb56323a1bc42",
+      "candidate_after_sha256": "2c9df9d9f3023f4b360e9a97b54d397331eef0d71c76eee634b14904c98375b2",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-bigip-query/src/builtins/files.rs",
+      "active_work_base_sha256": "f378c5194e0e45ee112502936c4885fb5a87f5a2f48c02fc3d134c063a3e20ae",
+      "export_after_sha256": "e3e483bbc63203feae8620b5ae1a7d9ddf7c6616f37fc2a1e05f8de88702fb34",
+      "candidate_before_sha256": "f378c5194e0e45ee112502936c4885fb5a87f5a2f48c02fc3d134c063a3e20ae",
+      "candidate_after_sha256": "e3e483bbc63203feae8620b5ae1a7d9ddf7c6616f37fc2a1e05f8de88702fb34",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-bigip-query/src/eval.rs",
+      "active_work_base_sha256": "9f2be91e124ebc096d37fa1d137125ad98be9dfcd28166ea0484bf7edb393a43",
+      "export_after_sha256": "0af1dba7bcfe3b00ede56ff13b5381571116cce9ceca025d4d163afc34a996fc",
+      "candidate_before_sha256": "9f2be91e124ebc096d37fa1d137125ad98be9dfcd28166ea0484bf7edb393a43",
+      "candidate_after_sha256": "0af1dba7bcfe3b00ede56ff13b5381571116cce9ceca025d4d163afc34a996fc",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-bigip-query/tests/integration/files.rs",
+      "active_work_base_sha256": "69ac383f35e8230b9b36b3509c78b93c7b4f437c1cdcb1e1314c18d2c7660351",
+      "export_after_sha256": "8b478b635872980b6cff4bc13f26ffecb7708802c74c5b60b020ea8b9f1503d7",
+      "candidate_before_sha256": "69ac383f35e8230b9b36b3509c78b93c7b4f437c1cdcb1e1314c18d2c7660351",
+      "candidate_after_sha256": "8b478b635872980b6cff4bc13f26ffecb7708802c74c5b60b020ea8b9f1503d7",
+      "diff3_exit": 0
+    }
+  ],
+  "proposal_sha256": "24cbc6f42dc05967eb3a01483ed95a0dbcace195579ac13f06146a08c646f4fa",
+  "candidate_or_WORK_writes": false
+}

@@ -1,0 +1,40 @@
+{
+  "candidate_head": "76c7d2e396bb273cdc958aa54bf2da863402eb6d",
+  "job": 120386569196,
+  "running_count": 2147,
+  "printed_status_counts": {
+    "FAILED": 107,
+    "ok": 984
+  },
+  "failed_prefixes": {
+    "builtins": 2,
+    "capi": 1,
+    "cmd_alias": 5,
+    "cmd_array": 8,
+    "cmd_binary": 1,
+    "cmd_clock": 2,
+    "cmd_coro": 2,
+    "cmd_dict": 4,
+    "cmd_control": 1,
+    "cmd_error": 1,
+    "cmd_info": 9,
+    "cmd_list": 5,
+    "cmd_namespace": 20,
+    "cmd_oo": 15,
+    "cmd_proc": 1,
+    "cmd_regex": 5,
+    "cmd_trace": 2,
+    "cmd_var": 3,
+    "codegen_abi": 3,
+    "codegen_native": 1,
+    "dict": 1,
+    "engine_abi": 2,
+    "env_trace": 10,
+    "frame": 3
+  },
+  "actual_suite_complete": false,
+  "terminal": "SIGABRT panic in extern C retirement callback; no main result summary",
+  "noTom_expectation_flag": "1 present in step env",
+  "noTom_source_not_found_warning_count": 0,
+  "missing_provider_cause_proven": false
+}

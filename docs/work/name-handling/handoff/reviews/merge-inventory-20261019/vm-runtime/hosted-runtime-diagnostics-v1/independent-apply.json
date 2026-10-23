@@ -1,0 +1,6 @@
+{
+  "exit": 0,
+  "stdout": "patching file .github/workflows/perf.yml\npatching file docs/work/name-handling/validation-tools/runtime-diagnostics.py\npatching file docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py\n",
+  "all3_afterpins_exact": true,
+  "active_work_mutated": false
+}

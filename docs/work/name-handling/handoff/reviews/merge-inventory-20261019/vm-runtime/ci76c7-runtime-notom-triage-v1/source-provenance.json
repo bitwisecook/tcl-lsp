@@ -1,0 +1,25 @@
+{
+  "repo": "bitwisecook/tcl-lsp",
+  "ref": "76c7d2e396bb273cdc958aa54bf2da863402eb6d",
+  "method": "GitHub fetch_file connector explicitref",
+  "sources": [
+    {
+      "path": "runtime/rust/src/interp/native_error_variables.rs",
+      "blob_sha": "f61a4144fbdd0356a118b7eaab218ab286cb538f",
+      "exact_fetch_text_length": 91327,
+      "recorded_sha256": "7c4393f83c1b17301d2f41bfa2dff1e1d0b9ea11f86b5525a90d986b04b0d3e0"
+    },
+    {
+      "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+      "blob_sha": "a42d8f3ea569f18c79d21ff6bb7ca87b55d639db",
+      "exact_fetch_text_length": 18806,
+      "recorded_sha256": "246aad3fc17ece5f3eb0ef7f5a0ead2747c37e0f252a810f54a658922d7e8b34"
+    },
+    {
+      "path": "runtime/rust/src/frame.rs",
+      "blob_sha": "6e06a8cdd84edf11a6c492775097b5be43e8b16a",
+      "exact_fetch_text_length": 116424,
+      "recorded_sha256": "3f27c3643265940f88397421b148ee09c4c0d4c7dcc484b98b22f1c75d409a14"
+    }
+  ]
+}

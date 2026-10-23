@@ -2,11 +2,82 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T11:17:25.780139+00:00 (actual v13/source135 PASS0W; VM26 and NoTom16 materialized/noGO/runtimeUNRUN)
+Last updated: 2026-10-23T11:48:08.159063+00:00 (hostedv2dispatch422/no runtime; exactv3envcontextfix staticCLEAR/root handoff)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root published v3contextfix on WORKb96c2ca5 and accepted diagnosticdispatch.
+Actual Performance run39948671056 created11:48:23 on exactb96c2ca5, event
+workflow_dispatch/work. Runtime diagnostic job120397502535 currentlyQUEUED;
+paired/graphs/benchmark correctlySKIPPED. Acceptance/queue is not build or
+runtime completion. Monitor GitHub jobs/rawlogs/artifact for original16 first
+assertions; no localCargo/source/GO. Previous v2HTTP422 static-contextmiss
+remains explicit; v3runtime results still UNRUN at this observation.
+
+Hostedv2 publishedWORK03832ee4 dispatch rejectedHTTP422 before runtime:
+GitHub rejects runner.temp in job-level env (line458). Static YAML/peer checks
+missed context availability; no hosted build/test ran and no result claimed.
+Exact two-line relocation off-tree v3 `/tmp/vm-hosted-runtime-diagnostics-env-context-v3/proposal.patch`
+SHAdd95a64c moves unchanged CARGO_TARGET_DIR runner.temp path into Capture
+step env. Exact publishedperf before5f8bffde independently GitHub fetched,
+after3f2dee19; parsed comparison proves no other change. RapidCodegenpeer255be188 STATIC CLEAR; root has exact patch/pins forpublish/dispatch; active canonical source remains untouched.
+
+Hosted WORK-only originalNoTom16 diagnostic v2 STATIC CLEAR:
+`/tmp/vm-hosted-runtime-diagnostics-v2/proposal.patch` SHAc999d24f,
+Codegen finalpeer414f1f3a. Root has integration/dispatch handoff: existing
+perf.yml refwork mode runtime-diagnostics/runtime_sha exactpublishedworkHEAD;
+helper requires input==eventGITHUB_SHA==freshcheckoutHEAD. V1historicalHOLD
+for preexistingtarget/cache and rustup proxybasename gaps; v2 requires absent
+dedicatedtarget and freshFalse Cargoartifact, uses actual rustup-which toolchain
+executables and separately inventories proxy/actualtools. Mainhelper actual
+Ruff0.17.1 format/check, ty0.0.88 and Pyright1.1.414 STANDARD py3.12 (onefile,
+0errors/0warnings) PASS; noallows/suppression. Independentzero-fuzz3exact,
+YAML invariants, normal/-O invalidSHA refusal PASS. Byteexact88125 executor
+retained. Original16 assertions/args/features/budgets/signals unchanged.
+Root alone integratesisolatedpublisherWORK/dispatches; no active product/
+workflow/helper edit or Cargo by VM. All3temporarypaths excludedreleasecandidate.
+Owned hosted-runtime-diagnostics-v2 archive preserves patch/peer/checks.
+Actual hosted runtime execution still UNRUN at handoff; no acceptance claim.
+
+Root explicitly authorized separate-host WORK-only originalNoTom16 diagnostic
+via existing registered perf.yml mode runtime-diagnostics; root alone integrates
+isolated publisherwork and dispatches exactpublishedworkSHA. Off-tree3path
+patch `/tmp/vm-hosted-runtime-diagnostics-v1/proposal.patch` SHAa288df17:
+workflow opt-in mode/runtime_sha plus diagnostics/helper88125 under docs/work.
+Pairedjob exact; standardjobs onlyskipnewmode; globalconcurrency/permissions
+unchanged. Ubuntu26 exact manualworkeventSHA==input==checkoutHEAD; flag1,
+originaldefault --lib build -j2, actual freshCargoJSON executable/NoTomcfg and
+capabilitymetadata. Original16separate --exact --nocapture --test-threads1,
+strict88125/180s/3600s/aggregate20MiB/2GiB; abortsignals preserved, continue
+onlyafter ownedprocessgroup cleanup. Fulltrackedsource/hash/gitclean before/
+after, rawprocess/terminalstatuses and30dayActionsartifact, no releaseadmission.
+Independent3file zero-fuzz/nooffset exactafterpins, AST/YAML, invalidSHA
+normal/-O refusal beforeoutput/Cargo PASS. Codegen bounded peer pending.
+No workflow/helper writes to active WORK; only ownedevidence/status docs.
+All diagnosticchaff explicitly excluded from releasecandidate. Local sole
+Cargo/rootCCGslot unaffected; no new localGO or runtimequeue by VM.
+
+Actual candidate76c7 CI runtime-rust-tests job120386569196 FAILED:
+intentionalabsenceflag1 present, compile52.20s, no oldmissingTommathwarning.
+2147tests started; printed984ok/107FAIL before externC retirementcallback
+panic/SIGABRT, no main suite finalsummary. One1PASS2146filtered summary is
+nested child only. Exact original16 join: C84catchPASS, other15FAIL; no zeroP2F
+or CIgreen acceptance. Fatal firstavailable assertion member_materialisation
+107 var_get(a(k)) None vs Some(V). Earlier ordinaryFAIL panic messages lost
+byabort; missingoracle/environment cause NOT established from outcomes.
+Lossless rawloggz/rows/original16join/exact76source3files/provenance/notes
+owned `ci76c7-runtime-notom-triage-v1/archive-manifest.txt` fdbac8e6.
+
+C84cleanup audited against exact76 GitHub source: setter Result<(),VarError>
+uses Copy enum noownedpayload; both cfgtest blocks only same setter once and
+observer.is_ok, no testinjection. Flags/currency/query/return order preserved;
+not static evidence of this aliascallback failure. Genuine native alias test
+and envtrace legacywith_host+release fixtures are distinct routes. No minimal
+functional patch justified yet from swallowedNone. Prepared isolated original
+NoTom16 --exact --nocapture execution preserves missingassertion evidence;
+root alone owns slot/GO/Cargo/source, work HOLD and no VM runtime launch.
 
 Actual v13/source135 genuinely PASS0W, parent62473 closed0/lockreleased;
 finald72c992c, launcher45f2b775, identityv17d9a49f09, typeplanf238ec1f.

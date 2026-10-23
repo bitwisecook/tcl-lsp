@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-23T11:39:27.346727+00:00",
+  "checks": [
+    "pairedjobexact",
+    "globalconcurrencyexact",
+    "globalpermissionsexact",
+    "standardjobs_only_newmode_exclusion",
+    "YAMLparsed",
+    "ASTbothhelpers",
+    "byteexact88125executor",
+    "original16selectorsunchanged"
+  ],
+  "negative_refusals": [
+    {
+      "optimized": false,
+      "exit": 1,
+      "output_absent": true,
+      "cargo_started": false,
+      "reason": "RuntimeError: full exact workSHA required"
+    },
+    {
+      "optimized": true,
+      "exit": 1,
+      "output_absent": true,
+      "cargo_started": false,
+      "reason": "RuntimeError: full exact workSHA required"
+    }
+  ],
+  "source_or_workflow_mutation": false,
+  "cargo_started": false
+}

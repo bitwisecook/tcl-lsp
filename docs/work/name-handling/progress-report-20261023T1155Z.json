@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T11:55:37.764146+00:00",
+  "scheduled_report_utc": "2026-10-23T11:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T12:25:37+00:00",
+  "change_since_previous_report": [
+    "1125cycle active9c08d2e checkpoint normalpublished46a94508bd at11:37:04 afterfreshdepth1fetch/rebase. Fulltypev13source135archive01e8b7fe/116members54transitiveinputs losslesslyroundtripverified onWORKonly. Activefunctional1dd/source135 HOLD remains whileCCG5; external17productpaths explicitlyunvalidated, preservedpublisher.",
+    "FunctionalfixesdevelopedandnormalpublishedWORKa814651c at11:45:21 viaisolatedworkpublisher: minimalctutils0.4.3to0.4.4onlyversion/checksum8locks/RUSTSEC2026-0385, plus62serveremptyassertionClippyrepairs5files no weakenedassertions. BothindependentstaticpeersCLEAR. Activefrozenfilesunchanged; nofalsecurrenttiptypingclaim.",
+    "Firstcandidate76c7CI39945314600 actualcompilefailuresidentified2cleanupmistakes (orphancfgsource_arguments/misrenamedoffset), restoredoriginalworksemantics. Systematiccfgattachmentauditpreserved4intentionaltestcounters/nootherproductiveattachment. Nativeproof478labels/15attrgaps removed174files, independentlytoken/literalidentical;fmtv4PASS0 capped292s.",
+    "Newcandidatec611d8bd716e9ae3719bfc0beeedd8f24b53e64e committed189paths and normalpushed11:47 afterfreshfilteredworkfetch+narrowrustfetch confirmsfcbunchanged. Required3292stagedinputsPASS4471f10c/2f08a7cc,10973tracked/no docswork/chaff. NewcanonicalfullCI39948576685+pairedperf39948582553 dispatchedexactc611/fcb. Cargo-denyactualGREEN; othersactive/queued, no fulltest/perfacceptance.",
+    "Work-onlyhosted16diagnostics v2c999published03832 butdispatchHTTP422 becausejobenvrunnercontextinvalid; no runtimestarted. Staticpeerreviewmissacknowledged. Narrowv3dd95envrelocation peerCLEAR255be188 normalpublishedb96c2ca5, accepteddispatch39948671056 11:48; capturesoriginal16separateboundedfreshprocesses. Alltemporaryworkflow/helpers stayWORKonly.",
+    "FocusedCCG5 strictactualv13bound root37487 remainsRUNNING secondfreshspectclbuild; firstVMartifactfreshcomplete. Bothbuildsrequired before5unchangedrows; no selectedruntimeoutcomesyet/noearlyadhocartifactrun. Compiler61/VM26/NoTom16/StartupUPF4 exactplansmaterializedbutnoGOs pendinglockclosure.",
+    "ExternalBIGIP11:35/perf11:28fresh, no duplicate/takeover. NewUCS9productcarry respectsseparatelyrecordeduserlossypreviewdecision/originalbytesmutationrefusal; reviewedofftreeheldfromc611. Perf12/3currentcontrols blockfullcorpus; requestexistingbinarythreepreexistingtraceflags for2aliascontrols+hostedfirstgate recordedincoordinatorroutingfile. No speculativefixtureweakening/realmproofadmission.",
+    "SectionFshippingstartup/cancellation/memorymeasurements nowbeingpreparedagainstCI-producedexactbaseline/candidateserverartifacts. CurrentCI/perfresultsneeded; purebuildsuccessnotshippingacceptance. Zero24,312baselinePASS-to-FAIL notyetmeasured; allFboxesremainopen, noPR/tag/merge/release.",
+    "11:51actualc611LSParchivecompilefailedsixwarningsintroducedbyobservercleanup: unused5bindings/parameters plusdanglingOptionis_some. Warningsdeniedcorrectly; noarchive/tests/listingproduced. Namespreparingcandidate-only narrowrepair/Compilerpeer, noallows, nofalseclaimwork135typingcoverscleanup.",
+    "Measuredexternalperfcurrent0322report-refusaltrace nowshows hosted-metadataSome thenwrongpurposeword/candidate comparisondeclinesbeforeeventunits; ownercardchecksPASS/bodies.event-wordNone. PeerCLEAReventoperandv2 normalpublishedWORKd1a0fe02b60a049291e3ffb0ff19b4c62050058a 11:52:56, functionalWIP untyped/unrun; active135unchanged. Native/Logicalaliasactualinventoriesalsocaptured; Namespreparingdocumentednarrowstorage-roleassertioncorrection preservingoriginalprofiles/fullbijection, noproductionrolecoercion.",
+    "11:53currentCIalsoClippyFAILfiveblanklinesafterdoccomments string/native_compiled.rs. Narrowcandidatewhitespacefix/globalcensusassignedNames; sixwarningrepaird430668a staticCLEARc6a758ee queuedrootapply. Invalidemptyrosters/absentmetadata explicitlynotnamedtestresults."
+  ],
+  "committed": [
+    "9c08d2e06b8bf546b4172e9fadae8be1b8d26bc7"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "FinishCCG5original5 withinunchanged45min protocol, thencompiler61/VM26/startupUPF4/NoTom16 boundedactualtypedqueues. Preservefrozen135/source/providerseals.",
+    "Monitorc611fullCI+pairedTclcorpus andworkhosted16 firstassertions; functionalrepairsONLYwork, reviewedcarryreleasecandidate. HeldUCS9/eventoperandv2 requireappropriateactualchecks.",
+    "CompleteallFand24,312exactbaselinecomparison, shippingprotocolperformance/cancellation/memory andaffectedhostgates beforeauthorisedPR. NoPRyet; sixhourdeadline14:56 UTC."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T11:44:00+00:00",
+    "perf": "2026-10-23T11:49:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actualsource135v13eightpkgalltargetsPASS0W onlyfrozen1dd; fullarchiveWORK. CCG5runtimebuildRUNNING/norows. Candidatec611CIcargo-denyGREEN only/fullCI+pairedperfRUNNING. Hosted16workdiag39948671056 accepted/queued. No currentruntime/equality/perf/zeroP2Facceptance; sectionFopen.",
+  "disk_free_bytes": 6358470656,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

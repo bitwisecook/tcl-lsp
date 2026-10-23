@@ -1,0 +1,112 @@
+{
+  "actual_utc": "2026-10-23T11:45:24.964870+00:00",
+  "scope": "Off-tree only 8ctutils+5serverempty reviewed changes merged with currentcandidate cleanup; no candidate/WORK writes",
+  "conflicts": [],
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "work_before_sha256": "663cab65a142df1755b96c14f02933f028835ab72dacafdafdecab5162101ed9",
+      "candidate_before_sha256": "663cab65a142df1755b96c14f02933f028835ab72dacafdafdecab5162101ed9",
+      "reviewed_work_after_sha256": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+      "candidate_after_sha256": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-spec-studio-wasm/Cargo.lock",
+      "work_before_sha256": "8ae16366470d90fb45d702c818f32447f99f612378122dbf7e1cd1e9fa4764eb",
+      "candidate_before_sha256": "8ae16366470d90fb45d702c818f32447f99f612378122dbf7e1cd1e9fa4764eb",
+      "reviewed_work_after_sha256": "0edf3c7bac87fffa3a44492bff73c6e0811c3e9d69a370e8d5f5772005956f83",
+      "candidate_after_sha256": "0edf3c7bac87fffa3a44492bff73c6e0811c3e9d69a370e8d5f5772005956f83",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/Cargo.lock",
+      "work_before_sha256": "edabb77dba4eb5514d39b42e6d8028480ddb7b4b2645c866b4dacc4aacd205c5",
+      "candidate_before_sha256": "edabb77dba4eb5514d39b42e6d8028480ddb7b4b2645c866b4dacc4aacd205c5",
+      "reviewed_work_after_sha256": "8f3ddc802fb04c0b3f67e484bdb580bb7662dce4caa0acf023da2b94653ef121",
+      "candidate_after_sha256": "8f3ddc802fb04c0b3f67e484bdb580bb7662dce4caa0acf023da2b94653ef121",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/bigip-report-gen/wasm/Cargo.lock",
+      "work_before_sha256": "bf4aaaab9b1b22a8e0dd25d42fcd200b1dc065d055edcf65c656a9be0be585ad",
+      "candidate_before_sha256": "bf4aaaab9b1b22a8e0dd25d42fcd200b1dc065d055edcf65c656a9be0be585ad",
+      "reviewed_work_after_sha256": "ef39ca699488a1b53df8fa1b899fa7df641dd41df4096eb7bbaf537db51cb648",
+      "candidate_after_sha256": "ef39ca699488a1b53df8fa1b899fa7df641dd41df4096eb7bbaf537db51cb648",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/bigip-report-gen/python/Cargo.lock",
+      "work_before_sha256": "a2346c1b9b0cf8fee4603088a0e1339cd3b299e61e5bc8e23ae2e22a44323766",
+      "candidate_before_sha256": "a2346c1b9b0cf8fee4603088a0e1339cd3b299e61e5bc8e23ae2e22a44323766",
+      "reviewed_work_after_sha256": "c10a4129f7ea61871541dbb04aa9699e7389db3cec9553f2be76c10c877e4a10",
+      "candidate_after_sha256": "c10a4129f7ea61871541dbb04aa9699e7389db3cec9553f2be76c10c877e4a10",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-explorer-wasm/Cargo.lock",
+      "work_before_sha256": "264da77a5721a8300f9f40c00301afa18cc133c7ebf56ee4135d0caba80a2842",
+      "candidate_before_sha256": "264da77a5721a8300f9f40c00301afa18cc133c7ebf56ee4135d0caba80a2842",
+      "reviewed_work_after_sha256": "64e85c00566abe814f3dc5a826e95b93b54e2ad5d8bd174bf9b38f0dd529a5ca",
+      "candidate_after_sha256": "64e85c00566abe814f3dc5a826e95b93b54e2ad5d8bd174bf9b38f0dd529a5ca",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/bigip-query-wasm/Cargo.lock",
+      "work_before_sha256": "a341489b422b8b9b4a019b099251ffada32104ffb4930a469e8532dff64a477a",
+      "candidate_before_sha256": "a341489b422b8b9b4a019b099251ffada32104ffb4930a469e8532dff64a477a",
+      "reviewed_work_after_sha256": "26b47afc9b12b8dbec5c50c0d699ba8ceac0f3ef3f6ad41a3df859a5216599d0",
+      "candidate_after_sha256": "26b47afc9b12b8dbec5c50c0d699ba8ceac0f3ef3f6ad41a3df859a5216599d0",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasi/Cargo.lock",
+      "work_before_sha256": "a64762f27b86981db5772f2d2183568705d0220fd69cf62e7ec1f160a90559fe",
+      "candidate_before_sha256": "a64762f27b86981db5772f2d2183568705d0220fd69cf62e7ec1f160a90559fe",
+      "reviewed_work_after_sha256": "e07ef18862d813d05c780c67d1d7d875e74df0f7f0740d52c1f62793420004fd",
+      "candidate_after_sha256": "e07ef18862d813d05c780c67d1d7d875e74df0f7f0740d52c1f62793420004fd",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "work_before_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "candidate_before_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "reviewed_work_after_sha256": "3e270dea135b18b9f18156b2a1cf7d812aeeb06a669f766895d2dfda3076eb08",
+      "candidate_after_sha256": "3e270dea135b18b9f18156b2a1cf7d812aeeb06a669f766895d2dfda3076eb08",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "work_before_sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+      "candidate_before_sha256": "4881e9b2a27a5b82aca3300feb41dbb165b132ba74487048146539aaea2a799b",
+      "reviewed_work_after_sha256": "043982b1d866fe2c74d181903e0188e31a5ada8484d7441df10ca8beb43d5fbc",
+      "candidate_after_sha256": "8ff74451ba30aa0655fa1eefd36af8b61208c25035a8aacaf9dd23ea86103586",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+      "work_before_sha256": "c0d253bf6c5d6ef128f30846b1f44fb00a5febbb4c972f5ae0ce40514b3e3355",
+      "candidate_before_sha256": "168f583e6b1f09958a93b1ecec047162065d2fcc7029a17a34214d894bab1e90",
+      "reviewed_work_after_sha256": "8936a241985e529efee310bc47a97e042895ebcfd5a192487dee4ffd9d8024da",
+      "candidate_after_sha256": "2339a101fb8988a874412af616ee54509ae55d5754e22974da1905567784f1ba",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "work_before_sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "candidate_before_sha256": "1762149b79f494d8b0b81d77a19d4f1ec2a898763103a44391cd68d3c107b304",
+      "reviewed_work_after_sha256": "c593666a1c6c0445827a3972ff1190d76662f30d7876ea8fae716a33c2e5d764",
+      "candidate_after_sha256": "70618ac04631c7e5f1ea67570daa630407c576be6cc70007f22b6897f076c451",
+      "diff3_exit": 0
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "work_before_sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "candidate_before_sha256": "4bb03868229a0b9df7efae3a8809ae4bcad5c5318296245ea0e303b1f85cd9e3",
+      "reviewed_work_after_sha256": "4d4db278f2e92692f9ece6e45345515f69c6f78fb0171c6d5a0c00eeae4a6e39",
+      "candidate_after_sha256": "dbffdad8891f73f1b66af09a5ffe38d390bd65ea6c6cbc9094185ba25f136c9f",
+      "diff3_exit": 0
+    }
+  ],
+  "proposal_sha256": "3c3fffb49c159891ad6cab1ba22cd951a61fad862610357c6491aeff75b2b366"
+}

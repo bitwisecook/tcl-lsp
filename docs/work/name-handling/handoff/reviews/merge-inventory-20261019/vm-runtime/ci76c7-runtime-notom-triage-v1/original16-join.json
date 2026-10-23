@@ -1,0 +1,98 @@
+[
+  {
+    "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "actual_rows": [
+      "ok"
+    ]
+  },
+  {
+    "selector": "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::the_home_directory_follows_env_home",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+    "actual_rows": [
+      "FAILED"
+    ]
+  },
+  {
+    "selector": "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it",
+    "actual_rows": [
+      "FAILED"
+    ]
+  }
+]

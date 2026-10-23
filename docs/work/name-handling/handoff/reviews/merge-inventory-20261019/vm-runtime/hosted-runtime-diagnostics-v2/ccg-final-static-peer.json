@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T11:45:14.030187+00:00",
+  "status": "STATIC_CLEAR",
+  "patch_sha256": "c999d24fab61c505c0687abe7d1c833b82efaaf75a3a8e4add6e81bda74cbe2b",
+  "all3_current_before_and_independent_zero_fuzz_nooffset_apply_finals": true,
+  "independent_shadow": "/tmp/ccg-hosted-v2-independent-69gstx8t",
+  "inherited_protocol_review": "/tmp/vm-hosted-runtime-diagnostics-v1/ccg-bounded-static-review.json",
+  "delta_review": [
+    "fresh target must not exist; selected CargoJSON artifact fresh exactly false",
+    "rustup which resolves genuine cargo/rustc; invocation basename checked; proxies separately recorded",
+    "Python sys.version captured",
+    "explicit None/loader guards and specific exception families retain fail-closed paths",
+    "same original16/selector argv/runtime180/build3600/aggregate20MiB/2GiB/88125 executor",
+    "workflow byte-identical previous reviewed proposal; standard/paired/global invariants preserved"
+  ],
+  "python_checks": [
+    "owner pinned ty0.0.88 py3.12 PASS",
+    "owner Pyright1.1.414 STANDARD py3.12 filesAnalyzed1/error0/warning0",
+    "independent Ruff0.17.1 format/check canonical ruff.toml PASS"
+  ],
+  "no_cargo_source_mutation_or_dispatch": true,
+  "limitations": [
+    "static only; hosted runtime unexecuted",
+    "hosted provider equivalence with local original environment not inferred",
+    "temporary Work-only diagnostic; release_admission false"
+  ]
+}

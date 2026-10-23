@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T11:45:10.552583+00:00",
+  "patch_sha256": "c999d24fab61c505c0687abe7d1c833b82efaaf75a3a8e4add6e81bda74cbe2b",
+  "all3_exact_afterpins": true,
+  "apply": "zero fuzz/nooffset",
+  "yaml": "paired/concurrency/permissions exact; standardnewmode exclusion only",
+  "negative": [
+    {
+      "optimized": false,
+      "exit": 1,
+      "output_absent": true,
+      "cargo_started": false
+    },
+    {
+      "optimized": true,
+      "exit": 1,
+      "output_absent": true,
+      "cargo_started": false
+    }
+  ],
+  "source_mutation": false
+}

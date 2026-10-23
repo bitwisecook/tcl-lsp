@@ -1,0 +1,488 @@
+name: Performance
+
+# Release-performance monitoring: runs the deterministic benchmark suite
+# (`scripts/perf/`) against the server built from this ref, publishes the
+# graphs and the raw result JSON as artefacts, and writes the summary table
+# into the job summary.
+#
+# Deliberately a separate workflow from `ci.yml`: it is slower than the
+# gates, it is the only job that needs network access to third-party repos
+# (the pinned corpus), and it should be re-runnable on its own from the
+# Actions tab without dragging the whole release graph along.
+#
+# Not a gate: the suite reports and warns; it does not fail the build on a
+# slow check. Wall time on a shared runner is not comparable to the
+# maintainer laptop the committed `results/` were measured on, so a fixed
+# threshold would be arbitrary without an established baseline for this
+# runner. `bench.py --fail-on-failed-check` exists for that and is
+# commented out below.
+
+on:
+  push:
+    # `v*` gives the release record: those runs publish the graphs that go into
+    # the release notes and READMEs.  The nightly schedule below supplies the
+    # running trend.  Do not benchmark every merge as well: the suite is
+    # informational, so a merge-time result gates nothing and duplicates the
+    # next nightly sample on the same branch.
+    tags: ["v*"]
+  pull_request:
+    branches: [rust]
+  # The `benchmark` job stays off PRs — it is not a gate (see above), so a
+  # PR-time run would produce a number nothing consumes before merge, only for
+  # the same commit's numbers to be recomputed on the push and again on the
+  # tag. Running it on PRs only makes sense once `--fail-on-failed-check` is
+  # enabled, so a PR run actually gates something.
+  #
+  # `graphs-current` is a different animal and does run here: it needs no
+  # corpus, no build and no network, it takes seconds, and what it catches — a
+  # committed SVG that no longer matches the committed results — is a wrong
+  # file sitting in the diff under review. Catching that after merge, or at
+  # tag time, is catching it too late.
+  schedule:
+    # Nightly on the default line is the one regular trend sample.  This keeps
+    # accumulating even through weeks where nothing touches `rust/`, while
+    # avoiding one additional non-gating benchmark for every merge.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Standard small trend sample or paired baseline/candidate validation
+        required: true
+        type: choice
+        default: standard
+        options: [standard, paired, runtime-diagnostics]
+      runtime_sha:
+        description: Exact full work commit SHA for temporary runtime diagnostics
+        required: false
+        type: string
+      baseline_sha:
+        description: Full baseline commit SHA (paired mode only)
+        required: false
+        type: string
+      candidate_sha:
+        description: Full candidate commit SHA (paired mode only)
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'standard' }}-${{ inputs.candidate_sha || '' }}
+  cancel-in-progress: ${{ inputs.mode != 'paired' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # The committed graphs are quoted as the release record and are embedded in
+  # release notes by URL, so they have to be exactly what the committed results
+  # render to. report.py is byte-deterministic, which makes "re-render and diff"
+  # a real check rather than an approximation.
+  #
+  # Cheap and hermetic — no build, no corpus, no network — so it runs on every
+  # trigger and catches a hand-edited SVG or a results file committed without
+  # re-rendering, long before `rust_release.sh verify` would at tag time.
+  graphs-current:
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Re-render the committed graphs and diff
+        working-directory: scripts/perf
+        run: |
+          python3 report.py --results results --out "$RUNNER_TEMP/graphs" >/dev/null
+          if ! diff -ru graphs "$RUNNER_TEMP/graphs"; then
+            echo "::error title=Perf graphs are stale::scripts/perf/graphs/ is not what scripts/perf/results/ renders to. Run: cd scripts/perf && python3 report.py"
+            exit 1
+          fi
+          echo "graphs/ matches results/"
+
+  benchmark:
+    # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
+    # job, so a job-level skip costs no downstream status.
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      # Only the `v*` tag path uses this, to attach the release graphs to the
+      # GitHub Release. Every other trigger leaves the token unused.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          cache-key: perf-benchmark
+
+      - name: Build tcl-lsp-server (release)
+        run: cargo build -p tcl-lsp-server --release
+
+      # tomllib, so 3.11+. The runner image ships 3.12; assert rather than
+      # assume, because the failure mode otherwise is a confusing ImportError
+      # deep inside the harness.
+      - name: Check Python version
+        run: |
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version' \
+            && python3 --version
+
+      # The corpus is third-party source pinned to exact commits. Cached on
+      # the manifest hash: a pin change is a new cache key, which is exactly
+      # when the corpus must be re-fetched.
+      - name: Cache pinned corpus
+        id: corpus-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: scripts/perf/corpus
+          key: perf-corpus-small-${{ hashFiles('scripts/perf/MANIFEST.toml') }}
+
+      - name: Fetch corpus
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small
+
+      # Belt and braces: a cache restore could in principle hand back a tree
+      # that no longer matches the pins. Verify offline before measuring, so
+      # a drifted corpus is a loud failure rather than a silently
+      # incomparable data point.
+      - name: Verify corpus pins
+        working-directory: scripts/perf
+        run: python3 fetch_corpus.py --scope small --verify-only
+
+      # A tag is a release record and is labelled with its version, so it
+      # lands in `report.py`'s semantic ordering alongside the other
+      # releases. Anything else is a trend point labelled by sha; a
+      # non-numeric label sorts ahead of the numbered releases, so the
+      # current ref reads as the first row and first legend entry.
+      - name: Resolve the result label
+        id: label
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            label="${GITHUB_REF#refs/tags/v}"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            label="ci-${GITHUB_SHA:0:12}"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "label=$label" >> "$GITHUB_OUTPUT"
+          echo "labelling this run: $label"
+
+      - name: Run the benchmark suite
+        working-directory: scripts/perf
+        # BENCH_DEADLINE_S: bench.py's own outer wall-clock budget —
+        # on expiry it reports which phase/binary/request died and
+        # exits nonzero, well inside this job's 60-minute backstop above, so
+        # a wedge here is attributed instead of just timing the whole job
+        # out. Raised above bench.py's own default (240s) because a shared
+        # runner is noisier than the maintainer laptop the default assumes.
+        env:
+          BENCH_DEADLINE_S: "480"
+        run: |
+          python3 bench.py \
+            --server ../../target/release/tcl-lsp-server \
+            --version "${{ steps.label.outputs.label }}" \
+            --scope small \
+            --out ci-results
+          # Once a runner baseline exists, add: --fail-on-failed-check
+          # (branch runs only — a perf hiccup must never block a release).
+
+      # Rendered against the committed release results as well as this run,
+      # so the graph shows where the current ref sits in the trend rather
+      # than as a lone line with nothing to compare against.
+      - name: Render graphs against the release history
+        working-directory: scripts/perf
+        run: |
+          # Rendered from a third directory so neither input is clobbered.
+          # Precedence matters on a tag whose version is already committed to
+          # `results/` — which is now the normal case, since
+          # `scripts/release/rust_release.sh prepare` measures the release and
+          # commits the result before the tag exists. That committed figure is
+          # the release record, taken on the host the maintainer chose (see
+          # "CI results are not a substitute for macOS results" in the README),
+          # so it wins. This run's own measurement stays intact in
+          # `ci-results/` and is uploaded as the artefact regardless.
+          mkdir -p render
+          cp results/*.json render/ 2>/dev/null || true
+          cp -n ci-results/*.json render/
+          # `--highlight` explicitly, not by default: report.py's default is
+          # the newest *release* in the set, and a branch run is labelled
+          # `ci-<sha>`, which sorts before every numbered version. Naming the
+          # label makes the ref under test the blue line either way.
+          python3 report.py --results render --out ci-graphs \
+            --highlight "${{ steps.label.outputs.label }}"
+
+      - name: Job summary
+        working-directory: scripts/perf
+        run: |
+          {
+            echo "### Benchmark — \`${GITHUB_REF_NAME}\` @ \`${GITHUB_SHA:0:12}\`"
+            echo
+            echo "Runner: \`${RUNNER_OS}\` \`$(nproc)\` cores. **Wall times are not"
+            echo "comparable to the committed laptop results** — compare CI runs"
+            echo "to other CI runs."
+            echo
+            cat ci-graphs/summary.md
+            echo
+            echo "<details><summary>Documents benchmarked</summary>"
+            echo
+            python3 - <<'PY'
+          import json, pathlib
+          d = json.loads(pathlib.Path(
+              "ci-results/${{ steps.label.outputs.label }}.json").read_text())
+          print("| document | bytes | nav positions |")
+          print("| --- | ---: | ---: |")
+          for m in d.get("documents", []):
+              print(f"| `{m['path']}` | {m['bytes']} | {m['positions']} |")
+          print()
+          print(f"Anchors: {d.get('anchors') or 'none'}")
+          PY
+            echo
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Warnings, not failures — see the header. Surfaces the two things that
+      # would matter once this gates: a check that did not complete, and one
+      # that took absurdly long even allowing for a slow shared runner.
+      - name: Flag failed or very slow checks
+        working-directory: scripts/perf
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          SLOW_S = 20.0
+          for f in sorted(pathlib.Path("ci-results").glob("ci-*.json")):
+              data = json.loads(f.read_text())
+              for c in data["checks"]:
+                  if not c["ok"]:
+                      print(f"::warning title=Benchmark check failed::"
+                            f"{c['id']} ({c['label']}) did not complete: {c['note']}")
+                  elif c["wall_s"] >= SLOW_S:
+                      print(f"::warning title=Benchmark check slow::"
+                            f"{c['id']} ({c['label']}) took {c['wall_s']:.1f}s")
+          PY
+
+      # Unconditional and before the release upload: whatever else happens,
+      # the measurement survives and can be attached by hand.
+      - name: Upload benchmark results and graphs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-${{ steps.label.outputs.label || github.run_id }}
+          path: |
+            scripts/perf/ci-results
+            scripts/perf/ci-graphs
+          if-no-files-found: error
+          # Release records are the ones worth keeping; trend points age out.
+          retention-days: ${{ steps.label.outputs.release == 'true' && 90 || 30 }}
+
+      # Tag only: attach the graphs to the GitHub Release so the release
+      # notes and READMEs have a stable URL to point at, e.g.
+      #   https://github.com/<repo>/releases/download/v2.1.17/perf-memory.svg
+      #
+      # `create-release` lives in ci.yml and is gated on the whole cargo test
+      # surface, so on a tag push it can land well after this job finishes —
+      # hence the bounded wait rather than assuming the release exists.
+      # Never fatal: a release that never appears means ci.yml failed, and
+      # this job reporting red on top of that would only obscure the real
+      # failure. The artefact above is the fallback.
+      - name: Attach graphs to the GitHub Release
+        if: steps.label.outputs.release == 'true'
+        working-directory: scripts/perf
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          mkdir -p out
+          for f in memory cpu walltime; do
+            cp "ci-graphs/$f.svg" "out/perf-$f.svg"
+          done
+          cp ci-graphs/summary.md "out/perf-summary.md"
+          # From `render/`, not `ci-results/`: that is the file the attached
+          # graphs were drawn from. When the release was measured before the
+          # tag, it is the committed record rather than this run's rerun, and
+          # attaching the other one would put a JSON beside the SVGs that
+          # disagrees with them.
+          cp "render/${{ steps.label.outputs.label }}.json" \
+             "out/perf-${{ steps.label.outputs.label }}.json"
+
+          for attempt in $(seq 1 40); do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" out/* --clobber && {
+                echo "attached $(ls out | tr '\n' ' ')to $tag"
+                exit 0
+              }
+              echo "::warning title=Perf graphs not attached::upload to $tag failed"
+              exit 0
+            fi
+            echo "waiting for release $tag to exist (attempt $attempt/40)"
+            sleep 30
+          done
+          echo "::warning title=Perf graphs not attached::release $tag did not appear within 20 minutes; the graphs are in this run's artefact"
+
+  paired-benchmark:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'paired'
+    name: Paired ${{ matrix.scope }} / ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scope: small
+            platform: linux
+            runner: ubuntu-26.04
+          - scope: medium
+            platform: linux
+            runner: ubuntu-26.04
+          - scope: full
+            platform: linux
+            runner: ubuntu-26.04
+          - scope: small
+            platform: macos
+            runner: macos-15
+          - scope: medium
+            platform: macos
+            runner: macos-15
+          - scope: full
+            platform: macos
+            runner: macos-15
+    steps:
+      - name: Checkout baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.baseline_sha }}
+          path: baseline
+          persist-credentials: false
+
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+
+      - name: Checkout fixed harness revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: harness
+          persist-credentials: false
+
+      - name: Set up one Rust toolchain for both builds
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          cache-key: paired-perf
+
+      - name: Validate immutable revisions
+        shell: bash
+        env:
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          HARNESS_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version; print(sys.version)'
+          for rev in "$BASELINE_SHA" "$CANDIDATE_SHA" "$HARNESS_SHA"; do
+            [[ "$rev" =~ ^[0-9a-fA-F]{40}$ ]]
+          done
+          [[ "${BASELINE_SHA,,}" != "${CANDIDATE_SHA,,}" ]]
+          [[ "$(git -C baseline rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${BASELINE_SHA,,}" ]]
+          [[ "$(git -C candidate rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${CANDIDATE_SHA,,}" ]]
+          [[ "$(git -C harness rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${HARNESS_SHA,,}" ]]
+          rustc --version
+          cargo --version
+          rustc -vV
+
+      - name: Fetch and verify the exact corpus scope
+        env:
+          SCOPE: ${{ matrix.scope }}
+          CORPUS: ${{ runner.temp }}/paired-perf/corpus
+        run: |
+          python3 harness/scripts/perf/fetch_corpus.py \
+            --manifest harness/scripts/perf/MANIFEST.toml --scope "$SCOPE" --dest "$CORPUS"
+          python3 harness/scripts/perf/fetch_corpus.py \
+            --manifest harness/scripts/perf/MANIFEST.toml --scope "$SCOPE" --dest "$CORPUS" --verify-only
+
+      - name: Run paired release builds and measurements
+        env:
+          RUSTUP_TOOLCHAIN: stable
+          BASELINE_SHA: ${{ inputs.baseline_sha }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          SCOPE: ${{ matrix.scope }}
+          CORPUS: ${{ runner.temp }}/paired-perf/corpus
+          WORK: ${{ runner.temp }}/paired-perf/work
+          OUT: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}
+        run: |
+          python3 harness/scripts/perf/paired_bench.py \
+            --baseline-root baseline --candidate-root candidate \
+            --harness-root harness --corpus "$CORPUS" \
+            --baseline-sha "$BASELINE_SHA" --candidate-sha "$CANDIDATE_SHA" \
+            --scope "$SCOPE" --work "$WORK/$SCOPE" --out "$OUT" \
+            --bench-deadline 1800 --build-deadline 2700
+
+      - name: Add paired summary
+        if: always()
+        env:
+          SUMMARY: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}/comparison.md
+        run: |
+          if [[ -f "$SUMMARY" ]]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload paired result files
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: paired-perf-${{ matrix.platform }}-${{ matrix.scope }}-${{ inputs.candidate_sha }}
+          path: ${{ runner.temp }}/paired-perf/output/${{ matrix.scope }}
+          if-no-files-found: warn
+          retention-days: 30
+
+  runtime-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runtime-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 115
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-diagnostics-target
+      TCL_RUNTIME_EXPECT_NO_TOMMATH: "1"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Capture isolated original runtime failures
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          DIAGNOSTIC_OUTPUT: ${{ runner.temp }}/runtime-diagnostics-output
+        run: |
+          unset TCL_TOMMATH_DIR
+          python3 docs/work/name-handling/validation-tools/runtime-diagnostics.py --sha "$EXPECTED_WORK_SHA" --out "$DIAGNOSTIC_OUTPUT"
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/runtime-diagnostics-output
+          if-no-files-found: error
+          retention-days: 30

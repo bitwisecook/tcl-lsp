@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T11:52:56.974417+00:00",
+  "published": "d1a0fe02b60a049291e3ffb0ff19b4c62050058a",
+  "branch": "work",
+  "patch_sha256": "5715f101f871b6080a5b9b46284c86c9839037cbd5f49e960f7f910a455fe35d",
+  "peer_sha256": "6103c87a9e8959b5f482f6e201d86fd31fe1c303d922f9c06a55c654fabf11de",
+  "active_frozen_source_changed": false,
+  "typing_runtime": "UNRUN; WIP only; current-identity CI required",
+  "gate_admissions": []
+}

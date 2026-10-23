@@ -1,0 +1,7 @@
+{
+  "exact13path_patch_apply_zero_fuzz_nooffset": true,
+  "all_final_candidate_hashes_match": true,
+  "pinned_rustfmt_1_99_1_check_five_files_exit_zero": true,
+  "eight_locks_only_ctutils_change": true,
+  "candidate_and_WORK_unmodified": true
+}

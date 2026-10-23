@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T11:48:24.674522+00:00",
+  "published": "b96c2ca5b6259f15db1004bd2532db54b0c3cbfa",
+  "mode": "runtime-diagnostics",
+  "runs": [
+    {
+      "databaseId": 39948671056,
+      "event": "workflow_dispatch",
+      "headSha": "b96c2ca5b6259f15db1004bd2532db54b0c3cbfa",
+      "status": "queued",
+      "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39948671056",
+      "createdAt": "2026-10-23T11:48:23Z"
+    }
+  ],
+  "v2_failed_dispatch": "422 illegal job-env runner context; no runtime",
+  "v3_env_delta": "dd95a64cd62a5bf89ef860f29dba8c2397561b3b4282e1d92bebab9a2fda0737",
+  "active_frozen_source_changed": false,
+  "release_carry": false
+}
