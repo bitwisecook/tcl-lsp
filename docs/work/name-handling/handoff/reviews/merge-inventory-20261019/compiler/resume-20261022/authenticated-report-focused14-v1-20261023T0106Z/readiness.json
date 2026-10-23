@@ -1,0 +1,19 @@
+{
+  "status": "OFFTREE PREPARED UNRUN; no source integration, build, queue or root-go file",
+  "files": {
+    "guarded-cargo.py": "a386c6028470e95469b99ce0aad8560f81c48b7a9fe075dd8cec41bfcd8ebba8",
+    "launch.py": "e9f5f801cdcce876f366d1ed30f66bb019fd317444d7ca0c379c10064f120486",
+    "plan.json": "f3cbd2fd7263ccdf9f4f031001000fa585c070df7880caec22a4977d9f2785c2",
+    "run.sh": "c05ac755797688d6c82fca4306fdea89693caec658ce1c849bb41c26d1f8e1ff",
+    "runtime-watchdog.py": "bd21e2aea3f6410c085591bb585bc121ae5a78dc2f2ba4e4c83a2293adae543c",
+    "suite.py": "dc6dd3e38ef04f5413fde31d8da9bc4636e9dbaa3546273ae89679668b5caee1"
+  },
+  "guards": "derived reviewed compiler49 v3 unchanged disk/log/source/provider/artifact/watchdog guards; source-view explicitly versioned for exact13 report finals only; fail-closed root GO requires completed49 receipt",
+  "root_go_schema": {
+    "plan_sha256": "exact plan hash",
+    "compiler49_final_receipt": "existing completed49 final.json path",
+    "approved_integrated_head": "exact current integrated HEAD"
+  },
+  "syntax": "four Python files parsed only; no launcher run; no Cargo",
+  "compiler49_completion_guard": "Exact predecessor plan hash; final36 filters; actual49 selected in36 result rows; may contain failures, completion is not acceptance"
+}

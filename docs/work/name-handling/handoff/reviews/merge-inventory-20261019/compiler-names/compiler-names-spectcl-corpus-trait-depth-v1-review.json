@@ -1,0 +1,18 @@
+{
+  "verdict": "CLEAR bounded static minimal compiler-budget candidate; sufficiency unrun",
+  "patch_sha256": "735d71b4370e4aedf97382269d9c49e44497bbf6b9ced93bb2b03fd1d22b7c78",
+  "findings": [
+    "Exact test crate attribute recursion_limit256 plus purpose comment; no runtime worker/stack/assertion/output changes",
+    "Exact CI E0275 recommends256 in spec_corpus at spawn_scoped1306; compiler library already has256, crate attribute does not propagate to integration-test consumer",
+    "Sender<(usize,PackReport)> carries AnalysisSnapshot diagnostics and typed source receipt graph; TransitionSubject finite non-generic enum and SourceAdviceNameInput finite enum; repeated Arc region/continuation Send/Sync obligations show no expanding generic constructor in inspected chain",
+    "Raises compiler trait evaluation budget, preserves actual Send/Sync requirements; no unsafe implementations or allow"
+  ],
+  "limits": [
+    "No proof256 sufficient without actual same-toolchain spec_corpus typing",
+    "No executed corpus outcome or compiler49 result; preserve fixedproduct hold"
+  ],
+  "utc": "2026-10-23T01:06:30Z",
+  "reviewer": "compiler-names",
+  "source_applied": false,
+  "cargo_run": false
+}

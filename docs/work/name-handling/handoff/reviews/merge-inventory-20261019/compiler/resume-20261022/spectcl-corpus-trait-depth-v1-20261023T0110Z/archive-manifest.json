@@ -1,0 +1,18 @@
+{
+  "label_timestamp": "Directory label is inventory name; actual prepared_utc is diagnosis.json timestamp",
+  "status": "OFFTREE_UNRUN; peer pending",
+  "members": [
+    {
+      "path": "compile-error-excerpt.log",
+      "sha256": "de2e67f494b86bdc0070034386f62b83b8423a45674b0409dabd30c027e38919"
+    },
+    {
+      "path": "diagnosis.json",
+      "sha256": "cdf79660bec042fdf1ecab74acb7aab7327e6696022f46de8d754c6aee194a90"
+    },
+    {
+      "path": "proposal.patch",
+      "sha256": "735d71b4370e4aedf97382269d9c49e44497bbf6b9ced93bb2b03fd1d22b7c78"
+    }
+  ]
+}

@@ -2,11 +2,51 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T00:54Z (actual full5-v4 closed4PASS1FAIL; full44804source/7545providers/artifacts stable; original catch unresolved; no further Cargo)
+Last updated: 2026-10-23T01:14:01Z (semantic-only finite4 prepared; review pending; no Cargo/queue)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root accepted semantic candidate c12f266e for a post49 reviewed batch, preferring
+no new producer observer. Finite4 preparation is immutable at
+`/tmp/vm-runtime-c84-catch4-postfix-v1/`: plan0a255221, runnera3f28836,
+helpera647bf86. It selects exactly original catch plus3 unchanged C84 controls.
+Predicted semantic-only final interp hash580d73c0 derives from baseabe76cef
+and c12f266e; existing cmd_error/native_error_variables observer pins remain
+unchanged. New be669111 observer is separately archived and unapplied. v4 root
+Cargo manifest/lock symlinks, actual Cargo artifact+roster, full source/provider
+seals, genuine have_tommath, zero warnings,180s,20MiB and2GiB floor remain;
+minimum free space additionally checks actual mirror/target/output mounts.
+AST/static preparation only, no runner/lock/provider capture/Cargo/test/queue.
+CCG independent finite protocol review is pending. Root must integrate after
+source hold, typecheck and explicitly allocate execution. Explicit compiler
+error_code cases remain residual on their original path. CI5206 standalone
+abort routing is separate; no general parity expansion.
+
+
+Resume recorded at01:02:44Z under source/test/provider hold; no Cargo/queue or product
+write. Strong static producer lead is compiled C84 catch arity failure:
+registry compile_84::compile_catch rejects four words, then script entry
+raises via raise_compile_failure -> raise_with_info. Reconstructing the exact
+message plus while-compiling frame for `catch {set x 1} r o` gives91 bytes,
+matching the actual body-return observer. raise_with_info writes both
+already_logged=true and legacy_copy=true despite C84 lacking private fields,
+without traversing the observed global append/setter route. This explains
+why no inner catch.enter/log event appears; unique actual attribution still
+requires a finite observer at those producer seams. Do not repair publish_error
+by replaying getters/traces or weakening assertions. Off-tree observer `be669111` has independent static review. Semantic fix-v3
+`c12f266e` at `/tmp/vm-runtime-c84-compile-producer-20261023T0104Z/`
+reuses existing checked C84 error-command publication for compile failures
+with no explicit error_code; custom compiler-code cases retain the original
+path pending separate review. It reaches initial errorInfo/default-code setters
+and counted compile suffix append before marking logged. v3 apply-check passes;
+independent semantic review found no static blocker (`b31f344b`), still
+untyped/unrun/unapplied. Directory0104
+is a label, not an observation timestamp; earlier01:03 header was corrected
+using actual clock01:02:44. Next: root-owned reviewed integration/typing and
+finite original catch+boundary controls; no lint expansion or representative queue.
+
 
 Actual fullTomMath5-v4 closed00:52:55Z on activeb19ab38/product3b1a750,
 published5a4182df, session24002 reaped and independent wholelock free.

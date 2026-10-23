@@ -1,0 +1,55 @@
+{
+  "prepared_utc": "2026-10-23T01:05:03.837317+00:00",
+  "status": "OFFTREE; source HOLD; untyped/unrun; actual CI compile blocker, zero spec_corpus outcomes established",
+  "job": "CI5206 job120175508114",
+  "log_sha256": "dc203a0d3bd6688ab6cb57f57589dc780ac4f76e8ba90e619ba60132d29a798b",
+  "path": "rust/tcl-spectcl/tests/spec_corpus.rs",
+  "before_sha256": "424dee1ed6468ce0a7e6d6f5051e8e5bc600e7029f2e46cae86194b50c01548b",
+  "after_sha256": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+  "patch_sha256": "735d71b4370e4aedf97382269d9c49e44497bbf6b9ced93bb2b03fd1d22b7c78",
+  "apply_check_exit": 0,
+  "root_cause": "spawn_scoped requires closure Send; captured Sender<(usize,PackReport)> must transfer diagnostic snapshots. Consumer integration test crate defaults recursion_limit128; compiler lib has256 specifically for retained receipts. Compiler crate attribute does not propagate to consumer crate auto-trait obligation evaluation.",
+  "direct_snapshot_path": [
+    "closure captures Sender<(usize,PackReport)>",
+    "PackReport.analysis_snapshots: Vec<AnalysisSnapshot>",
+    "AnalysisSnapshot.diagnostics: Vec<Diagnostic>",
+    "Diagnostic.subject: Option<DiagnosticSubject>",
+    "typed source diagnostic owners transitively retain source-point/region/transition receipts"
+  ],
+  "diagnostic_type_chain_leaf_to_root": [
+    "TransitionSubject",
+    "(TransitionSubject,SourceAdviceNameInput)",
+    "Vec<(TransitionSubject,SourceAdviceNameInput)>",
+    "OriginalSourceCommandTransition",
+    "Arc/Vec/OriginalSourceCommandTransitionAdvice",
+    "OriginalSourceRegisteredInstance",
+    "OriginalSourceRegisteredInstanceWords",
+    "Option<Arc<...>> / BTreeMap / Mutex",
+    "OriginalRegisteredInstanceSourceCache",
+    "SourceCommandBindings",
+    "RegionPayload / OriginalSourceConditionalRegion",
+    "Vec<OriginalSourceConditionalRegion> / RegionSetPayload",
+    "ConditionalOutcomeKind / OriginalSourceConditionalOutcome",
+    "SourceConditionalContinuationPayload",
+    "RegionEntryPayload / SourceConditionalRegionEntry",
+    "Option<SourceConditionalRegionEntry> / SourcePointPayload / OriginalSourcePointEntry",
+    "SourceConditionalHandlerNormal / SourceOutcomes",
+    "SourceConditionalContinuationPayload",
+    "RegionEntryPayload / SourceConditionalRegionEntry",
+    "spawn_scoped Send bound"
+  ],
+  "finite_type_findings": [
+    "TransitionSubject enum contains String/Vec<u8>/usize/InvocationWordKind, no generic self expansion",
+    "SourceAdviceNameInput is finite Native(SignatureSourceNameInput)/Logical(OriginalLogicalSourceNameInput)",
+    "Source continuation/region graph has recursive Arc ownership and alternating Send/Sync obligations; auto-traits use coinductive repeated obligations. No evidence of infinitely growing generic instantiation in this error.",
+    "Log explicitly recommends256; existing producer256 is matching conservative consumer compile budget, not arbitrary further escalation. Exact minimum/sufficiency unmeasured until authorized check."
+  ],
+  "change": "One test-crate recursion_limit256 attribute and purpose comment; no production shape, bounds, unsafe Send/Sync impl, allow, assertions, thread stack or runtime limits altered",
+  "verification_next": [
+    "After LSP20 and compiler49 complete under unchanged product, root may integrate separately with exact before pin",
+    "Use same CI toolchain and locked cargo check -p tcl-spectcl --test spec_corpus to establish typing; do not claim runtime test pass",
+    "Then guarded original make test-spectcl-compat, preserving current full outputs/equality/budgets; no acceptance before actual outcomes"
+  ],
+  "compiler49": "DO NOT integrate before fixed-product49 or silently refresh its plan. This extra test-source edit is outside49 docs-only allowance.",
+  "peer_review": "compiler-names requested; VM coordination via root/existing owner only"
+}

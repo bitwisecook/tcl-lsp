@@ -1,0 +1,194 @@
+{
+  "captured_utc": "2026-10-23T01:13:56Z",
+  "run_id": 39879737945,
+  "source_head": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "product_source": "3b1a750",
+  "roster_observation_utc": "2026-10-23T01:04:01Z",
+  "roster": {
+    "total_count": 30,
+    "rows": 30,
+    "completed_success": 7,
+    "completed_failure": 8,
+    "completed_skipped": 2,
+    "in_progress": 13
+  },
+  "later_root_connector_metadata": {
+    "captured_utc": "not supplied by caller",
+    "status_counts": {
+      "completed_success": 7,
+      "completed_failure": 10,
+      "in_progress": 11,
+      "completed_skipped": 2
+    },
+    "completeness": "not proven by connector wrapper; this is a status snapshot, not a complete-roster claim"
+  },
+  "jobs": {
+    "rust_check": {
+      "job_id": 120175507991,
+      "conclusion": "failure",
+      "gate": "make check-rust-pr",
+      "cargo_compile_error_totals": {
+        "tcl-cmd-core lib test": 19,
+        "tcl-vm lib": 182,
+        "tcl-compiler lib": 512,
+        "total": 713
+      },
+      "summary_basis": "Cargo could-not-compile error summaries after ANSI stripping; diagnostic annotations were not counted as separate errors."
+    },
+    "spectcl_compat": {
+      "job_id": 120175508114,
+      "conclusion": "failure",
+      "gate": "make test-spectcl-compat",
+      "cause": "E0275 overflow evaluating TransitionSubject: Sync at rust/tcl-spectcl/tests/spec_corpus.rs:1306:18, through OriginalSourceCommandTransition/Advice and Arc. Compilation stopped before tests; no regex failure or test verdict was emitted."
+    },
+    "runtime_rust_tests": {
+      "job_id": 120175508339,
+      "conclusion": "failure",
+      "target": "make runtime-rust-test-no-tommath",
+      "started_tests": 2147,
+      "terminal_outcome_lines": 1091,
+      "unique_terminal_selectors": 1090,
+      "duplicate_terminal_line_count": 1,
+      "terminal_outcomes": {
+        "passed": 983,
+        "failed": 108
+      },
+      "baseline": {
+        "run_id": 39816429638,
+        "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956196088,
+        "same_command": "make runtime-rust-test-no-tommath",
+        "baseline_terminal_outcomes": "655 passed, 0 failed",
+        "join_scope": "The no-TomMath command section only; the separate default-feature command section is excluded."
+      },
+      "selector_join": {
+        "pass_to_fail": 16,
+        "fail_to_pass": 0,
+        "matched_pass": 489,
+        "current_pass_without_baseline_no_tommath_outcome": 494,
+        "current_fail_without_baseline_no_tommath_outcome": 92,
+        "unemitted_unique_outcomes_of_2147_started": 1057
+      },
+      "pass_to_fail_selectors": [
+        "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+        "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+        "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+        "cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name",
+        "codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version",
+        "codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c",
+        "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+        "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+        "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+        "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+        "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+        "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+        "env_trace::tests::the_home_directory_follows_env_home",
+        "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+        "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+        "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it"
+      ],
+      "abort": {
+        "named_thread": "frame::member_materialisation_tests::original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_retirement",
+        "assertion": "left None, right Some([86]) at src/frame/member_materialisation_tests.rs:107",
+        "terminal_harness_outcome": "not emitted before SIGABRT",
+        "baseline_no_tommath_outcome": "no matching selector emitted"
+      }
+    },
+    "lsp_server_wasm": {
+      "job_id": 120175508422,
+      "conclusion": "failure",
+      "cause": "E0277 at rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs:3077:14: browser::JoinHandle<Option<T>> implements Future only for T: Unpin; compute_original_source_views has T: Send + 'static. Compilation stopped before tests."
+    },
+    "test_ext_web": {
+      "job_id": 120175507888,
+      "conclusion": "failure",
+      "cause": "Same source_views.rs:3077 E0277 Unpin bound failure as lsp-server-wasm; server library compile stopped before browser tests."
+    },
+    "wasm_real_link": {
+      "job_id": 120175508284,
+      "conclusion": "failure",
+      "current_selector_count": 25,
+      "current_outcomes": {
+        "passed": 16,
+        "failed": 9
+      },
+      "baseline": {
+        "run_id": 39816429638,
+        "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "binary": "wasm_real_link",
+        "baseline_selector_count": 15,
+        "baseline_outcomes": "15 passed, 0 failed"
+      },
+      "exact_selector_join": {
+        "pass_to_fail": 7,
+        "fail_to_pass": 0,
+        "matched_pass": 8,
+        "current_pass_without_baseline_selector": 8,
+        "current_fail_without_baseline_selector": 2
+      },
+      "pass_to_fail_selectors": [
+        "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+        "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+        "a_module_with_a_foreign_intrinsic_table_is_refused",
+        "compiled_argv_balances_allocations_in_the_real_runtime",
+        "emitted_modules_run_against_the_real_runtime",
+        "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+        "sealed_native_i64_add_runs_and_trace_registration_falls_back"
+      ],
+      "current_only_failed_selectors": [
+        "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+        "root_colon_publication_runs_its_own_compiled_table_entry"
+      ],
+      "later_tiers": "Not run after wasm_real_link failed."
+    },
+    "rust_tests_shard_4": {
+      "job_id": 120175508634,
+      "conclusion": "failure",
+      "cause": "Cargo --no-run test-binary compilation hits the same E0275 TransitionSubject: Sync overflow at rust/tcl-spectcl/tests/spec_corpus.rs:1306:18.",
+      "named_test_outcomes": 0
+    },
+    "lsp_server_wasi": {
+      "job_id": 120175508425,
+      "conclusion": "failure",
+      "unit_outcomes": "22 passed, 0 failed",
+      "host_session_result": "The scripted LSP session fails its final deep-equality assertion with actual [] for source-based go-to-definition; the host run reports no result for that request.",
+      "host_cases_current": {
+        "passed": [
+          "initialize returns capabilities",
+          "the server issues workspace/configuration during initialized",
+          "the configuration reply is routed back and initialisation completes",
+          "a broken document's diagnostics are computed and delivered unprompted",
+          "documentSymbol answers for the open document",
+          "semanticTokens/full returns tokens"
+        ],
+        "failed": [
+          "publishDiagnostics arrives with the client sending nothing further — none",
+          "go-to-definition follows source into a file that exists only on the preopened disk — no locations",
+          "hover on the cross-file call answers from the sibling on disk — empty result"
+        ]
+      },
+      "baseline": {
+        "run_id": 39816429638,
+        "head": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195897,
+        "join_scope": "Same WASI scripted-host case names from the origin/rust job only."
+      },
+      "same_case_join": {
+        "pass_to_fail": 3,
+        "fail_to_pass": 0,
+        "matched_pass": 6,
+        "twelve_run_shutdown_case": {
+          "baseline": "The exit-with-stdin-close case passed all 12 repetitions; all 12 exited 1 as expected.",
+          "current": "The current scripted session stopped before this case; 12 outcomes are unknown, not failed."
+        }
+      }
+    }
+  },
+  "nonclaims": [
+    "The runtime selector remainder is incomplete because the test binary aborted; no whole-suite total verdict is inferred.",
+    "Runtime and wasm_real_link baseline joins are separate and not summed.",
+    "No CI job state was used as a named test verdict.",
+    "The 12 WASI shutdown repetitions are separate from the three host pass-to-fail cases and are unknown in the current run."
+  ]
+}

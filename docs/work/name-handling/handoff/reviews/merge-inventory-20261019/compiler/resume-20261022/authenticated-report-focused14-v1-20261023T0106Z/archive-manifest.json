@@ -1,0 +1,22 @@
+{
+  "members": [
+    {
+      "path": "integration-batch-manifest.json",
+      "sha256": "d0175e92f07348396f8796668be392581117ff00a89594c2eca014c160ca50f5"
+    },
+    {
+      "path": "plan.json",
+      "sha256": "f3cbd2fd7263ccdf9f4f031001000fa585c070df7880caec22a4977d9f2785c2"
+    },
+    {
+      "path": "readiness.json",
+      "sha256": "bce8802de3410030bd5cca23fcdd5593cc2c9e7f00861ceec842520ecf1c9e02"
+    },
+    {
+      "path": "remaining21-cause-next-actions.json",
+      "sha256": "6a65e0a6e6b08c92edb0b89b50bf0a9af7f07759b00ce40a1565ea6653809965"
+    }
+  ],
+  "runner_offtree_only": true,
+  "raw_sources_archived": false
+}

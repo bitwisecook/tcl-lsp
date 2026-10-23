@@ -1,0 +1,38 @@
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-bytecode v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde_json v1.0.154
+   Compiling asn1-rs v0.7.2
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling futures-util v0.3.34
+   Compiling tokio v1.53.3
+   Compiling tcl-pkg-model v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-pkg-model)
+   Compiling iana-time-zone v0.1.65
+   Compiling salsa-macro-rules v0.28.5
+   Compiling salsa v0.28.5
+   Compiling dashmap v6.2.1
+   Compiling tower v0.5.3
+   Compiling chrono v0.4.45
+   Compiling ls-types v0.0.6
+   Compiling tcl-version v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-version)
+   Compiling tokio-util v0.7.20
+   Compiling futures v0.3.34
+   Compiling tower-lsp-server v0.23.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-explorer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db)
+   Compiling f5-xc v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/f5-xc)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-diagram v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server)
+    Finished `test` profile [unoptimized] target(s) in 19m 32s

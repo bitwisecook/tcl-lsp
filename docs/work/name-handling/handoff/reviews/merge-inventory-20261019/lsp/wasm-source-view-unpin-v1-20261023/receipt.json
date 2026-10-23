@@ -1,0 +1,23 @@
+{
+  "status": "PREPARED OFF TREE, no integration/build/host verdict",
+  "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+  "before_sha256": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+  "proposed_sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+  "patch_sha256": "763f9c9dd0193628857c039a483797d66283e93736fcbf2e7bfe50f18e6b3c49",
+  "trigger": "CI5206 browser wasm job120175508422 exact E0277 at source_views.rs3077",
+  "ci_log_sha256": "d9ef95c4bdc5369670adf68f242d5f9ede72b2219b71847de1de016573da80c7",
+  "change": "Add Unpin to private compute helper T bound required by browser JoinHandle<Option<T>> Future impl",
+  "rationale": "Pinning alone cannot grant missing Future implementation; all3 current caller outputs use plain movable carriers. Existing wasm rt contract remains unchanged. Native source snapshot/worker owners and final current-inventory rejoin are byte-identical.",
+  "caller_count": 3,
+  "validation": {
+    "rustfmt": "PASS pinned1.99.1 --edition2024 --check proposed.txt",
+    "apply_check": "PASS git apply --check -p0 against unchanged canonical before hash",
+    "peer_review": "Names bounded static CLEAR; names-peer-review.json",
+    "cargo": "UNRUN; active finite20 source/provider hold"
+  },
+  "non_claims": [
+    "Other browser job same failure unconfirmed",
+    "Native typing is not host compile validation",
+    "No timeout/stack/budget/assertion change or new allow"
+  ]
+}

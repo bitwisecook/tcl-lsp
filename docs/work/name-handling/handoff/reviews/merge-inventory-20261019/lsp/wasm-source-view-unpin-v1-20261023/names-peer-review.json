@@ -1,0 +1,19 @@
+{
+  "verdict": "CLEAR bounded static",
+  "patch_sha256": "763f9c9dd0193628857c039a483797d66283e93736fcbf2e7bfe50f18e6b3c49",
+  "findings": [
+    "Exact single private helper bound adds Unpin; no implementation/lifecycle/owner/guard changes",
+    "Actual browser rt JoinHandle<T> Future impl requires T:Unpin; helper awaits JoinHandle<Option<T>>, so explicit T:Unpin discharges missing E0277 bound",
+    "Three current outputs: Vec<OriginalSourceViewDeclaration>, Vec<(OriginalSourceViewDeclaration,Vec<Range>)>, ControlFlow<Option<Vec<Location>>,()>; Vec is movable independently of element pin status, remaining carriers plain movable",
+    "All callers still rejoin saved owner inventory in settled scope before rendering; walk caller still rechecks publication/identity; snapshot and worker-error handling unchanged",
+    "No unsafe Unpin/allow/runtime budget changes"
+  ],
+  "limits": [
+    "WASM typing UNRUN; actual browser target build required",
+    "No runtime/navigation/host acceptance from static review"
+  ],
+  "utc": "2026-10-23T01:06:30Z",
+  "reviewer": "compiler-names",
+  "source_applied": false,
+  "cargo_run": false
+}

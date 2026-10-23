@@ -1,0 +1,1334 @@
+﻿2026-10-23T00:47:36.6181898Z Current runner version: '2.338.0'
+2026-10-23T00:47:36.6220819Z ##[group]Runner Image Provisioner
+2026-10-23T00:47:36.6222221Z Hosted Compute Agent
+2026-10-23T00:47:36.6223411Z Version: 20261012.601
+2026-10-23T00:47:36.6224616Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-23T00:47:36.6226024Z Build Date: 2026-10-12T17:48:21Z
+2026-10-23T00:47:36.6227626Z Worker ID: {21c3980e-4f3b-445a-b45a-2ba3e11a39d0}
+2026-10-23T00:47:36.6228915Z Region: eastus
+2026-10-23T00:47:36.6230084Z Cloud: Azure
+2026-10-23T00:47:36.6231138Z ##[endgroup]
+2026-10-23T00:47:36.6233639Z ##[group]Operating System
+2026-10-23T00:47:36.6234682Z Ubuntu
+2026-10-23T00:47:36.6235732Z 26.04.1
+2026-10-23T00:47:36.6236697Z LTS
+2026-10-23T00:47:36.6238153Z ##[endgroup]
+2026-10-23T00:47:36.6239212Z ##[group]Runner Image
+2026-10-23T00:47:36.6240205Z Image: ubuntu-26.04
+2026-10-23T00:47:36.6241397Z Version: 20261012.163.1
+2026-10-23T00:47:36.6243764Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261012.163/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-23T00:47:36.6246596Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261012.163
+2026-10-23T00:47:36.6248765Z ##[endgroup]
+2026-10-23T00:47:36.6250764Z ##[group]GITHUB_TOKEN Permissions
+2026-10-23T00:47:36.6253804Z Contents: read
+2026-10-23T00:47:36.6254863Z Metadata: read
+2026-10-23T00:47:36.6255788Z ##[endgroup]
+2026-10-23T00:47:36.6259069Z Secret source: Actions
+2026-10-23T00:47:36.6260695Z Cache mode: write
+2026-10-23T00:47:36.6261972Z Prepare workflow directory
+2026-10-23T00:47:36.6863328Z Prepare all required actions
+2026-10-23T00:47:36.6936792Z Getting action download info
+2026-10-23T00:47:36.8540132Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-23T00:47:36.9582534Z Download action repository 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f' (SHA:ecabd13d1c56bd1345c230e542e9144811ad706f)
+2026-10-23T00:47:37.0455548Z Download action repository 'taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8' (SHA:1168f6810a3cb30a3514bf5756a3b7f0422c6df8)
+2026-10-23T00:47:37.2933851Z Getting action download info
+2026-10-23T00:47:37.3550899Z Download action repository 'Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6' (SHA:6323deb102c322ba6fcbdcafc7e3dddab59af2b6)
+2026-10-23T00:47:37.5318471Z Complete job name: wasm-real-link
+2026-10-23T00:47:37.6156544Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-23T00:47:37.6158200Z with:
+2026-10-23T00:47:37.6158658Z   fetch-depth: 1
+2026-10-23T00:47:37.6159137Z   repository: bitwisecook/tcl-lsp
+2026-10-23T00:47:37.6162911Z   token: ***
+2026-10-23T00:47:37.6163359Z   ssh-strict: true
+2026-10-23T00:47:37.6163812Z   ssh-user: git
+2026-10-23T00:47:37.6164283Z   persist-credentials: true
+2026-10-23T00:47:37.6164787Z   clean: true
+2026-10-23T00:47:37.6165258Z   sparse-checkout-cone-mode: true
+2026-10-23T00:47:37.6165794Z   fetch-tags: false
+2026-10-23T00:47:37.6166279Z   show-progress: true
+2026-10-23T00:47:37.6166734Z   lfs: false
+2026-10-23T00:47:37.6167507Z   submodules: false
+2026-10-23T00:47:37.6167983Z   set-safe-directory: true
+2026-10-23T00:47:37.6168506Z   allow-unsafe-pr-checkout: false
+2026-10-23T00:47:37.6169373Z env:
+2026-10-23T00:47:37.6169811Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:47:37.6170309Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:47:37.6170883Z ##[endgroup]
+2026-10-23T00:47:37.7280674Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-23T00:47:37.7283373Z ##[group]Getting Git version info
+2026-10-23T00:47:37.7284659Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-23T00:47:37.7286351Z [command]/usr/bin/git version
+2026-10-23T00:47:37.7325185Z git version 2.55.0
+2026-10-23T00:47:37.7348362Z ##[endgroup]
+2026-10-23T00:47:37.7361755Z Temporarily overriding HOME='/home/runner/work/_temp/17634c85-b4fb-4941-9cd5-39420ec5c6f5' before making global git config changes
+2026-10-23T00:47:37.7364719Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T00:47:37.7368319Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T00:47:37.7437914Z Deleting the contents of '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-23T00:47:37.7441914Z ##[group]Determining repository object format
+2026-10-23T00:47:37.7443824Z ##[endgroup]
+2026-10-23T00:47:37.7445219Z ##[group]Initializing the repository
+2026-10-23T00:47:37.7449715Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T00:47:37.7581481Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-23T00:47:37.7583733Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-23T00:47:37.7585770Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-23T00:47:37.7587538Z hint: call:
+2026-10-23T00:47:37.7588566Z hint:
+2026-10-23T00:47:37.7589729Z hint: 	git config --global init.defaultBranch <name>
+2026-10-23T00:47:37.7591014Z hint:
+2026-10-23T00:47:37.7592175Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-23T00:47:37.7594102Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-23T00:47:37.7595949Z hint:
+2026-10-23T00:47:37.7596879Z hint: 	git branch -m <name>
+2026-10-23T00:47:37.7598406Z hint:
+2026-10-23T00:47:37.7599858Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-23T00:47:37.7602117Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/.git/
+2026-10-23T00:47:37.7605802Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-23T00:47:37.7656081Z ##[endgroup]
+2026-10-23T00:47:37.7657771Z ##[group]Disabling automatic garbage collection
+2026-10-23T00:47:37.7660931Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-23T00:47:37.7699391Z ##[endgroup]
+2026-10-23T00:47:37.7700811Z ##[group]Setting up auth
+2026-10-23T00:47:37.7701982Z Removing SSH command configuration
+2026-10-23T00:47:37.7706026Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T00:47:37.7745917Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T00:47:37.8240536Z Removing HTTP extra header
+2026-10-23T00:47:37.8246762Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T00:47:37.8285025Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T00:47:37.8559601Z Removing includeIf entries pointing to credentials config files
+2026-10-23T00:47:37.8564362Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T00:47:37.8599494Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T00:47:37.8878611Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-23T00:47:37.8919285Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path /home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:47:37.8952886Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:47:37.8987982Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:47:37.9020095Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:47:37.9049315Z ##[endgroup]
+2026-10-23T00:47:37.9050199Z ##[group]Fetching the repository
+2026-10-23T00:47:37.9056348Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +5a4182dfefc483b6446085bdabd9a1f7620e6a96:refs/remotes/origin/work
+2026-10-23T00:51:44.1611079Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-23T00:51:44.1612097Z  * [new ref]             5a4182dfefc483b6446085bdabd9a1f7620e6a96 -> origin/work
+2026-10-23T00:51:44.1623413Z [command]/usr/bin/git branch --list --remote origin/work
+2026-10-23T00:51:44.1652561Z   origin/work
+2026-10-23T00:51:44.1665711Z [command]/usr/bin/git rev-parse refs/remotes/origin/work
+2026-10-23T00:51:44.1694380Z 5a4182dfefc483b6446085bdabd9a1f7620e6a96
+2026-10-23T00:51:44.1699341Z ##[endgroup]
+2026-10-23T00:51:44.1700318Z ##[group]Determining the checkout info
+2026-10-23T00:51:44.1701347Z ##[endgroup]
+2026-10-23T00:51:44.1704603Z [command]/usr/bin/git sparse-checkout disable
+2026-10-23T00:51:44.1754939Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-23T00:51:44.1794456Z ##[group]Checking out the ref
+2026-10-23T00:51:44.1795013Z [command]/usr/bin/git checkout --progress --force -B work refs/remotes/origin/work
+2026-10-23T00:51:45.5438799Z Updating files:   2% (3267/120987)
+2026-10-23T00:51:46.5129334Z Updating files:   3% (3630/120987)
+2026-10-23T00:51:47.2824149Z Updating files:   3% (4510/120987)
+2026-10-23T00:51:47.8916687Z Updating files:   3% (4671/120987)
+2026-10-23T00:51:48.3688127Z Updating files:   4% (4840/120987)
+2026-10-23T00:51:49.3407636Z Updating files:   4% (4997/120987)
+2026-10-23T00:51:50.1162855Z Updating files:   4% (5451/120987)
+2026-10-23T00:51:50.3371665Z Updating files:   5% (6050/120987)
+2026-10-23T00:51:50.3483452Z Updating files:   5% (7113/120987)
+2026-10-23T00:51:50.4094428Z Updating files:   6% (7260/120987)
+2026-10-23T00:51:50.7103608Z Updating files:   7% (8470/120987)
+2026-10-23T00:51:51.3272968Z Updating files:   8% (9679/120987)
+2026-10-23T00:51:52.3196272Z Updating files:   8% (10610/120987)
+2026-10-23T00:51:53.2953237Z Updating files:   8% (10625/120987)
+2026-10-23T00:51:54.3649944Z Updating files:   8% (10634/120987)
+2026-10-23T00:51:55.4005941Z Updating files:   8% (10642/120987)
+2026-10-23T00:51:55.5798955Z Updating files:   8% (10652/120987)
+2026-10-23T00:51:55.7638219Z Updating files:   9% (10889/120987)
+2026-10-23T00:51:56.3239373Z Updating files:  10% (12099/120987)
+2026-10-23T00:51:57.3321855Z Updating files:  10% (13114/120987)
+2026-10-23T00:51:57.3930942Z Updating files:  10% (13132/120987)
+2026-10-23T00:51:57.5042644Z Updating files:  11% (13309/120987)
+2026-10-23T00:51:57.6661023Z Updating files:  12% (14519/120987)
+2026-10-23T00:51:57.7189068Z Updating files:  13% (15729/120987)
+2026-10-23T00:51:57.8120852Z Updating files:  14% (16939/120987)
+2026-10-23T00:51:58.1181985Z Updating files:  15% (18149/120987)
+2026-10-23T00:51:58.2206107Z Updating files:  16% (19358/120987)
+2026-10-23T00:51:58.2647913Z Updating files:  17% (20568/120987)
+2026-10-23T00:51:58.2820967Z Updating files:  18% (21778/120987)
+2026-10-23T00:51:58.3210712Z Updating files:  18% (22284/120987)
+2026-10-23T00:51:58.4605303Z Updating files:  19% (22988/120987)
+2026-10-23T00:51:58.5207905Z Updating files:  20% (24198/120987)
+2026-10-23T00:51:58.5862680Z Updating files:  21% (25408/120987)
+2026-10-23T00:51:58.7186322Z Updating files:  22% (26618/120987)
+2026-10-23T00:51:58.8179465Z Updating files:  23% (27828/120987)
+2026-10-23T00:51:58.9872891Z Updating files:  24% (29037/120987)
+2026-10-23T00:51:59.0341391Z Updating files:  25% (30247/120987)
+2026-10-23T00:51:59.0878166Z Updating files:  26% (31457/120987)
+2026-10-23T00:51:59.1266428Z Updating files:  27% (32667/120987)
+2026-10-23T00:51:59.1655794Z Updating files:  28% (33877/120987)
+2026-10-23T00:51:59.2141981Z Updating files:  29% (35087/120987)
+2026-10-23T00:51:59.3347772Z Updating files:  30% (36297/120987)
+2026-10-23T00:51:59.3522132Z Updating files:  30% (37045/120987)
+2026-10-23T00:51:59.3987994Z Updating files:  31% (37506/120987)
+2026-10-23T00:51:59.4469806Z Updating files:  32% (38716/120987)
+2026-10-23T00:51:59.4922053Z Updating files:  33% (39926/120987)
+2026-10-23T00:51:59.5383506Z Updating files:  34% (41136/120987)
+2026-10-23T00:51:59.5887730Z Updating files:  35% (42346/120987)
+2026-10-23T00:51:59.6586107Z Updating files:  36% (43556/120987)
+2026-10-23T00:51:59.9061128Z Updating files:  37% (44766/120987)
+2026-10-23T00:51:59.9665591Z Updating files:  38% (45976/120987)
+2026-10-23T00:52:00.0215901Z Updating files:  39% (47185/120987)
+2026-10-23T00:52:00.0797607Z Updating files:  40% (48395/120987)
+2026-10-23T00:52:00.1345916Z Updating files:  41% (49605/120987)
+2026-10-23T00:52:00.1846016Z Updating files:  42% (50815/120987)
+2026-10-23T00:52:00.2637657Z Updating files:  43% (52025/120987)
+2026-10-23T00:52:00.2836600Z Updating files:  44% (53235/120987)
+2026-10-23T00:52:00.5323600Z Updating files:  44% (53260/120987)
+2026-10-23T00:52:00.7562037Z Updating files:  45% (54445/120987)
+2026-10-23T00:52:01.0969791Z Updating files:  46% (55655/120987)
+2026-10-23T00:52:01.2079102Z Updating files:  47% (56864/120987)
+2026-10-23T00:52:01.2833534Z Updating files:  48% (58074/120987)
+2026-10-23T00:52:01.3075388Z Updating files:  48% (58795/120987)
+2026-10-23T00:52:02.0401690Z Updating files:  49% (59284/120987)
+2026-10-23T00:52:02.2100407Z Updating files:  50% (60494/120987)
+2026-10-23T00:52:02.2822228Z Updating files:  51% (61704/120987)
+2026-10-23T00:52:02.4292634Z Updating files:  51% (62014/120987)
+2026-10-23T00:52:02.5362090Z Updating files:  52% (62914/120987)
+2026-10-23T00:52:02.6417113Z Updating files:  53% (64124/120987)
+2026-10-23T00:52:02.7221266Z Updating files:  54% (65333/120987)
+2026-10-23T00:52:02.8813509Z Updating files:  55% (66543/120987)
+2026-10-23T00:52:03.0420821Z Updating files:  56% (67753/120987)
+2026-10-23T00:52:03.1231572Z Updating files:  57% (68963/120987)
+2026-10-23T00:52:03.1890152Z Updating files:  58% (70173/120987)
+2026-10-23T00:52:03.2957268Z Updating files:  59% (71383/120987)
+2026-10-23T00:52:03.5067319Z Updating files:  59% (72152/120987)
+2026-10-23T00:52:03.6172316Z Updating files:  60% (72593/120987)
+2026-10-23T00:52:03.7829518Z Updating files:  61% (73803/120987)
+2026-10-23T00:52:04.2493806Z Updating files:  62% (75012/120987)
+2026-10-23T00:52:04.2821249Z Updating files:  63% (76222/120987)
+2026-10-23T00:52:04.5117367Z Updating files:  63% (76540/120987)
+2026-10-23T00:52:04.5970889Z Updating files:  64% (77432/120987)
+2026-10-23T00:52:04.8109560Z Updating files:  65% (78642/120987)
+2026-10-23T00:52:05.1795959Z Updating files:  66% (79852/120987)
+2026-10-23T00:52:05.3059373Z Updating files:  67% (81062/120987)
+2026-10-23T00:52:06.3024533Z Updating files:  67% (81592/120987)
+2026-10-23T00:52:06.6173406Z Updating files:  67% (82201/120987)
+2026-10-23T00:52:07.0306809Z Updating files:  68% (82272/120987)
+2026-10-23T00:52:07.1679641Z Updating files:  69% (83482/120987)
+2026-10-23T00:52:07.3077077Z Updating files:  70% (84691/120987)
+2026-10-23T00:52:07.4881489Z Updating files:  70% (85245/120987)
+2026-10-23T00:52:07.5855464Z Updating files:  71% (85901/120987)
+2026-10-23T00:52:07.7555077Z Updating files:  72% (87111/120987)
+2026-10-23T00:52:08.0188363Z Updating files:  73% (88321/120987)
+2026-10-23T00:52:08.2838917Z Updating files:  74% (89531/120987)
+2026-10-23T00:52:08.4521804Z Updating files:  74% (90265/120987)
+2026-10-23T00:52:08.5929091Z Updating files:  75% (90741/120987)
+2026-10-23T00:52:08.8780825Z Updating files:  76% (91951/120987)
+2026-10-23T00:52:08.9881144Z Updating files:  77% (93160/120987)
+2026-10-23T00:52:09.0852841Z Updating files:  78% (94370/120987)
+2026-10-23T00:52:09.1529715Z Updating files:  79% (95580/120987)
+2026-10-23T00:52:09.2862782Z Updating files:  80% (96790/120987)
+2026-10-23T00:52:09.4110778Z Updating files:  80% (97408/120987)
+2026-10-23T00:52:09.6374286Z Updating files:  81% (98000/120987)
+2026-10-23T00:52:10.1936591Z Updating files:  82% (99210/120987)
+2026-10-23T00:52:10.2831231Z Updating files:  83% (100420/120987)
+2026-10-23T00:52:10.3374603Z Updating files:  83% (100808/120987)
+2026-10-23T00:52:10.4484543Z Updating files:  84% (101630/120987)
+2026-10-23T00:52:10.5860109Z Updating files:  85% (102839/120987)
+2026-10-23T00:52:10.7543403Z Updating files:  86% (104049/120987)
+2026-10-23T00:52:10.9363461Z Updating files:  87% (105259/120987)
+2026-10-23T00:52:11.0610966Z Updating files:  88% (106469/120987)
+2026-10-23T00:52:11.1901926Z Updating files:  89% (107679/120987)
+2026-10-23T00:52:11.2870924Z Updating files:  90% (108889/120987)
+2026-10-23T00:52:11.4775367Z Updating files:  90% (109323/120987)
+2026-10-23T00:52:12.2994815Z Updating files:  91% (110099/120987)
+2026-10-23T00:52:12.5268877Z Updating files:  91% (110193/120987)
+2026-10-23T00:52:12.6310298Z Updating files:  92% (111309/120987)
+2026-10-23T00:52:12.6726602Z Updating files:  93% (112518/120987)
+2026-10-23T00:52:12.7157989Z Updating files:  94% (113728/120987)
+2026-10-23T00:52:12.8114990Z Updating files:  95% (114938/120987)
+2026-10-23T00:52:12.8721762Z Updating files:  96% (116148/120987)
+2026-10-23T00:52:12.9558149Z Updating files:  97% (117358/120987)
+2026-10-23T00:52:13.0606555Z Updating files:  98% (118568/120987)
+2026-10-23T00:52:13.1509993Z Updating files:  99% (119778/120987)
+2026-10-23T00:52:13.1510748Z Updating files: 100% (120987/120987)
+2026-10-23T00:52:13.1511238Z Updating files: 100% (120987/120987), done.
+2026-10-23T00:52:13.2895348Z Switched to a new branch 'work'
+2026-10-23T00:52:13.2897842Z branch 'work' set up to track 'origin/work'.
+2026-10-23T00:52:13.3890753Z ##[endgroup]
+2026-10-23T00:52:13.4079911Z [command]/usr/bin/git log -1 --format=%H
+2026-10-23T00:52:13.4105347Z 5a4182dfefc483b6446085bdabd9a1f7620e6a96
+2026-10-23T00:52:13.4997841Z ##[group]Run actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
+2026-10-23T00:52:13.4998364Z with:
+2026-10-23T00:52:13.4998569Z   toolchain: stable
+2026-10-23T00:52:13.4998801Z   target: wasm32-wasip1
+2026-10-23T00:52:13.4999036Z   cache-key: wasm-real-link
+2026-10-23T00:52:13.4999273Z   build-warnings: deny
+2026-10-23T00:52:13.4999481Z   cache: true
+2026-10-23T00:52:13.4999679Z   cache-on-failure: true
+2026-10-23T00:52:13.4999901Z   cache-bin: true
+2026-10-23T00:52:13.5000103Z   cache-provider: github
+2026-10-23T00:52:13.5000323Z   cache-all-crates: false
+2026-10-23T00:52:13.5000561Z   cache-workspace-crates: false
+2026-10-23T00:52:13.5000808Z   cache-save-if: true
+2026-10-23T00:52:13.5001015Z   cache-targets: true
+2026-10-23T00:52:13.5001219Z   matcher: true
+2026-10-23T00:52:13.5001409Z   override: true
+2026-10-23T00:52:13.5001600Z env:
+2026-10-23T00:52:13.5001783Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.5001998Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.5002263Z ##[endgroup]
+2026-10-23T00:52:13.5073482Z ##[start-action display=Unbork mac;id=__actions-rust-lang_setup-rust-toolchain.__run]
+2026-10-23T00:52:13.5101576Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-23T00:52:13.5142708Z ##[start-action display=Run : construct rustup command line;id=__actions-rust-lang_setup-rust-toolchain.flags]
+2026-10-23T00:52:13.5179609Z ##[group]Run : construct rustup command line
+2026-10-23T00:52:13.5179999Z [36;1m: construct rustup command line[0m
+2026-10-23T00:52:13.5180520Z [36;1mecho "targets=$(for t in ${_srt_targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:13.5181214Z [36;1mecho "components=$(for c in ${_srt_components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:13.5181783Z [36;1mecho "downgrade=" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:13.6078368Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:13.6078803Z env:
+2026-10-23T00:52:13.6079049Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.6079325Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.6079617Z   _srt_targets: wasm32-wasip1
+2026-10-23T00:52:13.6080122Z   _srt_components: 
+2026-10-23T00:52:13.6080368Z ##[endgroup]
+2026-10-23T00:52:13.6281525Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=113]
+2026-10-23T00:52:13.6288825Z ##[start-action display=Setting Environment Variables;id=__actions-rust-lang_setup-rust-toolchain.__run_2]
+2026-10-23T00:52:13.6344702Z ##[group]Run if [[ ! -v CARGO_INCREMENTAL ]]; then
+2026-10-23T00:52:13.6345093Z [36;1mif [[ ! -v CARGO_INCREMENTAL ]]; then[0m
+2026-10-23T00:52:13.6345619Z [36;1m  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6346128Z [36;1mfi[0m
+2026-10-23T00:52:13.6346550Z [36;1mif [[ ! -v CARGO_PROFILE_DEV_DEBUG ]]; then[0m
+2026-10-23T00:52:13.6347472Z [36;1m  echo "CARGO_PROFILE_DEV_DEBUG=0" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6348030Z [36;1mfi[0m
+2026-10-23T00:52:13.6348423Z [36;1mif [[ ! -v CARGO_TERM_COLOR ]]; then[0m
+2026-10-23T00:52:13.6349022Z [36;1m  echo "CARGO_TERM_COLOR=always" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6349575Z [36;1mfi[0m
+2026-10-23T00:52:13.6349955Z [36;1mif [[ ! -v RUST_BACKTRACE ]]; then[0m
+2026-10-23T00:52:13.6350521Z [36;1m  echo "RUST_BACKTRACE=short" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6351032Z [36;1mfi[0m
+2026-10-23T00:52:13.6351496Z [36;1mif [[ ( ! -v RUSTFLAGS ) && $_srt_NEW_RUSTFLAGS != "" ]]; then[0m
+2026-10-23T00:52:13.6352203Z [36;1m  echo "RUSTFLAGS=$_srt_NEW_RUSTFLAGS" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6352765Z [36;1mfi[0m
+2026-10-23T00:52:13.6353317Z [36;1mif [[ ( ! -v CARGO_BUILD_WARNINGS ) && $_srt_CARGO_BUILD_WARNINGS != "" ]]; then[0m
+2026-10-23T00:52:13.6354243Z [36;1m  echo "CARGO_BUILD_WARNINGS=$_srt_CARGO_BUILD_WARNINGS" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6354939Z [36;1mfi[0m
+2026-10-23T00:52:13.6355680Z [36;1m# Enable faster sparse index on nightly[0m
+2026-10-23T00:52:13.6356340Z [36;1m# The value is ignored on stable and causes no problems[0m
+2026-10-23T00:52:13.6357565Z [36;1m# https://internals.rust-lang.org/t/call-for-testing-cargo-sparse-registry/16862[0m
+2026-10-23T00:52:13.6358383Z [36;1mif [[ ! -v CARGO_UNSTABLE_SPARSE_REGISTRY ]]; then[0m
+2026-10-23T00:52:13.6358813Z [36;1m  echo "CARGO_UNSTABLE_SPARSE_REGISTRY=true" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6359154Z [36;1mfi[0m
+2026-10-23T00:52:13.6359451Z [36;1mif [[ ! -v CARGO_REGISTRIES_CRATES_IO_PROTOCOL ]]; then[0m
+2026-10-23T00:52:13.6359918Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV[0m
+2026-10-23T00:52:13.6360280Z [36;1mfi[0m
+2026-10-23T00:52:13.6424303Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:13.6424648Z env:
+2026-10-23T00:52:13.6424849Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.6425073Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.6425317Z   _srt_NEW_RUSTFLAGS: 
+2026-10-23T00:52:13.6425551Z   _srt_CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:13.6425801Z ##[endgroup]
+2026-10-23T00:52:13.6520470Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=23]
+2026-10-23T00:52:13.6522957Z ##[start-action display=Install Rust Problem Matcher;id=__actions-rust-lang_setup-rust-toolchain.__run_3]
+2026-10-23T00:52:13.6543921Z ##[group]Run echo "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"
+2026-10-23T00:52:13.6544985Z [36;1mecho "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"[0m
+2026-10-23T00:52:13.6608176Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:13.6608561Z env:
+2026-10-23T00:52:13.6608764Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.6608996Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.6609242Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:13.6609477Z   RUST_BACKTRACE: short
+2026-10-23T00:52:13.6609709Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:13.6609969Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:13.6610264Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:13.6610714Z ##[endgroup]
+2026-10-23T00:52:13.6756670Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_3;outcome=success;conclusion=success;duration_ms=23]
+2026-10-23T00:52:13.6760426Z ##[start-action display=Install rustup, if needed;id=__actions-rust-lang_setup-rust-toolchain.__run_4]
+2026-10-23T00:52:13.6777101Z ##[group]Run if ! command -v rustup &> /dev/null ; then
+2026-10-23T00:52:13.6777497Z [36;1mif ! command -v rustup &> /dev/null ; then[0m
+2026-10-23T00:52:13.6778165Z [36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL "https://sh.rustup.rs" | sh -s -- --default-toolchain none -y[0m
+2026-10-23T00:52:13.6778761Z [36;1m[0m
+2026-10-23T00:52:13.6779040Z [36;1m  # Resolve the correct CARGO_HOME path depending on OS[0m
+2026-10-23T00:52:13.6779405Z [36;1m  if [[ "$RUNNER_OS" == "Windows" ]]; then[0m
+2026-10-23T00:52:13.6779828Z [36;1m    echo "${CARGO_HOME:-$USERPROFILE/.cargo}/bin" | sed 's|/|\\|g' >> $GITHUB_PATH[0m
+2026-10-23T00:52:13.6780248Z [36;1m  else[0m
+2026-10-23T00:52:13.6780520Z [36;1m    echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH[0m
+2026-10-23T00:52:13.6780843Z [36;1m  fi[0m
+2026-10-23T00:52:13.6781031Z [36;1mfi[0m
+2026-10-23T00:52:13.6843344Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:13.6843688Z env:
+2026-10-23T00:52:13.6843887Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.6844118Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.6844357Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:13.6844585Z   RUST_BACKTRACE: short
+2026-10-23T00:52:13.6844807Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:13.6845056Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:13.6845348Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:13.6845796Z   RUNNER_OS: Linux
+2026-10-23T00:52:13.6846014Z ##[endgroup]
+2026-10-23T00:52:13.6938667Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=17]
+2026-10-23T00:52:13.6944263Z ##[start-action display=rustup toolchain install stable;id=__actions-rust-lang_setup-rust-toolchain.__run_5]
+2026-10-23T00:52:13.6962841Z ##[group]Run # Check if value is set
+2026-10-23T00:52:13.6963164Z [36;1m# Check if value is set[0m
+2026-10-23T00:52:13.6963434Z [36;1mif [[ -n "$_srt_rust_src_dir" ]][0m
+2026-10-23T00:52:13.6963704Z [36;1mthen[0m
+2026-10-23T00:52:13.6963948Z [36;1m  # If value is set the directory must exist[0m
+2026-10-23T00:52:13.6964266Z [36;1m  if [[ -d "$_srt_rust_src_dir" ]][0m
+2026-10-23T00:52:13.6964550Z [36;1m  then[0m
+2026-10-23T00:52:13.6964766Z [36;1m    cd "$_srt_rust_src_dir"[0m
+2026-10-23T00:52:13.6965008Z [36;1m  else[0m
+2026-10-23T00:52:13.6965331Z [36;1m    echo "'rust-src-dir' does not point to an existing directory" >&2[0m
+2026-10-23T00:52:13.6965814Z [36;1m    echo "The value of 'rust-src-dir' is: ${_srt_rust_src_dir}" >&2[0m
+2026-10-23T00:52:13.6966173Z [36;1m    exit 1[0m
+2026-10-23T00:52:13.6966373Z [36;1m  fi[0m
+2026-10-23T00:52:13.6966569Z [36;1mfi[0m
+2026-10-23T00:52:13.6966910Z [36;1mif [[ -z "$_srt_toolchain" && ( -f "rust-toolchain" || -f "rust-toolchain.toml") ]][0m
+2026-10-23T00:52:13.6967627Z [36;1mthen[0m
+2026-10-23T00:52:13.6967888Z [36;1m  # Install the toolchain as specified in the file[0m
+2026-10-23T00:52:13.6968311Z [36;1m  # rustup show is the old way that implicitly installed a toolchain[0m
+2026-10-23T00:52:13.6968749Z [36;1m  # rustup toolchain install is the new explicit way[0m
+2026-10-23T00:52:13.6969223Z [36;1m  # https://github.com/rust-lang/rustup/issues/3635#issuecomment-2343511297[0m
+2026-10-23T00:52:13.6969714Z [36;1m  rustup show active-toolchain || rustup toolchain install[0m
+2026-10-23T00:52:13.6970102Z [36;1m  if [[ -n $_srt_components ]]; then[0m
+2026-10-23T00:52:13.6970431Z [36;1m    rustup component add ${_srt_components//,/ }[0m
+2026-10-23T00:52:13.6970738Z [36;1m  fi[0m
+2026-10-23T00:52:13.6970952Z [36;1m  if [[ -n $_srt_targets ]]; then[0m
+2026-10-23T00:52:13.6971439Z [36;1m    rustup target add ${_srt_targets//,/ }[0m
+2026-10-23T00:52:13.6971718Z [36;1m  fi[0m
+2026-10-23T00:52:13.6971900Z [36;1melse[0m
+2026-10-23T00:52:13.6972101Z [36;1m  if [[ -z "$_srt_toolchain" ]][0m
+2026-10-23T00:52:13.6972357Z [36;1m  then[0m
+2026-10-23T00:52:13.6972569Z [36;1m    _srt_toolchain=stable[0m
+2026-10-23T00:52:13.6972815Z [36;1m  fi[0m
+2026-10-23T00:52:13.6973250Z [36;1m  rustup toolchain install ${_srt_toolchain//,/ }  --target wasm32-wasip1 --profile minimal --no-self-update[0m
+2026-10-23T00:52:13.6973785Z [36;1m  # Take the last element from the list[0m
+2026-10-23T00:52:13.6974086Z [36;1m  if [[ "$_srt_override" == "true" ]][0m
+2026-10-23T00:52:13.6974367Z [36;1m  then[0m
+2026-10-23T00:52:13.6974620Z [36;1m    rustup override set ${_srt_toolchain//*,/ }[0m
+2026-10-23T00:52:13.6974915Z [36;1m  fi[0m
+2026-10-23T00:52:13.6975099Z [36;1mfi[0m
+2026-10-23T00:52:13.7035683Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:13.7036041Z env:
+2026-10-23T00:52:13.7036237Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:13.7036463Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:13.7036700Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:13.7037216Z   RUST_BACKTRACE: short
+2026-10-23T00:52:13.7037466Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:13.7037726Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:13.7038018Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:13.7038299Z   _srt_toolchain: stable
+2026-10-23T00:52:13.7038533Z   _srt_targets: wasm32-wasip1
+2026-10-23T00:52:13.7038764Z   _srt_components: 
+2026-10-23T00:52:13.7038967Z   _srt_override: true
+2026-10-23T00:52:13.7039169Z   _srt_rust_src_dir: 
+2026-10-23T00:52:13.7039369Z ##[endgroup]
+2026-10-23T00:52:13.9352777Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+2026-10-23T00:52:14.1937778Z info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T00:52:14.2114579Z info: removing previous version of component rustfmt
+2026-10-23T00:52:14.2136312Z info: removing previous version of component clippy
+2026-10-23T00:52:14.2151390Z info: removing previous version of component cargo
+2026-10-23T00:52:14.2201393Z info: removing previous version of component rust-std
+2026-10-23T00:52:14.2253047Z info: removing previous version of component rustc
+2026-10-23T00:52:14.2309848Z info: downloading 6 components
+2026-10-23T00:52:24.6349752Z 
+2026-10-23T00:52:24.6421719Z   stable-x86_64-unknown-linux-gnu updated - rustc 1.99.1 (58cf8f9c3 2026-10-13) (from rustc 1.99.0 (b940084d7 2026-09-28))
+2026-10-23T00:52:24.6422566Z 
+2026-10-23T00:52:24.6679875Z info: override toolchain for /home/runner/work/tcl-lsp/tcl-lsp set to stable-x86_64-unknown-linux-gnu
+2026-10-23T00:52:24.6703213Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=10975]
+2026-10-23T00:52:24.6707734Z ##[start-action display=Print installed versions;id=__actions-rust-lang_setup-rust-toolchain.versions]
+2026-10-23T00:52:24.6732703Z ##[group]Run echo "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT
+2026-10-23T00:52:24.6733199Z [36;1mecho "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:24.6733595Z [36;1m_srt_VERBOSE=$(rustc --version --verbose)[0m
+2026-10-23T00:52:24.6733903Z [36;1mecho "$_srt_VERBOSE"[0m
+2026-10-23T00:52:24.6734221Z [36;1mecho "cargo-version=$(cargo --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:24.6734579Z [36;1mcargo --version --verbose[0m
+2026-10-23T00:52:24.6734930Z [36;1mecho "rustup-version=$(rustup --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:24.6735293Z [36;1mrustup --version[0m
+2026-10-23T00:52:24.6735520Z [36;1m[0m
+2026-10-23T00:52:24.6735957Z [36;1m_srt_DATE=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')[0m
+2026-10-23T00:52:24.6736550Z [36;1m_srt_HASH=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-hash: //p')[0m
+2026-10-23T00:52:24.6737455Z [36;1mecho "cachekey=$(echo $_srt_DATE$_srt_HASH | head -c12)" >> $GITHUB_OUTPUT[0m
+2026-10-23T00:52:24.6796410Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:24.6796748Z env:
+2026-10-23T00:52:24.6797081Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:24.6797312Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:24.6797560Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:24.6797789Z   RUST_BACKTRACE: short
+2026-10-23T00:52:24.6798012Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:24.6798262Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:24.6798563Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:24.6798846Z ##[endgroup]
+2026-10-23T00:52:24.7099290Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T00:52:24.7099810Z binary: rustc
+2026-10-23T00:52:24.7100309Z commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T00:52:24.7100869Z commit-date: 2026-10-13
+2026-10-23T00:52:24.7101297Z host: x86_64-unknown-linux-gnu
+2026-10-23T00:52:24.7101727Z release: 1.99.1
+2026-10-23T00:52:24.7102115Z LLVM version: 23.1.1
+2026-10-23T00:52:24.7470474Z cargo 1.99.1 (5f94df478 2026-08-27)
+2026-10-23T00:52:24.7470846Z release: 1.99.1
+2026-10-23T00:52:24.7471175Z commit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e
+2026-10-23T00:52:24.7471571Z commit-date: 2026-08-27
+2026-10-23T00:52:24.7471873Z host: x86_64-unknown-linux-gnu
+2026-10-23T00:52:24.7472186Z libgit2: 1.9.6 (sys:0.21.0 vendored)
+2026-10-23T00:52:24.7472632Z libcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)
+2026-10-23T00:52:24.7473122Z ssl: OpenSSL 3.6.3 9 Jun 2026
+2026-10-23T00:52:24.7473440Z os: Ubuntu 26.4.0 (resolute) [64-bit]
+2026-10-23T00:52:24.7509109Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-23T00:52:24.7590150Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-23T00:52:24.7629129Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-23T00:52:24.7629891Z rustup 1.29.1 (d95a37b6a 2026-08-13)
+2026-10-23T00:52:24.7706237Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-23T00:52:24.7803837Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.versions;outcome=success;conclusion=success;duration_ms=109]
+2026-10-23T00:52:24.7807177Z ##[start-action display=Downgrade registry access protocol when needed;id=__actions-rust-lang_setup-rust-toolchain.__run_6]
+2026-10-23T00:52:24.7828911Z ##[group]Run # Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-23T00:52:24.7829475Z [36;1m# Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL[0m
+2026-10-23T00:52:24.7830015Z [36;1m# On versions 1.66, 1.67, and 1.68.0-nightly the value "sparse" is still unstable.[0m
+2026-10-23T00:52:24.7830600Z [36;1m# https://github.com/dtolnay/rust-toolchain/pull/69#discussion_r1107268108[0m
+2026-10-23T00:52:24.7831162Z [36;1m# If we detect an incompatible value, set it to "git" which is always supported.[0m
+2026-10-23T00:52:24.7831906Z [36;1mif [[ "rustc 1.99.1 (58cf8f9c3 2026-10-13)" =~ ^rustc\ (1\.6[67]\.|1\.68\.0-nightly) && "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL}" == "sparse" ]]; then[0m
+2026-10-23T00:52:24.7832560Z [36;1m  echo "Downgrade cargo registry protocol to git"[0m
+2026-10-23T00:52:24.7832971Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git" >> $GITHUB_ENV[0m
+2026-10-23T00:52:24.7833321Z [36;1mfi[0m
+2026-10-23T00:52:24.7892404Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T00:52:24.7892754Z env:
+2026-10-23T00:52:24.7892954Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:24.7893185Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:24.7893429Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:24.7893661Z   RUST_BACKTRACE: short
+2026-10-23T00:52:24.7893886Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:24.7894146Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:24.7894449Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:24.7894734Z ##[endgroup]
+2026-10-23T00:52:24.7975842Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=16]
+2026-10-23T00:52:24.7978739Z ##[start-action display=Setup Rust Caching;id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache]
+2026-10-23T00:52:24.8078653Z ##[group]Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+2026-10-23T00:52:24.8079335Z with:
+2026-10-23T00:52:24.8079702Z   cache-on-failure: true
+2026-10-23T00:52:24.8080132Z   cache-bin: true
+2026-10-23T00:52:24.8080361Z   cache-provider: github
+2026-10-23T00:52:24.8080610Z   cache-all-crates: false
+2026-10-23T00:52:24.8080859Z   cache-workspace-crates: false
+2026-10-23T00:52:24.8081107Z   cache-targets: true
+2026-10-23T00:52:24.8081316Z   save-if: true
+2026-10-23T00:52:24.8081515Z   key: wasm-real-link
+2026-10-23T00:52:24.8081739Z   prefix-key: v0-rust
+2026-10-23T00:52:24.8081949Z   add-job-id-key: true
+2026-10-23T00:52:24.8082188Z   add-rust-environment-hash-key: true
+2026-10-23T00:52:24.8082459Z   lookup-only: false
+2026-10-23T00:52:24.8082675Z   cmd-format: {0}
+2026-10-23T00:52:24.8082869Z env:
+2026-10-23T00:52:24.8083057Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:24.8083272Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:24.8083504Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:24.8083728Z   RUST_BACKTRACE: short
+2026-10-23T00:52:24.8083961Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:24.8084207Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:24.8084499Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:24.8084776Z ##[endgroup]
+2026-10-23T00:52:33.6393080Z ##[group]Cache Configuration
+2026-10-23T00:52:33.6393808Z Cache Provider:
+2026-10-23T00:52:33.6394226Z     github
+2026-10-23T00:52:33.6394610Z Workspaces:
+2026-10-23T00:52:33.6395056Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T00:52:33.6396145Z Cache Paths:
+2026-10-23T00:52:33.6396613Z     /home/runner/.cargo/bin
+2026-10-23T00:52:33.6397335Z     /home/runner/.cargo/.crates.toml
+2026-10-23T00:52:33.6397900Z     /home/runner/.cargo/.crates2.json
+2026-10-23T00:52:33.6398462Z     /home/runner/.cargo/registry
+2026-10-23T00:52:33.6398961Z     /home/runner/.cargo/git
+2026-10-23T00:52:33.6399471Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-23T00:52:33.6400006Z Restore Key:
+2026-10-23T00:52:33.6400532Z     v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e
+2026-10-23T00:52:33.6401186Z Cache Key:
+2026-10-23T00:52:33.6401772Z     v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e-971bf71f
+2026-10-23T00:52:33.6402620Z .. Prefix:
+2026-10-23T00:52:33.6403090Z   - v0-rust-wasm-real-link-wasm-real-link-Linux-x64
+2026-10-23T00:52:33.6403666Z .. Environment considered:
+2026-10-23T00:52:33.6404129Z   - Rust Versions:
+2026-10-23T00:52:33.6404720Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T00:52:33.6405399Z   - CARGO_BUILD_WARNINGS
+2026-10-23T00:52:33.6405870Z   - CARGO_INCREMENTAL
+2026-10-23T00:52:33.6406281Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-23T00:52:33.6406785Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-23T00:52:33.6407503Z   - CARGO_TERM_COLOR
+2026-10-23T00:52:33.6407962Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-23T00:52:33.6408468Z   - RUST_BACKTRACE
+2026-10-23T00:52:33.6408895Z .. Lockfiles considered:
+2026-10-23T00:52:33.6409456Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-23T00:52:33.6410182Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-23T00:52:33.6410873Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-23T00:52:33.6411708Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-23T00:52:33.6412621Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-23T00:52:33.6413455Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-23T00:52:33.6414251Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-23T00:52:33.6415396Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-23T00:52:33.6416162Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-23T00:52:33.6417333Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-23T00:52:33.6418236Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-23T00:52:33.6419082Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-23T00:52:33.6419895Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-23T00:52:33.6420743Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-23T00:52:33.6421575Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-23T00:52:33.6422371Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-23T00:52:33.6423197Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-23T00:52:33.6424051Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-23T00:52:33.6424897Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-23T00:52:33.6425716Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-23T00:52:33.6426543Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-23T00:52:33.6427524Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-23T00:52:33.6428336Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-23T00:52:33.6429152Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-23T00:52:33.6429961Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-23T00:52:33.6430752Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-23T00:52:33.6431493Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-23T00:52:33.6432212Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-23T00:52:33.6433129Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml
+2026-10-23T00:52:33.6433962Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-23T00:52:33.6434786Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-23T00:52:33.6435569Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-23T00:52:33.6436309Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-23T00:52:33.6437638Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-23T00:52:33.6438435Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-23T00:52:33.6439303Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-23T00:52:33.6440191Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-23T00:52:33.6440953Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-23T00:52:33.6441734Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-23T00:52:33.6442491Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-23T00:52:33.6443249Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-23T00:52:33.6444018Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-23T00:52:33.6444764Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-23T00:52:33.6446184Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml
+2026-10-23T00:52:33.6448504Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/components
+2026-10-23T00:52:33.6450801Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/manifest-rust-std-wasm32-wasip1
+2026-10-23T00:52:33.6453324Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml
+2026-10-23T00:52:33.6455883Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml
+2026-10-23T00:52:33.6457609Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-23T00:52:33.6458403Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-23T00:52:33.6459192Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-23T00:52:33.6459993Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-23T00:52:33.6460773Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-23T00:52:33.6461536Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-23T00:52:33.6462301Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-23T00:52:33.6463083Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-23T00:52:33.6463880Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-23T00:52:33.6464641Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-23T00:52:33.6465380Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-23T00:52:33.6466091Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-23T00:52:33.6466826Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-23T00:52:33.6468195Z ##[endgroup]
+2026-10-23T00:52:33.6468395Z 
+2026-10-23T00:52:33.6468564Z ... Restoring cache ...
+2026-10-23T00:52:33.7113590Z Cache hit for restore-key: v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e-b2d9d405
+2026-10-23T00:52:34.7440131Z Received 213909504 of 257461175 (83.1%), 203.4 MBs/sec
+2026-10-23T00:52:34.9199654Z Received 257461175 of 257461175 (100.0%), 208.3 MBs/sec
+2026-10-23T00:52:34.9200575Z Cache Size: ~246 MB (257461175 B)
+2026-10-23T00:52:34.9360017Z [command]/usr/bin/tar -xf /home/runner/work/_temp/f7ccdbea-32c7-444a-8e41-10d3eb6076e9/cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --use-compress-program unzstd
+2026-10-23T00:52:36.7325234Z Cache restored successfully
+2026-10-23T00:52:36.7437960Z Restored from cache key "v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e-b2d9d405" full match: false.
+2026-10-23T00:52:36.7788583Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=11980]
+2026-10-23T00:52:36.7965873Z ##[group]Run taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8
+2026-10-23T00:52:36.7966320Z with:
+2026-10-23T00:52:36.7966535Z   tool: wasmtime@49.0.3
+2026-10-23T00:52:36.7966769Z   checksum: true
+2026-10-23T00:52:36.7967198Z   fallback: cargo-binstall
+2026-10-23T00:52:36.7967430Z env:
+2026-10-23T00:52:36.7967623Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:36.7967845Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:36.7968088Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:36.7968315Z   RUST_BACKTRACE: short
+2026-10-23T00:52:36.7968541Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:36.7968806Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:36.7969108Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:36.7969408Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:36.7969632Z ##[endgroup]
+2026-10-23T00:52:36.7975361Z ##[start-action display=Run bail() {;id=__taiki-e_install-action.__run]
+2026-10-23T00:52:36.7993305Z ##[group]Run bail() {
+2026-10-23T00:52:36.7993607Z [36;1mbail() {[0m
+2026-10-23T00:52:36.7993872Z [36;1m  printf '::error::install-action: %s\n' "$*"[0m
+2026-10-23T00:52:36.7994183Z [36;1m  exit 1[0m
+2026-10-23T00:52:36.7994379Z [36;1m}[0m
+2026-10-23T00:52:36.7994742Z [36;1m# If /bin/sh is dash, environment variable containing % is not imported, but is fine[0m
+2026-10-23T00:52:36.7995292Z [36;1m# because it also means that it will not be exposed to subprocess.[0m
+2026-10-23T00:52:36.7995731Z [36;1mif /usr/bin/env | grep -Eq '^BASH_FUNC_'; then[0m
+2026-10-23T00:52:36.7996286Z [36;1m  bail 'bash function injection via BASH_FUNC_ environment variable is not allowed for security reasons'[0m
+2026-10-23T00:52:36.7997320Z [36;1mfi[0m
+2026-10-23T00:52:36.7997618Z [36;1mif ! command -v bash >/dev/null; then[0m
+2026-10-23T00:52:36.7997975Z [36;1m  if grep -Eq '^ID=alpine' /etc/os-release; then[0m
+2026-10-23T00:52:36.7998435Z [36;1m    printf '::group::Install packages required for install-action (bash)\n'[0m
+2026-10-23T00:52:36.7998884Z [36;1m    # NB: sync with apk_install in main.sh[0m
+2026-10-23T00:52:36.7999211Z [36;1m    if command -v sudo >/dev/null; then[0m
+2026-10-23T00:52:36.7999520Z [36;1m      sudo apk --no-cache add bash[0m
+2026-10-23T00:52:36.7999844Z [36;1m    elif command -v doas >/dev/null; then[0m
+2026-10-23T00:52:36.8000164Z [36;1m      doas apk --no-cache add bash[0m
+2026-10-23T00:52:36.8000445Z [36;1m    else[0m
+2026-10-23T00:52:36.8000663Z [36;1m      apk --no-cache add bash[0m
+2026-10-23T00:52:36.8000931Z [36;1m    fi[0m
+2026-10-23T00:52:36.8001143Z [36;1m    printf '::endgroup::\n'[0m
+2026-10-23T00:52:36.8001400Z [36;1m  else[0m
+2026-10-23T00:52:36.8001620Z [36;1m    bail 'this action requires bash'[0m
+2026-10-23T00:52:36.8001902Z [36;1m  fi[0m
+2026-10-23T00:52:36.8002084Z [36;1mfi[0m
+2026-10-23T00:52:36.8002362Z [36;1mbash --noprofile --norc "${GITHUB_ACTION_PATH:?}/main.sh"[0m
+2026-10-23T00:52:36.8003420Z shell: /usr/bin/env -u ENV -u BASH_ENV -u CDPATH -u SHELLOPTS -u BASHOPTS /bin/sh -eu {0}
+2026-10-23T00:52:36.8003851Z env:
+2026-10-23T00:52:36.8004049Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:36.8004280Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:36.8004527Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:36.8004757Z   RUST_BACKTRACE: short
+2026-10-23T00:52:36.8004979Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:36.8005229Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:36.8005531Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:36.8005817Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:36.8006048Z   INPUT_TOOL: wasmtime@49.0.3
+2026-10-23T00:52:36.8006288Z   INPUT_CHECKSUM: true
+2026-10-23T00:52:36.8006524Z   INPUT_FALLBACK: cargo-binstall
+2026-10-23T00:52:36.8009263Z   DEFAULT_GITHUB_TOKEN: ***
+2026-10-23T00:52:36.8009679Z   ACTION_USER_AGENT: taiki-e/install-action (1168f6810a3cb30a3514bf5756a3b7f0422c6df8)
+2026-10-23T00:52:36.8010112Z   RUNNER_OS: Linux
+2026-10-23T00:52:36.8010319Z   RUNNER_ARCH: X64
+2026-10-23T00:52:36.8010517Z ##[endgroup]
+2026-10-23T00:52:36.8188676Z info: host platform: x86_64_linux
+2026-10-23T00:52:36.8364796Z info: install-action does not support wasmtime-cli@49.0.3 (updating install-action might resolve this); fallback to cargo-binstall
+2026-10-23T00:52:36.8390225Z ##[warning]install-action: wasmtime is supported but version 49.0.3 for 'x86_64_linux' is not supported (updating install-action might resolve this); fallback to cargo-binstall
+2026-10-23T00:52:36.8409776Z info: cargo-binstall already installed at /home/runner/.cargo/bin/cargo-binstall
+2026-10-23T00:52:36.8518853Z cargo-binstall:  INFO resolve: Resolving package: 'wasmtime-cli@=49.0.3'
+2026-10-23T00:52:39.6478612Z cargo-binstall:  WARN The package wasmtime-cli v49.0.3 (x86_64-unknown-linux-gnu) has been downloaded from github.com
+2026-10-23T00:52:39.6479666Z cargo-binstall:  INFO This will install the following binaries:
+2026-10-23T00:52:39.6480696Z cargo-binstall:  INFO   - wasmtime => /home/runner/.cargo/bin/wasmtime
+2026-10-23T00:52:39.6481388Z cargo-binstall:  INFO Installing binaries...
+2026-10-23T00:52:39.6823625Z cargo-binstall:  INFO Done in 2.84006026s
+2026-10-23T00:52:39.6860229Z ##[end-action id=__taiki-e_install-action.__run;outcome=success;conclusion=success;duration_ms=2888]
+2026-10-23T00:52:39.6866897Z ##[start-action display=Run Set-StrictMode -Version Latest;id=__taiki-e_install-action.__run_2]
+2026-10-23T00:52:39.6873156Z ##[end-action id=__taiki-e_install-action.__run_2;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-23T00:52:39.6947675Z ##[group]Run set -euo pipefail
+2026-10-23T00:52:39.6948204Z [36;1mset -euo pipefail[0m
+2026-10-23T00:52:39.6949006Z [36;1masset="wasi-sdk-${WASI_SDK_RELEASE}-x86_64-linux.tar.gz"[0m
+2026-10-23T00:52:39.6950048Z [36;1murl="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${asset}"[0m
+2026-10-23T00:52:39.6951077Z [36;1mcurl -fsSL --retry 3 -o /tmp/wasi-sdk.tar.gz "$url"[0m
+2026-10-23T00:52:39.6951904Z [36;1mecho "${WASI_SDK_SHA256}  /tmp/wasi-sdk.tar.gz" | sha256sum --check --strict -[0m
+2026-10-23T00:52:39.6952636Z [36;1msudo mkdir -p /opt/wasi-sdk[0m
+2026-10-23T00:52:39.6953308Z [36;1msudo tar -xzf /tmp/wasi-sdk.tar.gz -C /opt/wasi-sdk --strip-components=1[0m
+2026-10-23T00:52:39.6954021Z [36;1mtest -x /opt/wasi-sdk/bin/clang[0m
+2026-10-23T00:52:39.7025019Z shell: /usr/bin/bash -e {0}
+2026-10-23T00:52:39.7025302Z env:
+2026-10-23T00:52:39.7025518Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:39.7025782Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:39.7026091Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:39.7026351Z   RUST_BACKTRACE: short
+2026-10-23T00:52:39.7026598Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:39.7026880Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:39.7027596Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:39.7027915Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:39.7028157Z   WASI_SDK_VERSION: 34
+2026-10-23T00:52:39.7028384Z   WASI_SDK_RELEASE: 34.0
+2026-10-23T00:52:39.7028788Z   WASI_SDK_SHA256: b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4
+2026-10-23T00:52:39.7029243Z ##[endgroup]
+2026-10-23T00:52:41.1041530Z /tmp/wasi-sdk.tar.gz: OK
+2026-10-23T00:52:43.9797648Z ##[group]Run set -euo pipefail
+2026-10-23T00:52:43.9798147Z [36;1mset -euo pipefail[0m
+2026-10-23T00:52:43.9819300Z [36;1m.claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0[0m
+2026-10-23T00:52:43.9820029Z [36;1mtest -f tmp/tcl9.0.4/libtommath/tommath.h[0m
+2026-10-23T00:52:43.9880271Z shell: /usr/bin/bash -e {0}
+2026-10-23T00:52:43.9880532Z env:
+2026-10-23T00:52:43.9880732Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:43.9880978Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:43.9881244Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:43.9881503Z   RUST_BACKTRACE: short
+2026-10-23T00:52:43.9881754Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:43.9882042Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:43.9882375Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:43.9882697Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:43.9882945Z ##[endgroup]
+2026-10-23T00:52:44.0081939Z === Tcl 9.0 ===
+2026-10-23T00:52:44.0202305Z   Downloading tcl 9.0.4 source tarball ...
+2026-10-23T00:52:45.1881119Z   Extracting to tcl9.0.4/ ...
+2026-10-23T00:52:45.3399530Z   Done: tcl9.0.4/ (169 test files, 40M)
+2026-10-23T00:52:45.3471042Z ##[group]Run make check-c-extension-wasm
+2026-10-23T00:52:45.3471409Z [36;1mmake check-c-extension-wasm[0m
+2026-10-23T00:52:45.3529373Z shell: /usr/bin/bash -e {0}
+2026-10-23T00:52:45.3529636Z env:
+2026-10-23T00:52:45.3529839Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:45.3530181Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:45.3530451Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:45.3530681Z   RUST_BACKTRACE: short
+2026-10-23T00:52:45.3530903Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:45.3531150Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:45.3531454Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:45.3531750Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:45.3531978Z   TCL_REQUIRE_WASM_LINK: 1
+2026-10-23T00:52:45.3532202Z ##[endgroup]
+2026-10-23T00:52:45.8228128Z ==> Running the C header checker's own regression tests
+2026-10-23T00:52:45.8229293Z python3 /home/runner/work/tcl-lsp/tcl-lsp/scripts/check_c_extension_wasm.py --self-test
+2026-10-23T00:52:45.9080368Z ok: _self_test_a_leg_declares_the_shared_part_and_its_own
+2026-10-23T00:52:45.9081038Z ok: _self_test_a_major_version_selects_the_eight_dot_x_branch
+2026-10-23T00:52:45.9081598Z ok: _self_test_neither_host_takes_the_else_branch
+2026-10-23T00:52:45.9082127Z ok: _self_test_the_directives_the_header_could_use_are_read
+2026-10-23T00:52:45.9082733Z ok: _self_test_an_expression_the_header_does_not_write_is_an_error
+2026-10-23T00:52:45.9083663Z ok: _self_test_an_unbalanced_conditional_is_an_error
+2026-10-23T00:52:45.9084165Z ok: _self_test_compare_names_both_directions_of_drift
+2026-10-23T00:52:45.9084664Z ok: _self_test_shim_exports_are_the_export_names
+2026-10-23T00:52:45.9085194Z ok: _self_test_the_shipped_header_has_the_two_legs_it_documents
+2026-10-23T00:52:45.9085553Z 
+2026-10-23T00:52:45.9085706Z self-test: 9/9 passed
+2026-10-23T00:52:45.9177239Z ==> Checking the authored C header against both hosts
+2026-10-23T00:52:45.9179055Z python3 /home/runner/work/tcl-lsp/tcl-lsp/scripts/check_c_extension_wasm.py
+2026-10-23T00:52:46.2262873Z OK: the header's WASM leg declares 33 function(s), each exported by the runtime, and its native leg 37, each exported by the shim; wasm32 compiles passed
+2026-10-23T00:52:46.2392847Z ##[group]Run cargo test -p tcl-compiler --test wasm_real_link --test wasm_tiers -- --test-threads=1
+2026-10-23T00:52:46.2393602Z [36;1mcargo test -p tcl-compiler --test wasm_real_link --test wasm_tiers -- --test-threads=1[0m
+2026-10-23T00:52:46.2452485Z shell: /usr/bin/bash -e {0}
+2026-10-23T00:52:46.2452755Z env:
+2026-10-23T00:52:46.2452952Z   CARGO_INCREMENTAL: 0
+2026-10-23T00:52:46.2453184Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T00:52:46.2453443Z   CARGO_TERM_COLOR: always
+2026-10-23T00:52:46.2453693Z   RUST_BACKTRACE: short
+2026-10-23T00:52:46.2453942Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T00:52:46.2454214Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T00:52:46.2454566Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T00:52:46.2454886Z   CACHE_ON_FAILURE: true
+2026-10-23T00:52:46.2455128Z   TCL_REQUIRE_WASM_LINK: 1
+2026-10-23T00:52:46.2455365Z ##[endgroup]
+2026-10-23T00:52:46.3054823Z [1m[92m    Updating[0m crates.io index
+2026-10-23T00:52:46.9957365Z [1m[92m   Compiling[0m tcl-dialect v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect)
+2026-10-23T00:52:46.9958877Z [1m[92m   Compiling[0m tcl-core-types v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types)
+2026-10-23T00:52:46.9988707Z [1m[92m   Compiling[0m tcl-platform v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform)
+2026-10-23T00:52:47.0088727Z [1m[92m   Compiling[0m tcl-host-c-abi v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi)
+2026-10-23T00:52:47.1624263Z [1m[92m   Compiling[0m tcl-userdirs v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs)
+2026-10-23T00:52:48.1471118Z [1m[92m   Compiling[0m tcl-lexer v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer)
+2026-10-23T00:52:48.3856850Z [1m[92m   Compiling[0m tcl-host-native v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native)
+2026-10-23T00:52:48.5709106Z [1m[92m   Compiling[0m tcl-test-support v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support)
+2026-10-23T00:52:49.1359144Z [1m[92m   Compiling[0m tcl-syntax v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax)
+2026-10-23T00:52:51.9316808Z [1m[92m   Compiling[0m tcl-runtime-api v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api)
+2026-10-23T00:52:51.9318723Z [1m[92m   Compiling[0m tcl-pkg-model v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model)
+2026-10-23T00:52:53.2009232Z [1m[92m   Compiling[0m tcl-cmd-core v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core)
+2026-10-23T00:52:53.2203702Z [1m[92m   Compiling[0m tcl-bytecode v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode)
+2026-10-23T00:52:53.3168962Z [1m[92m   Compiling[0m tcl-engine-api v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api)
+2026-10-23T00:52:56.0070615Z [1m[92m   Compiling[0m tcl-regex v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex)
+2026-10-23T00:52:56.4759395Z [1m[92m   Compiling[0m tcl-registry v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry)
+2026-10-23T00:53:15.5181637Z [1m[92m   Compiling[0m tcl-compiler v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler)
+2026-10-23T00:53:15.5183264Z [1m[92m   Compiling[0m tcl-vm v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm)
+2026-10-23T00:54:09.9843801Z [1m[92m   Compiling[0m tcl-irules v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules)
+2026-10-23T00:54:09.9845278Z [1m[92m   Compiling[0m tcl-sslictcl v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl)
+2026-10-23T00:54:09.9847149Z [1m[92m   Compiling[0m tcl-engine-tclvm v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm)
+2026-10-23T00:54:10.9034519Z [1m[92m   Compiling[0m tcl-spec-hooks v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks)
+2026-10-23T00:54:12.4141613Z [1m[92m   Compiling[0m tcl-bigip v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip)
+2026-10-23T00:54:17.6908628Z [1m[92m   Compiling[0m tcl-lsp-core v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core)
+2026-10-23T00:54:38.8749571Z [1m[92m   Compiling[0m tcl-spectcl v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl)
+2026-10-23T00:54:52.7468906Z [1m[92m    Finished[0m `test` profile [unoptimized + debuginfo] target(s) in 2m 06s
+2026-10-23T00:54:52.7775651Z [1m[92m     Running[0m tests/wasm_real_link.rs (target/debug/deps/wasm_real_link-2dfa660c17f64b6d)
+2026-10-23T00:54:52.7829379Z 
+2026-10-23T00:54:52.7829744Z running 25 tests
+2026-10-23T00:55:47.0441918Z test a_compiled_proc_body_runs_through_the_runtimes_function_table ... FAILED
+2026-10-23T00:55:48.4138248Z test a_compiled_proc_body_sees_the_frame_run_proc_pushed ... FAILED
+2026-10-23T00:56:14.3218446Z test a_compiled_script_calls_an_extension_registered_command ... ok
+2026-10-23T00:56:14.9932630Z test a_module_with_a_foreign_intrinsic_table_is_refused ... FAILED
+2026-10-23T00:56:18.7538661Z test analysed_compound_puts_word_reaches_the_runtime_intact ... ok
+2026-10-23T00:56:25.8093140Z test canonical_generic_argv_runs_against_the_real_runtime ... ok
+2026-10-23T00:56:37.3277658Z test compiled_argv_balances_allocations_in_the_real_runtime ... FAILED
+2026-10-23T00:57:06.7058150Z test compiled_argv_invocations_run_against_the_real_runtime ... ok
+2026-10-23T00:57:07.1296387Z test emitted_modules_run_against_the_real_runtime ... FAILED
+2026-10-23T00:57:11.4624270Z test general_original_definition_evaluates_its_name_once ... ok
+2026-10-23T00:57:15.7655392Z test general_original_definition_keeps_braced_body_text_inert ... ok
+2026-10-23T00:57:20.1489401Z test general_original_definition_materialises_its_body_once ... ok
+2026-10-23T00:57:23.9825798Z test general_original_definition_preserves_a_materialised_name_word ... ok
+2026-10-23T00:57:27.9027622Z test general_original_definition_preserves_a_renamed_stock_definer ... ok
+2026-10-23T00:57:31.4996423Z test general_original_definition_preserves_unknown_name_error ... ok
+2026-10-23T00:57:35.4911448Z test general_original_definition_resolves_a_replaced_definer ... ok
+2026-10-23T00:57:49.7463511Z test guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime ... ok
+2026-10-23T00:57:53.7373571Z test native_original_definition_preserves_a_replaced_definer ... ok
+2026-10-23T00:57:54.0510277Z test native_wide_int_codegen_abi_links_against_the_real_runtime ... ok
+2026-10-23T00:57:54.0511567Z test native_wide_int_link_probe_uses_the_shared_i64_descriptor_signature ... ok
+2026-10-23T00:57:54.7526525Z test original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint ... FAILED
+2026-10-23T00:57:56.2464905Z test recursion_through_a_compiled_body_refuses_at_the_interpreted_depth ... FAILED
+2026-10-23T00:57:57.5856284Z test root_colon_publication_runs_its_own_compiled_table_entry ... FAILED
+2026-10-23T00:57:58.6722927Z test sealed_native_i64_add_runs_and_trace_registration_falls_back ... FAILED
+2026-10-23T00:57:58.9879506Z test the_runtime_exports_a_growable_indirect_function_table ... ok
+2026-10-23T00:57:58.9880198Z 
+2026-10-23T00:57:58.9880345Z failures:
+2026-10-23T00:57:58.9880545Z 
+2026-10-23T00:57:58.9881011Z ---- a_compiled_proc_body_runs_through_the_runtimes_function_table stdout ----
+2026-10-23T00:57:58.9881567Z 
+2026-10-23T00:57:58.9881642Z 
+2026-10-23T00:57:58.9882651Z [1m[92m Downloading[0m crates ...
+2026-10-23T00:57:58.9883522Z [1m[92m  Downloaded[0m find-msvc-tools v0.1.15
+2026-10-23T00:57:58.9884470Z [1m[92m  Downloaded[0m cc v1.9.0
+2026-10-23T00:57:58.9885419Z [1m[92m   Compiling[0m tcl-dialect v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect)
+2026-10-23T00:57:58.9886821Z [1m[92m   Compiling[0m tcl-core-types v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types)
+2026-10-23T00:57:58.9888242Z [1m[92m   Compiling[0m tcl-platform v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform)
+2026-10-23T00:57:58.9889465Z [1m[92m   Compiling[0m tcl-host-c-abi v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi)
+2026-10-23T00:57:58.9890618Z [1m[92m   Compiling[0m tcl-runtime v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust)
+2026-10-23T00:57:58.9892081Z [1m[92m   Compiling[0m tcl-lexer v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer)
+2026-10-23T00:57:58.9893189Z [1m[92m   Compiling[0m tcl-syntax v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax)
+2026-10-23T00:57:58.9894351Z [1m[92m   Compiling[0m tcl-runtime-api v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api)
+2026-10-23T00:57:58.9895530Z [1m[92m   Compiling[0m tcl-cmd-core v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core)
+2026-10-23T00:57:58.9896658Z [1m[92m   Compiling[0m tcl-bytecode v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode)
+2026-10-23T00:57:58.9898003Z [1m[92m   Compiling[0m tcl-regex v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex)
+2026-10-23T00:57:58.9899128Z [1m[92m   Compiling[0m tcl-registry v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry)
+2026-10-23T00:57:58.9900155Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 52.78s
+2026-10-23T00:57:58.9900625Z 
+2026-10-23T00:57:58.9903288Z CCG_WASM_SUMMARY program="proc add {a b} { return [expr {$a + $b}] }\nproc twice {x} { return [add $x $x] }\nset answer [twice 21]\nset level [add 1 1]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=1 native_enabled=true native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=2 retained_source=true source_metadata=true
+2026-10-23T00:57:58.9928296Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 11 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 11 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 16 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 16 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([3]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 21 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 3 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 21 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:58.9949873Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:58.9976675Z CCG_WASM_NATIVE id=TopLevel report=NamedFunctionReport { name: "::top", report: FunctionReport { status: Lowered, binding: NotApplicable, statements: [StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([0])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }] } }
+2026-10-23T00:57:58.9994102Z 
+2026-10-23T00:57:58.9994999Z thread 'a_compiled_proc_body_runs_through_the_runtimes_function_table' (3379) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1203:5:
+2026-10-23T00:57:58.9997604Z "proc add {a b} { return [expr {$a + $b}] }\nproc twice {x} { return [add $x $x] }\nset answer [twice 21]\nset level [add 1 1]\n" must import the runtime's shared function table
+2026-10-23T00:57:58.9998679Z stack backtrace:
+2026-10-23T00:57:58.9999045Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:58.9999755Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0000517Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0001306Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0002109Z    2: compile_native_bound
+2026-10-23T00:57:59.0002576Z              at ./tests/wasm_real_link.rs:1203:5
+2026-10-23T00:57:59.0003077Z    3: run_real_native_proc
+2026-10-23T00:57:59.0003522Z              at ./tests/wasm_real_link.rs:1248:10
+2026-10-23T00:57:59.0004280Z    4: wasm_real_link::a_compiled_proc_body_runs_through_the_runtimes_function_table
+2026-10-23T00:57:59.0004973Z              at ./tests/wasm_real_link.rs:1299:9
+2026-10-23T00:57:59.0005700Z    5: wasm_real_link::a_compiled_proc_body_runs_through_the_runtimes_function_table::{closure#0}
+2026-10-23T00:57:59.0006433Z              at ./tests/wasm_real_link.rs:1286:67
+2026-10-23T00:57:59.0007649Z    6: <wasm_real_link::a_compiled_proc_body_runs_through_the_runtimes_function_table::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0009000Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0010192Z    7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0011363Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0012443Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0012991Z 
+2026-10-23T00:57:59.0013316Z ---- a_compiled_proc_body_sees_the_frame_run_proc_pushed stdout ----
+2026-10-23T00:57:59.0013747Z 
+2026-10-23T00:57:59.0013754Z 
+2026-10-23T00:57:59.0014365Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0014784Z 
+2026-10-23T00:57:59.0017567Z CCG_WASM_SUMMARY program="proc lvl {} { return [list [info level] [info level 0]] }\nproc outer {x} { return [lvl] }\nset answer [outer 7]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=1 native_enabled=true native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=2 retained_source=true source_metadata=true
+2026-10-23T00:57:59.0037297Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 11 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 11 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 16 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 16 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:59.0051926Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:59.0060345Z CCG_WASM_NATIVE id=TopLevel report=NamedFunctionReport { name: "::top", report: FunctionReport { status: Lowered, binding: NotApplicable, statements: [StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([0])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }] } }
+2026-10-23T00:57:59.0068284Z 
+2026-10-23T00:57:59.0068742Z thread 'a_compiled_proc_body_sees_the_frame_run_proc_pushed' (3812) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1203:5:
+2026-10-23T00:57:59.0069901Z "proc lvl {} { return [list [info level] [info level 0]] }\nproc outer {x} { return [lvl] }\nset answer [outer 7]\n" must import the runtime's shared function table
+2026-10-23T00:57:59.0070570Z stack backtrace:
+2026-10-23T00:57:59.0070871Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0071338Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0071814Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0072269Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0072729Z    2: compile_native_bound
+2026-10-23T00:57:59.0073003Z              at ./tests/wasm_real_link.rs:1203:5
+2026-10-23T00:57:59.0073299Z    3: run_real_native_proc
+2026-10-23T00:57:59.0073568Z              at ./tests/wasm_real_link.rs:1248:10
+2026-10-23T00:57:59.0073975Z    4: wasm_real_link::a_compiled_proc_body_sees_the_frame_run_proc_pushed
+2026-10-23T00:57:59.0074478Z              at ./tests/wasm_real_link.rs:1329:9
+2026-10-23T00:57:59.0075091Z    5: wasm_real_link::a_compiled_proc_body_sees_the_frame_run_proc_pushed::{closure#0}
+2026-10-23T00:57:59.0075539Z              at ./tests/wasm_real_link.rs:1319:57
+2026-10-23T00:57:59.0076151Z    6: <wasm_real_link::a_compiled_proc_body_sees_the_frame_run_proc_pushed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0077139Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0078157Z    7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0078825Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0079449Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0079792Z 
+2026-10-23T00:57:59.0079996Z ---- a_module_with_a_foreign_intrinsic_table_is_refused stdout ----
+2026-10-23T00:57:59.0080270Z 
+2026-10-23T00:57:59.0080280Z 
+2026-10-23T00:57:59.0080660Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0080941Z 
+2026-10-23T00:57:59.0080952Z 
+2026-10-23T00:57:59.0081367Z thread 'a_module_with_a_foreign_intrinsic_table_is_refused' (3896) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:456:5:
+2026-10-23T00:57:59.0081963Z real link trapped for "set x 42\n":
+2026-10-23T00:57:59.0082238Z --- stdout ---
+2026-10-23T00:57:59.0082367Z 
+2026-10-23T00:57:59.0082455Z --- stderr ---
+2026-10-23T00:57:59.0082887Z Error: failed to run main module `/tmp/tclwl-e8492144/3378-tcl_real_link_boot_manifest_control.wat`
+2026-10-23T00:57:59.0083265Z 
+2026-10-23T00:57:59.0083356Z Caused by:
+2026-10-23T00:57:59.0083751Z     0: failed to instantiate "/tmp/tclwl-e8492144/3378-tcl_real_link_boot_manifest_control.wat"
+2026-10-23T00:57:59.0084247Z     1: incompatible import type for `user::::top`
+2026-10-23T00:57:59.0084728Z     2: types incompatible: expected type `(func)`, found type `(func (result i32 i32 i32))`
+2026-10-23T00:57:59.0085067Z 
+2026-10-23T00:57:59.0085161Z Stack backtrace:
+2026-10-23T00:57:59.0085476Z    0: <wasmtime_internal_core::error::error::Error>::from_format_args
+2026-10-23T00:57:59.0086105Z    1: wasmtime::runtime::types::matching::type_reference
+2026-10-23T00:57:59.0086626Z    2: <wasmtime::runtime::instance::InstancePre<wasmtime_cli::commands::run::Host>>::new
+2026-10-23T00:57:59.0087616Z    3: <wasmtime::runtime::linker::Linker<wasmtime_cli::commands::run::Host>>::_instantiate_pre
+2026-10-23T00:57:59.0088206Z    4: <wasmtime_cli::commands::run::RunCommand>::load_main_module::{closure#0}
+2026-10-23T00:57:59.0089036Z    5: <tokio::time::timeout::Timeout<<wasmtime_cli::commands::run::RunCommand>::instantiate_and_run::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+2026-10-23T00:57:59.0089834Z    6: <wasmtime_cli::commands::run::RunCommand>::instantiate_and_run::{closure#0}
+2026-10-23T00:57:59.0090503Z    7: <wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}
+2026-10-23T00:57:59.0091171Z    8: <tokio::runtime::park::CachedParkThread>::block_on::<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>
+2026-10-23T00:57:59.0092544Z    9: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>::{closure#0}, core::result::Result<(), wasmtime_internal_core::error::error::Error>>
+2026-10-23T00:57:59.0093796Z   10: <tokio::runtime::runtime::Runtime>::block_on::<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>
+2026-10-23T00:57:59.0094374Z   11: <wasmtime_cli::commands::run::RunCommand>::execute
+2026-10-23T00:57:59.0094698Z   12: wasmtime::main
+2026-10-23T00:57:59.0095476Z   13: std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> core::result::Result<(), wasmtime_internal_core::error::error::Error>, core::result::Result<(), wasmtime_internal_core::error::error::Error>>
+2026-10-23T00:57:59.0096488Z   14: std::rt::lang_start::<core::result::Result<(), wasmtime_internal_core::error::error::Error>>::{closure#0}
+2026-10-23T00:57:59.0097236Z   15: std::rt::lang_start_internal
+2026-10-23T00:57:59.0097504Z   16: main
+2026-10-23T00:57:59.0097617Z 
+2026-10-23T00:57:59.0097623Z 
+2026-10-23T00:57:59.0097710Z stack backtrace:
+2026-10-23T00:57:59.0097942Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0098394Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0098860Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0099304Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0099747Z    2: run_link_bytes
+2026-10-23T00:57:59.0116279Z              at ./tests/wasm_real_link.rs:456:5
+2026-10-23T00:57:59.0117265Z    3: wasm_real_link::a_module_with_a_foreign_intrinsic_table_is_refused
+2026-10-23T00:57:59.0117951Z              at ./tests/wasm_real_link.rs:710:9
+2026-10-23T00:57:59.0118692Z    4: wasm_real_link::a_module_with_a_foreign_intrinsic_table_is_refused::{closure#0}
+2026-10-23T00:57:59.0119437Z              at ./tests/wasm_real_link.rs:680:56
+2026-10-23T00:57:59.0120597Z    5: <wasm_real_link::a_module_with_a_foreign_intrinsic_table_is_refused::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0122000Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0123250Z    6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0124460Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0125462Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0125825Z 
+2026-10-23T00:57:59.0126055Z ---- compiled_argv_balances_allocations_in_the_real_runtime stdout ----
+2026-10-23T00:57:59.0126360Z 
+2026-10-23T00:57:59.0126378Z 
+2026-10-23T00:57:59.0126757Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0127330Z 
+2026-10-23T00:57:59.0127608Z 
+2026-10-23T00:57:59.0128070Z thread 'compiled_argv_balances_allocations_in_the_real_runtime' (3985) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:911:9:
+2026-10-23T00:57:59.0128732Z `abort-in-loop` did not balance its allocations:
+2026-10-23T00:57:59.0129063Z --- stdout ---
+2026-10-23T00:57:59.0129187Z 
+2026-10-23T00:57:59.0129280Z --- stderr ---
+2026-10-23T00:57:59.0129699Z Error: failed to run main module `/tmp/tclwl-e8492144/3378-tcl_real_leak_boot_abort-in-loop.wat`
+2026-10-23T00:57:59.0130072Z 
+2026-10-23T00:57:59.0130161Z Caused by:
+2026-10-23T00:57:59.0130387Z     0: failed to invoke command default
+2026-10-23T00:57:59.0130710Z     1: error while executing at wasm backtrace:
+2026-10-23T00:57:59.0131038Z     0:    0x12b - <unknown>!<wasm function 6>
+2026-10-23T00:57:59.0131528Z     2: wasm trap: wasm `unreachable` instruction executed
+2026-10-23T00:57:59.0131768Z 
+2026-10-23T00:57:59.0131865Z Stack backtrace:
+2026-10-23T00:57:59.0132154Z    0: wasmtime_internal_core::error::backtrace::capture
+2026-10-23T00:57:59.0132781Z    1: <wasmtime_internal_core::error::error::Error>::new::<wasmtime_environ::trap_encoding::Trap>
+2026-10-23T00:57:59.0133276Z    2: wasmtime::runtime::trap::from_runtime_box
+2026-10-23T00:57:59.0134097Z    3: wasmtime::runtime::vm::traphandlers::catch_traps::<wasmtime_cli::commands::run::Host, <wasmtime::runtime::func::Func>::call_unchecked_raw<wasmtime_cli::commands::run::Host>::{closure#0}>
+2026-10-23T00:57:59.0135021Z    4: <wasmtime::runtime::func::Func>::call_unchecked_raw::<wasmtime_cli::commands::run::Host>
+2026-10-23T00:57:59.0135622Z    5: <wasmtime::runtime::func::Func>::call_impl_do_call::<wasmtime_cli::commands::run::Host>
+2026-10-23T00:57:59.0140089Z    6: <alloc::boxed::Box<wasmtime::runtime::fiber::make_fiber_unchecked<wasmtime::runtime::store::StoreInner<wasmtime_cli::commands::run::Host>, wasmtime::runtime::fiber::on_fiber<wasmtime::runtime::store::StoreInner<wasmtime_cli::commands::run::Host>, core::result::Result<(), wasmtime_internal_core::error::error::Error>, <wasmtime::runtime::store::context::StoreContextMut<wasmtime_cli::commands::run::Host>>::on_fiber<core::result::Result<(), wasmtime_internal_core::error::error::Error>, <wasmtime::runtime::func::Func>::call_async<&mut wasmtime::runtime::store::Store<wasmtime_cli::commands::run::Host>>::{closure#0}::{closure#0}>::{closure#0}::{closure#0}>::{closure#0}::{closure#0}>::{closure#0}> as core::ops::function::FnOnce<(core::result::Result<core::ptr::non_null::NonNull<core::task::wake::Context>, wasmtime_internal_core::error::error::Error>, &mut wasmtime_internal_fiber::Suspend<core::result::Result<core::ptr::non_null::NonNull<core::task::wake::Context>, wasmtime_internal_core::error::error::Error>, wasmtime::runtime::fiber::StoreFiberYield, core::result::Result<(), wasmtime_internal_core::error::error::Error>>)>>::call_once
+2026-10-23T00:57:59.0147427Z    7: wasmtime_internal_fiber::unix::fiber_start::<wasmtime::runtime::fiber::make_fiber_unchecked<wasmtime::runtime::store::StoreInner<wasmtime_cli::commands::run::Host>, wasmtime::runtime::fiber::on_fiber<wasmtime::runtime::store::StoreInner<wasmtime_cli::commands::run::Host>, core::result::Result<(), wasmtime_internal_core::error::error::Error>, <wasmtime::runtime::store::context::StoreContextMut<wasmtime_cli::commands::run::Host>>::on_fiber<core::result::Result<(), wasmtime_internal_core::error::error::Error>, <wasmtime::runtime::func::Func>::call_async<&mut wasmtime::runtime::store::Store<wasmtime_cli::commands::run::Host>>::{closure#0}::{closure#0}>::{closure#0}::{closure#0}>::{closure#0}::{closure#0}>::{closure#0}, core::result::Result<core::ptr::non_null::NonNull<core::task::wake::Context>, wasmtime_internal_core::error::error::Error>, wasmtime::runtime::fiber::StoreFiberYield, core::result::Result<(), wasmtime_internal_core::error::error::Error>>
+2026-10-23T00:57:59.0150741Z    8: wasmtime_internal_fiber::stackswitch::x86_64::wasmtime_fiber_start
+2026-10-23T00:57:59.0151162Z    9: wasmtime::runtime::fiber::resume_fiber
+2026-10-23T00:57:59.0151934Z   10: <wasmtime::runtime::fiber::FiberFuture as core::future::future::Future>::poll
+2026-10-23T00:57:59.0153114Z   11: <wasmtime_cli::commands::run::RunCommand>::load_main_module::{closure#0}
+2026-10-23T00:57:59.0154021Z   12: <tokio::time::timeout::Timeout<<wasmtime_cli::commands::run::RunCommand>::instantiate_and_run::{closure#0}::{closure#0}> as core::future::future::Future>::poll
+2026-10-23T00:57:59.0154830Z   13: <wasmtime_cli::commands::run::RunCommand>::instantiate_and_run::{closure#0}
+2026-10-23T00:57:59.0155334Z   14: <wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}
+2026-10-23T00:57:59.0155982Z   15: <tokio::runtime::park::CachedParkThread>::block_on::<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>
+2026-10-23T00:57:59.0157890Z   16: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>::{closure#0}, core::result::Result<(), wasmtime_internal_core::error::error::Error>>
+2026-10-23T00:57:59.0159198Z   17: <tokio::runtime::runtime::Runtime>::block_on::<<wasmtime_cli::commands::run::RunCommand>::execute::{closure#0}>
+2026-10-23T00:57:59.0159778Z   18: <wasmtime_cli::commands::run::RunCommand>::execute
+2026-10-23T00:57:59.0160109Z   19: wasmtime::main
+2026-10-23T00:57:59.0160897Z   20: std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> core::result::Result<(), wasmtime_internal_core::error::error::Error>, core::result::Result<(), wasmtime_internal_core::error::error::Error>>
+2026-10-23T00:57:59.0161908Z   21: std::rt::lang_start::<core::result::Result<(), wasmtime_internal_core::error::error::Error>>::{closure#0}
+2026-10-23T00:57:59.0162410Z   22: std::rt::lang_start_internal
+2026-10-23T00:57:59.0162674Z   23: main
+2026-10-23T00:57:59.0162785Z 
+2026-10-23T00:57:59.0162790Z 
+2026-10-23T00:57:59.0162891Z stack backtrace:
+2026-10-23T00:57:59.0163122Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0163575Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0164050Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0164496Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0165017Z    2: compiled_argv_balances_allocations_in_the_real_runtime
+2026-10-23T00:57:59.0165387Z              at ./tests/wasm_real_link.rs:911:9
+2026-10-23T00:57:59.0165842Z    3: wasm_real_link::compiled_argv_balances_allocations_in_the_real_runtime::{closure#0}
+2026-10-23T00:57:59.0166297Z              at ./tests/wasm_real_link.rs:858:60
+2026-10-23T00:57:59.0167138Z    4: <wasm_real_link::compiled_argv_balances_allocations_in_the_real_runtime::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0167985Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0168670Z    5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0169356Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0169983Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0170313Z 
+2026-10-23T00:57:59.0170500Z ---- emitted_modules_run_against_the_real_runtime stdout ----
+2026-10-23T00:57:59.0170757Z 
+2026-10-23T00:57:59.0170762Z 
+2026-10-23T00:57:59.0171098Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0171378Z 
+2026-10-23T00:57:59.0171383Z 
+2026-10-23T00:57:59.0171773Z thread 'emitted_modules_run_against_the_real_runtime' (4134) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:338:5:
+2026-10-23T00:57:59.0177468Z expected the general structured tier for "set x 42\n", got GenericInvoke { operation: StructuredLowering(Set), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 4 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 4 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:59.0182521Z stack backtrace:
+2026-10-23T00:57:59.0182770Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0183226Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0183692Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0184137Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0184613Z    2: wasm_real_link::compile_general
+2026-10-23T00:57:59.0184913Z              at ./tests/wasm_real_link.rs:338:5
+2026-10-23T00:57:59.0185212Z    3: wasm_real_link::run_real_link
+2026-10-23T00:57:59.0185497Z              at ./tests/wasm_real_link.rs:351:35
+2026-10-23T00:57:59.0185837Z    4: emitted_modules_run_against_the_real_runtime
+2026-10-23T00:57:59.0186162Z              at ./tests/wasm_real_link.rs:667:13
+2026-10-23T00:57:59.0186571Z    5: wasm_real_link::emitted_modules_run_against_the_real_runtime::{closure#0}
+2026-10-23T00:57:59.0187261Z              at ./tests/wasm_real_link.rs:642:50
+2026-10-23T00:57:59.0187870Z    6: <wasm_real_link::emitted_modules_run_against_the_real_runtime::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0188621Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0189298Z    7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0189970Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0190593Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0190930Z 
+2026-10-23T00:57:59.0191245Z ---- original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint stdout ----
+2026-10-23T00:57:59.0191636Z 
+2026-10-23T00:57:59.0191641Z 
+2026-10-23T00:57:59.0191979Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0192253Z 
+2026-10-23T00:57:59.0193636Z CCG_WASM_SUMMARY program="proc :audit {} {return ORIGINAL}\nset answer [:audit]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=1 native_enabled=true native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=1 retained_source=true source_metadata=true
+2026-10-23T00:57:59.0203043Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 10 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 10 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:59.0210991Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:59.0216327Z CCG_WASM_NATIVE id=TopLevel report=NamedFunctionReport { name: "::top", report: FunctionReport { status: Lowered, binding: NotApplicable, statements: [StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([0])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }] } }
+2026-10-23T00:57:59.0221674Z 
+2026-10-23T00:57:59.0222218Z thread 'original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint' (4451) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1203:5:
+2026-10-23T00:57:59.0223116Z "proc :audit {} {return ORIGINAL}\nset answer [:audit]\n" must import the runtime's shared function table
+2026-10-23T00:57:59.0223601Z stack backtrace:
+2026-10-23T00:57:59.0223834Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0224284Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0224761Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0225216Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0225828Z    2: compile_native_bound
+2026-10-23T00:57:59.0226101Z              at ./tests/wasm_real_link.rs:1203:5
+2026-10-23T00:57:59.0226621Z    3: wasm_real_link::original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint
+2026-10-23T00:57:59.0227402Z              at ./tests/wasm_real_link.rs:1612:18
+2026-10-23T00:57:59.0227976Z    4: wasm_real_link::original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint::{closure#0}
+2026-10-23T00:57:59.0228525Z              at ./tests/wasm_real_link.rs:1598:86
+2026-10-23T00:57:59.0229242Z    5: <wasm_real_link::original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0230255Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0230953Z    6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0231645Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0232274Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0232613Z 
+2026-10-23T00:57:59.0232870Z ---- recursion_through_a_compiled_body_refuses_at_the_interpreted_depth stdout ----
+2026-10-23T00:57:59.0233205Z 
+2026-10-23T00:57:59.0233211Z 
+2026-10-23T00:57:59.0233515Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0233787Z 
+2026-10-23T00:57:59.0235634Z CCG_WASM_SUMMARY program="proc d {n} { if {$n} { d [expr {$n - 1}] } ; return ok }\nproc probe {n} { if {[catch {d $n} m]} { return $m } ; return ok }\nset r60 [probe 60]\nset r61 [probe 61]\nset r62 [probe 62]\nset answer [list $r60 $r61 $r62]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=1 native_enabled=true native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=0 retained_source=true source_metadata=true
+2026-10-23T00:57:59.0253329Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 11 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 11 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 16 }, operation: None, slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 16 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(InvocationUnresolved) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(InvocationUnresolved) }] }), NodeId([3]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 21 }, operation: None, slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 3 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 21 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(InvocationUnresolved) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(InvocationUnresolved) }] }), NodeId([4]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 26 }, operation: None, slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 4 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 26 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(InvocationUnresolved) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(InvocationUnresolved) }] }), NodeId([5]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 31 }, operation: None, slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 5 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 31 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(InvocationUnresolved) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(InvocationUnresolved) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:59.0268748Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:59.0285098Z CCG_WASM_NATIVE id=TopLevel report=NamedFunctionReport { name: "::top", report: FunctionReport { status: Lowered, binding: NotApplicable, statements: [StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([0])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([4])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([4])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([4])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([4])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([5])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([5])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([5])), instruction: "evaluate-word", outcome: Native, cells: [CellAccessRecord { place: "r60", access: Read, storage: CellDecision { storage: Cell, reason: TopLevelGlobal }, barrier: Elided(NoTraceReachesCell), shadowed: false }, CellAccessRecord { place: "r61", access: Read, storage: CellDecision { storage: Cell, reason: TopLevelGlobal }, barrier: Elided(NoTraceReachesCell), shadowed: false }, CellAccessRecord { place: "r62", access: Read, storage: CellDecision { storage: Cell, reason: TopLevelGlobal }, barrier: Elided(NoTraceReachesCell), shadowed: false }], representations: ["boxed", "boxed", "boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([5])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }] } }
+2026-10-23T00:57:59.0300616Z 
+2026-10-23T00:57:59.0301109Z thread 'recursion_through_a_compiled_body_refuses_at_the_interpreted_depth' (4468) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1203:5:
+2026-10-23T00:57:59.0302400Z "proc d {n} { if {$n} { d [expr {$n - 1}] } ; return ok }\nproc probe {n} { if {[catch {d $n} m]} { return $m } ; return ok }\nset r60 [probe 60]\nset r61 [probe 61]\nset r62 [probe 62]\nset answer [list $r60 $r61 $r62]\n" must import the runtime's shared function table
+2026-10-23T00:57:59.0303287Z stack backtrace:
+2026-10-23T00:57:59.0303524Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0303982Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0304455Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0304900Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0305497Z    2: compile_native_bound
+2026-10-23T00:57:59.0305774Z              at ./tests/wasm_real_link.rs:1203:5
+2026-10-23T00:57:59.0306068Z    3: run_real_native_proc
+2026-10-23T00:57:59.0306332Z              at ./tests/wasm_real_link.rs:1248:10
+2026-10-23T00:57:59.0306797Z    4: wasm_real_link::recursion_through_a_compiled_body_refuses_at_the_interpreted_depth
+2026-10-23T00:57:59.0307587Z              at ./tests/wasm_real_link.rs:1363:19
+2026-10-23T00:57:59.0308111Z    5: wasm_real_link::recursion_through_a_compiled_body_refuses_at_the_interpreted_depth::{closure#0}
+2026-10-23T00:57:59.0308612Z              at ./tests/wasm_real_link.rs:1351:72
+2026-10-23T00:57:59.0309406Z    6: <wasm_real_link::recursion_through_a_compiled_body_refuses_at_the_interpreted_depth::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0310233Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0310914Z    7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0311594Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0312215Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0312551Z 
+2026-10-23T00:57:59.0312769Z ---- root_colon_publication_runs_its_own_compiled_table_entry stdout ----
+2026-10-23T00:57:59.0313065Z 
+2026-10-23T00:57:59.0313070Z 
+2026-10-23T00:57:59.0313363Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0313634Z 
+2026-10-23T00:57:59.0315343Z CCG_WASM_SUMMARY program="proc :audit {a b} {return [expr {$a + $b}]}\nproc ordinary {a b} {return [expr {$a - $b}]}\nset colon_result [:audit 40 2]\nset ordinary_result [ordinary 10 3]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=1 native_enabled=true native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=2 retained_source=true source_metadata=true
+2026-10-23T00:57:59.0329666Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 11 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 11 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 16 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 16 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([3]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 21 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 3 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 21 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] })} }), native_declines: [NativeDecline { premise: SealedProgram, reason: HostedEnvironment, sites: [] }, NativeDecline { premise: Pass(DirectProc), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(MaterialisableSlot), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(FrameElision), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(NativeInteger), reason: PassDisabled, sites: [] }, NativeDecline { premise: Pass(SemanticOperationSpecialisation), reason: PassDisabled, sites: [] }] }
+2026-10-23T00:57:59.0341901Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:59.0352205Z CCG_WASM_NATIVE id=TopLevel report=NamedFunctionReport { name: "::top", report: FunctionReport { status: Lowered, binding: NotApplicable, statements: [StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([0])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([0])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([1])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([1])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([2])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([2])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed"] }, StatementRecord { node: Some(NodeId([3])), instruction: "evaluate-word", outcome: Native, cells: [], representations: ["boxed", "boxed", "boxed", "boxed"] }, StatementRecord { node: None, instruction: "build-argv", outcome: Empty, cells: [], representations: [] }, StatementRecord { node: Some(NodeId([3])), instruction: "invoke", outcome: GenericInvoke, cells: [], representations: [] }] } }
+2026-10-23T00:57:59.0362028Z 
+2026-10-23T00:57:59.0362477Z thread 'root_colon_publication_runs_its_own_compiled_table_entry' (4484) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1203:5:
+2026-10-23T00:57:59.0363739Z "proc :audit {a b} {return [expr {$a + $b}]}\nproc ordinary {a b} {return [expr {$a - $b}]}\nset colon_result [:audit 40 2]\nset ordinary_result [ordinary 10 3]\n" must import the runtime's shared function table
+2026-10-23T00:57:59.0364525Z stack backtrace:
+2026-10-23T00:57:59.0364766Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0365221Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0365692Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0366141Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0366597Z    2: compile_native_bound
+2026-10-23T00:57:59.0366864Z              at ./tests/wasm_real_link.rs:1203:5
+2026-10-23T00:57:59.0367313Z    3: run_real_native_proc
+2026-10-23T00:57:59.0367578Z              at ./tests/wasm_real_link.rs:1248:10
+2026-10-23T00:57:59.0368007Z    4: wasm_real_link::root_colon_publication_runs_its_own_compiled_table_entry
+2026-10-23T00:57:59.0368420Z              at ./tests/wasm_real_link.rs:1585:9
+2026-10-23T00:57:59.0368888Z    5: wasm_real_link::root_colon_publication_runs_its_own_compiled_table_entry::{closure#0}
+2026-10-23T00:57:59.0369353Z              at ./tests/wasm_real_link.rs:1572:62
+2026-10-23T00:57:59.0370009Z    6: <wasm_real_link::root_colon_publication_runs_its_own_compiled_table_entry::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0370798Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0371463Z    7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0372121Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0372729Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0373065Z 
+2026-10-23T00:57:59.0373294Z ---- sealed_native_i64_add_runs_and_trace_registration_falls_back stdout ----
+2026-10-23T00:57:59.0373596Z 
+2026-10-23T00:57:59.0373610Z 
+2026-10-23T00:57:59.0373897Z [1m[92m    Finished[0m `dev` profile [unoptimized] target(s) in 0.03s
+2026-10-23T00:57:59.0374169Z 
+2026-10-23T00:57:59.0375588Z CCG_WASM_SUMMARY program="proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n" ir_procedures=0 unit_procedures=0 top_executable=true native_functions=0 native_enabled=false native_entry=false compiled_variable_provider=None compilation=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) } native_body_owners=1 retained_source=true source_metadata=true
+2026-10-23T00:57:59.0388713Z CCG_WASM_PLAN General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 10 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 10 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 15 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 15 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([3]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 19 }, operation: Some(Intrinsic(ChannelWrite)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 3 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 19 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(PassDisabled) }] })} }), native_declines: [NativeDecline { premise: Coverage, reason: ExcludedSurfaces([SyntheticBodyUnits]), sites: [] }, NativeDecline { premise: ClosedProgram, reason: ClosedProgram(UncoveredStatement), sites: [] }, NativeDecline { premise: DirectCall, reason: NoDirectCall, sites: [] }] }
+2026-10-23T00:57:59.0399878Z CCG_WASM_TOP_ADMISSION NoRetainedObligation
+2026-10-23T00:57:59.0400089Z 
+2026-10-23T00:57:59.0400538Z thread 'sealed_native_i64_add_runs_and_trace_registration_falls_back' (4500) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:505:5:
+2026-10-23T00:57:59.0412401Z native proof did not select: General { semantic_decline: BackendSelection(NoViablePlan { operation: StructuredLowering(Proc), attempts: [SelectorAttempt { kind: GenericInvoke, priority: SelectorPriority(0), failure: Selector(InconsistentCompletionReturn) }] }), region_plan: Available(MixedRegionPlan { function: ExecutableFunctionId(0), regions: {NodeId([0]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 5 }, operation: Some(StructuredLowering(Proc)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 0 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 5 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Proc) }) }] }), NodeId([1]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 10 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 1 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 10 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([2]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 15 }, operation: Some(StructuredLowering(Set)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 2 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 15 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(OperationIsNotIntrinsic { operation: StructuredLowering(Set) }) }] }), NodeId([3]): Invocation(InvocationRegionPlan { completion: CompletionId { function: ExecutableFunctionId(0), index: 19 }, operation: Some(Intrinsic(ChannelWrite)), slow_path: PrebuiltArgvSlowPath { argv: ExecutableArgvId { function: ExecutableFunctionId(0), index: 3 }, completion: CompletionId { function: ExecutableFunctionId(0), index: 19 } }, selection: GenericPrebuiltArgv, candidates: [GuardedCandidateEvidence { kind: Direct, decision: Declined(DirectCalleeIdentityUnavailable) }, GuardedCandidateEvidence { kind: Intrinsic, decision: Declined(PassDisabled) }] })} }), native_declines: [NativeDecline { premise: Coverage, reason: ExcludedSurfaces([SyntheticBodyUnits]), sites: [] }, NativeDecline { premise: ClosedProgram, reason: ClosedProgram(UncoveredStatement), sites: [] }, NativeDecline { premise: DirectCall, reason: NoDirectCall, sites: [] }] }
+2026-10-23T00:57:59.0423336Z stack backtrace:
+2026-10-23T00:57:59.0423576Z    0: __rustc::rust_begin_unwind
+2026-10-23T00:57:59.0424025Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5
+2026-10-23T00:57:59.0424497Z    1: core::panicking::panic_fmt
+2026-10-23T00:57:59.0424944Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14
+2026-10-23T00:57:59.0425403Z    2: run_real_native_i64_add
+2026-10-23T00:57:59.0425682Z              at ./tests/wasm_real_link.rs:505:5
+2026-10-23T00:57:59.0426071Z    3: sealed_native_i64_add_runs_and_trace_registration_falls_back
+2026-10-23T00:57:59.0426449Z              at ./tests/wasm_real_link.rs:1004:16
+2026-10-23T00:57:59.0427029Z    4: wasm_real_link::sealed_native_i64_add_runs_and_trace_registration_falls_back::{closure#0}
+2026-10-23T00:57:59.0427505Z              at ./tests/wasm_real_link.rs:999:66
+2026-10-23T00:57:59.0428163Z    5: <wasm_real_link::sealed_native_i64_add_runs_and_trace_registration_falls_back::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0428971Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0429642Z    6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+2026-10-23T00:57:59.0430309Z              at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ops/function.rs:250:5
+2026-10-23T00:57:59.0430921Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-23T00:57:59.0431258Z 
+2026-10-23T00:57:59.0431264Z 
+2026-10-23T00:57:59.0431348Z failures:
+2026-10-23T00:57:59.0431653Z     a_compiled_proc_body_runs_through_the_runtimes_function_table
+2026-10-23T00:57:59.0432068Z     a_compiled_proc_body_sees_the_frame_run_proc_pushed
+2026-10-23T00:57:59.0432435Z     a_module_with_a_foreign_intrinsic_table_is_refused
+2026-10-23T00:57:59.0432815Z     compiled_argv_balances_allocations_in_the_real_runtime
+2026-10-23T00:57:59.0433196Z     emitted_modules_run_against_the_real_runtime
+2026-10-23T00:57:59.0433649Z     original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint
+2026-10-23T00:57:59.0434182Z     recursion_through_a_compiled_body_refuses_at_the_interpreted_depth
+2026-10-23T00:57:59.0434757Z     root_colon_publication_runs_its_own_compiled_table_entry
+2026-10-23T00:57:59.0435180Z     sealed_native_i64_add_runs_and_trace_registration_falls_back
+2026-10-23T00:57:59.0435434Z 
+2026-10-23T00:57:59.0435735Z test result: FAILED. 16 passed; 9 failed; 0 ignored; 0 measured; 0 filtered out; finished in 186.20s
+2026-10-23T00:57:59.0436115Z 
+2026-10-23T00:57:59.0440901Z [1m[91merror[0m: test failed, to rerun pass `-p tcl-compiler --test wasm_real_link`
+2026-10-23T00:57:59.0443894Z ##[error]Process completed with exit code 101.
+2026-10-23T00:57:59.0749794Z Post job cleanup.
+2026-10-23T00:57:59.0753602Z ##[start-action display=Setup Rust Caching;id=__8ab24fa9-5b7a-47ef-b6f6-fefe6b79050c.__Swatinem_rust-cache]
+2026-10-23T00:57:59.0802914Z Post job cleanup.
+2026-10-23T00:57:59.2138885Z ##[group]Cache Configuration
+2026-10-23T00:57:59.2139561Z Cache Provider:
+2026-10-23T00:57:59.2139958Z     github
+2026-10-23T00:57:59.2140298Z Workspaces:
+2026-10-23T00:57:59.2140730Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T00:57:59.2141230Z Cache Paths:
+2026-10-23T00:57:59.2141602Z     /home/runner/.cargo/bin
+2026-10-23T00:57:59.2142056Z     /home/runner/.cargo/.crates.toml
+2026-10-23T00:57:59.2142565Z     /home/runner/.cargo/.crates2.json
+2026-10-23T00:57:59.2143063Z     /home/runner/.cargo/registry
+2026-10-23T00:57:59.2143526Z     /home/runner/.cargo/git
+2026-10-23T00:57:59.2144003Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-23T00:57:59.2144512Z Restore Key:
+2026-10-23T00:57:59.2145108Z     v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e
+2026-10-23T00:57:59.2145740Z Cache Key:
+2026-10-23T00:57:59.2146352Z     v0-rust-wasm-real-link-wasm-real-link-Linux-x64-9c09dd5e-971bf71f
+2026-10-23T00:57:59.2147309Z .. Prefix:
+2026-10-23T00:57:59.2147808Z   - v0-rust-wasm-real-link-wasm-real-link-Linux-x64
+2026-10-23T00:57:59.2148433Z .. Environment considered:
+2026-10-23T00:57:59.2148884Z   - Rust Versions:
+2026-10-23T00:57:59.2149525Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T00:57:59.2150291Z   - CARGO_BUILD_WARNINGS
+2026-10-23T00:57:59.2150733Z   - CARGO_INCREMENTAL
+2026-10-23T00:57:59.2151165Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-23T00:57:59.2151656Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-23T00:57:59.2152210Z   - CARGO_TERM_COLOR
+2026-10-23T00:57:59.2152663Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-23T00:57:59.2153147Z   - RUST_BACKTRACE
+2026-10-23T00:57:59.2153552Z .. Lockfiles considered:
+2026-10-23T00:57:59.2154106Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-23T00:57:59.2154774Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-23T00:57:59.2155440Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-23T00:57:59.2156246Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-23T00:57:59.2157381Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-23T00:57:59.2158223Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-23T00:57:59.2159025Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-23T00:57:59.2159791Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-23T00:57:59.2160512Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-23T00:57:59.2161292Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-23T00:57:59.2162141Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-23T00:57:59.2162979Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-23T00:57:59.2163798Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-23T00:57:59.2164648Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-23T00:57:59.2165440Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-23T00:57:59.2166228Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-23T00:57:59.2169313Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-23T00:57:59.2170650Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-23T00:57:59.2171511Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-23T00:57:59.2172350Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-23T00:57:59.2173179Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-23T00:57:59.2173988Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-23T00:57:59.2175151Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-23T00:57:59.2176072Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-23T00:57:59.2177435Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-23T00:57:59.2178255Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-23T00:57:59.2179049Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-23T00:57:59.2179808Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-23T00:57:59.2180574Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml
+2026-10-23T00:57:59.2181402Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-23T00:57:59.2182299Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-23T00:57:59.2183112Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-23T00:57:59.2183898Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-23T00:57:59.2184724Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-23T00:57:59.2185573Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-23T00:57:59.2186491Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-23T00:57:59.2187696Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-23T00:57:59.2188520Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-23T00:57:59.2189330Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-23T00:57:59.2190093Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-23T00:57:59.2190852Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-23T00:57:59.2191636Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-23T00:57:59.2192452Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-23T00:57:59.2193931Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml
+2026-10-23T00:57:59.2196278Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/components
+2026-10-23T00:57:59.2200128Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/manifest-rust-std-wasm32-wasip1
+2026-10-23T00:57:59.2202729Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml
+2026-10-23T00:57:59.2205413Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml
+2026-10-23T00:57:59.2207375Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-23T00:57:59.2208259Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-23T00:57:59.2209118Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-23T00:57:59.2209991Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-23T00:57:59.2210852Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-23T00:57:59.2212131Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-23T00:57:59.2212988Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-23T00:57:59.2213885Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-23T00:57:59.2214857Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-23T00:57:59.2215730Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-23T00:57:59.2216573Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-23T00:57:59.2220802Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-23T00:57:59.2221662Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-23T00:57:59.2222660Z ##[endgroup]
+2026-10-23T00:57:59.2222899Z 
+2026-10-23T00:58:01.8049421Z ... Cleaning /home/runner/work/tcl-lsp/tcl-lsp/target ...
+2026-10-23T00:58:02.0935063Z ... Cleaning cargo registry (cache-all-crates: false) ...
+2026-10-23T00:58:03.1773246Z ... Cleaning cargo/bin ...
+2026-10-23T00:58:03.1793912Z ... Cleaning cargo git cache ...
+2026-10-23T00:58:03.1798993Z ... Saving cache ...
+2026-10-23T00:58:03.1982446Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --files-from manifest.txt --use-compress-program zstdmt
+2026-10-23T00:58:07.4401097Z Sent 257473858 of 257473858 (100.0%), 306.2 MBs/sec
+2026-10-23T00:58:07.5676142Z ##[end-action id=__8ab24fa9-5b7a-47ef-b6f6-fefe6b79050c.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=8492]
+2026-10-23T00:58:07.5756555Z Post job cleanup.
+2026-10-23T00:58:07.6635292Z [command]/usr/bin/git version
+2026-10-23T00:58:07.6683767Z git version 2.55.0
+2026-10-23T00:58:07.6760671Z Temporarily overriding HOME='/home/runner/work/_temp/bd90b171-4d63-44c8-a82c-de720c12fd27' before making global git config changes
+2026-10-23T00:58:07.6762348Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T00:58:07.6766150Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T00:58:07.6815132Z Removing SSH command configuration
+2026-10-23T00:58:07.6824679Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T00:58:07.6874691Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T00:58:07.7507704Z Removing HTTP extra header
+2026-10-23T00:58:07.7514326Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T00:58:07.7563609Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T00:58:07.8079274Z Removing includeIf entries pointing to credentials config files
+2026-10-23T00:58:07.8085939Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T00:58:07.8117643Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-23T00:58:07.8118877Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-23T00:58:07.8119534Z includeif.gitdir:/github/workspace/.git.path
+2026-10-23T00:58:07.8135224Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-23T00:58:07.8136883Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-23T00:58:07.8155580Z /home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:58:07.8166130Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-61d2380c\-1c1c\-40bc\-aaa2\-b2270f425701\.config
+2026-10-23T00:58:07.8204171Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-23T00:58:07.8227952Z /home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:58:07.8237834Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-61d2380c\-1c1c\-40bc\-aaa2\-b2270f425701\.config
+2026-10-23T00:58:07.8273078Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-23T00:58:07.8296787Z /github/runner_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:58:07.8304455Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-61d2380c\-1c1c\-40bc\-aaa2\-b2270f425701\.config
+2026-10-23T00:58:07.8342290Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-23T00:58:07.8366302Z /github/runner_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config
+2026-10-23T00:58:07.8374177Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-61d2380c\-1c1c\-40bc\-aaa2\-b2270f425701\.config
+2026-10-23T00:58:07.8409153Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T00:58:07.8896395Z Removing credentials config '/home/runner/work/_temp/git-credentials-61d2380c-1c1c-40bc-aaa2-b2270f425701.config'
+2026-10-23T00:58:07.9068389Z Cleaning up orphan processes
+

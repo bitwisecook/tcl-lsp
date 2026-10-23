@@ -1,0 +1,28 @@
+{
+  "recorded_utc": "2026-10-23T01:13:27.861202+00:00",
+  "kind": "Separate publication enrichment provenance; existing frozen archive untouched",
+  "checkpoint": "7cef7aeac714b66852c1320d2a64613cbb275900 caught pre-review archive",
+  "v7_archive": "authenticated-report-v7-20261023T0101Z",
+  "enrichment": [
+    "Names exact-v7 bounded static review arrived; compiler-names-review.json b52aea24 added",
+    "api-handoff.json removed pending-review next action and added bounded_static_review CLEAR",
+    "archive-manifest.json regenerated once to include final review and updated API handoff; resulting final42a8 digest is the first manifest digest reported to root"
+  ],
+  "current_manifest_sha256": "42a8e54bfd59f48a51da35bfd6934570233ef995fc619fce44fe675583bb82c8",
+  "previously_reported_manifest_sha256": "42a8e54bfd59f48a51da35bfd6934570233ef995fc619fce44fe675583bb82c8",
+  "reported_final_unchanged": true,
+  "proposal_sha256": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b",
+  "future_enrichment": "Use separate route files; do not mutate published archive members or observed receipts",
+  "spectcl_fix": {
+    "patch_sha256": "735d71b4370e4aedf97382269d9c49e44497bbf6b9ced93bb2b03fd1d22b7c78",
+    "names_review_sha256": "ba33274674fe8f3b4d6fc37dd286a8e841e00f6328ce2be83bdb026ef3ad62a6",
+    "names_review": "../compiler-names/compiler-names-spectcl-corpus-trait-depth-v1-review.json",
+    "verdict": "bounded static CLEAR; actual256 sufficiency UNRUN",
+    "additional_ci_log": {
+      "path": "/tmp/ci5206-job-120175508634-connector.log",
+      "sha256": "f1efa7b3470472fd263a1880a2e509aa47d274d7778ee23ccfe8eb4cdd2b6ebf",
+      "root_report": "CI5206 main shard4 compile and listing both same E0275 spec_corpus1306; no named runtime outcomes"
+    },
+    "state": "OFFTREE no apply/build; compiler49 fixedproduct precedence unchanged"
+  }
+}

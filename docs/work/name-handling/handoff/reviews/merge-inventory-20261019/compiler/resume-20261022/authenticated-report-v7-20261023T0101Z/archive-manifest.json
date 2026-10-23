@@ -4,8 +4,13 @@
   "members": [
     {
       "path": "api-handoff.json",
-      "bytes": 2985,
-      "sha256": "fdd04d2f73995e849f049f9ec703947f2db98b48d56ae45c7989b833b7957ed2"
+      "bytes": 2994,
+      "sha256": "a4577fd86570bdb3fff3c014f41a2e3c9d25f80441f8f098d0bcf32910d43737"
+    },
+    {
+      "path": "compiler-names-review.json",
+      "bytes": 1397,
+      "sha256": "b52aea24fa4c9976635524e9cff7cbd8c8bfeda0654f6c9aeac85aacfde5ea4e"
     },
     {
       "path": "controls-inventory.json",
@@ -38,5 +43,5 @@
       "sha256": "23109b16fe549f341c4781b0b1f033b0371a61a4af213f8f7b602e968b8fefc8"
     }
   ],
-  "review_pending": true
+  "bounded_static_review": "CLEAR; untyped/unrun"
 }

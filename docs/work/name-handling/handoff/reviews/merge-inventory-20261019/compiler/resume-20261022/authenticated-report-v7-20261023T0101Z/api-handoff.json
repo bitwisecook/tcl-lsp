@@ -30,7 +30,6 @@
     "Shipping performance evidence with full diagnostics and exact source/provider/artifact pins; no sample-only acceptance"
   ],
   "next": [
-    "Names bounded static review of exact v7 delta; retain review in archive",
     "Root decides whether/when canonical source integration and focused14 testing are appropriate after active LSP slot",
     "External perf may inspect/prepare harness off-tree only; no patch acceptance or forwarding before full old/mixed proofs"
   ],
@@ -38,5 +37,6 @@
     "14 controls inventoried, all UNRUN; two filters do not establish exhaustive validation",
     "No compiler Cargo queued; source/test/provider HOLD active",
     "No duplicate external perf/BIG-IP/triage role"
-  ]
+  ],
+  "bounded_static_review": "CLEAR exact v7; compiler-names-review.json; untyped/unrun"
 }

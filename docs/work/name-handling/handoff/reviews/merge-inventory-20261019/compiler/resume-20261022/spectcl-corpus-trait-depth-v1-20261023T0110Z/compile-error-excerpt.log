@@ -1,0 +1,169 @@
+2026-10-23T00:54:51.7310739Z error[E0275]: overflow evaluating the requirement `TransitionSubject: Sync`
+2026-10-23T00:54:51.7333797Z ##[error]    --> rust/tcl-spectcl/tests/spec_corpus.rs:1306:18
+2026-10-23T00:54:51.7382501Z      |
+2026-10-23T00:54:51.7382939Z 1306 |                 .spawn_scoped(scope, move || {
+2026-10-23T00:54:51.7383862Z      |                  ^^^^^^^^^^^^
+2026-10-23T00:54:51.7384134Z      |
+2026-10-23T00:54:51.7384769Z      = help: consider increasing the recursion limit by adding a `#![recursion_limit = "256"]` attribute to your crate (`spec_corpus`)
+2026-10-23T00:54:51.7385656Z      = note: required because it appears within the type `(TransitionSubject, SourceAdviceNameInput)`
+2026-10-23T00:54:51.7386598Z note: required because it appears within the type `PhantomData<(TransitionSubject, SourceAdviceNameInput)>`
+2026-10-23T00:54:51.7387352Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+2026-10-23T00:54:51.7391628Z note: required because it appears within the type `alloc::raw_vec::RawVec<(TransitionSubject, SourceAdviceNameInput)>`
+2026-10-23T00:54:51.7392449Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+2026-10-23T00:54:51.7393210Z note: required because it appears within the type `Vec<(TransitionSubject, SourceAdviceNameInput)>`
+2026-10-23T00:54:51.7393936Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+2026-10-23T00:54:51.7394607Z note: required because it appears within the type `OriginalSourceCommandTransition`
+2026-10-23T00:54:51.7395627Z     --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:360:12
+2026-10-23T00:54:51.7396208Z      |
+2026-10-23T00:54:51.7396560Z  360 | pub struct OriginalSourceCommandTransition {
+2026-10-23T00:54:51.7396999Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7397542Z      = note: required for `Arc<OriginalSourceCommandTransition>` to implement `Sync`
+2026-10-23T00:54:51.7398272Z note: required because it appears within the type `PhantomData<Arc<OriginalSourceCommandTransition>>`
+2026-10-23T00:54:51.7398997Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+2026-10-23T00:54:51.7399832Z note: required because it appears within the type `alloc::raw_vec::RawVec<Arc<OriginalSourceCommandTransition>>`
+2026-10-23T00:54:51.7400613Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+2026-10-23T00:54:51.7401318Z note: required because it appears within the type `Vec<Arc<OriginalSourceCommandTransition>>`
+2026-10-23T00:54:51.7402017Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+2026-10-23T00:54:51.7402707Z note: required because it appears within the type `OriginalSourceCommandTransitionAdvice`
+2026-10-23T00:54:51.7403363Z     --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:466:12
+2026-10-23T00:54:51.7403773Z      |
+2026-10-23T00:54:51.7404142Z  466 | pub struct OriginalSourceCommandTransitionAdvice {
+2026-10-23T00:54:51.7404621Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7405198Z      = note: required for `Arc<OriginalSourceCommandTransitionAdvice>` to implement `Sync`
+2026-10-23T00:54:51.7436202Z note: required because it appears within the type `OriginalSourceRegisteredInstance`
+2026-10-23T00:54:51.7437483Z     --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:22:12
+2026-10-23T00:54:51.7437962Z      |
+2026-10-23T00:54:51.7438385Z   22 | pub struct OriginalSourceRegisteredInstance {
+2026-10-23T00:54:51.7438831Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7439374Z      = note: required for `Arc<OriginalSourceRegisteredInstance>` to implement `Sync`
+2026-10-23T00:54:51.7440508Z note: required because it appears within the type `OriginalSourceRegisteredInstanceWords`
+2026-10-23T00:54:51.7441226Z     --> rust/tcl-compiler/src/command_binding/source_transition_advice/registered_instance.rs:131:12
+2026-10-23T00:54:51.7441684Z      |
+2026-10-23T00:54:51.7442065Z  131 | pub struct OriginalSourceRegisteredInstanceWords {
+2026-10-23T00:54:51.7442528Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7443095Z      = note: required for `Arc<OriginalSourceRegisteredInstanceWords>` to implement `Send`
+2026-10-23T00:54:51.7444040Z note: required because it appears within the type `std::option::Option<Arc<OriginalSourceRegisteredInstanceWords>>`
+2026-10-23T00:54:51.7444781Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+2026-10-23T00:54:51.7445427Z      = note: required for `NodeRef<Owned, u32, Option<Arc<_>>, _>` to implement `Send`
+2026-10-23T00:54:51.7446191Z note: required because it appears within the type `Option<NodeRef<Owned, u32, Option<Arc<_>>, _>>`
+2026-10-23T00:54:51.7446870Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+2026-10-23T00:54:51.7447994Z note: required because it appears within the type `BTreeMap<u32, std::option::Option<Arc<OriginalSourceRegisteredInstanceWords>>>`
+2026-10-23T00:54:51.7448848Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/collections/btree/map.rs:189:11
+2026-10-23T00:54:51.7449548Z      = note: required for `Mutex<BTreeMap<u32, Option<Arc<_>>>>` to implement `Sync`
+2026-10-23T00:54:51.7450427Z note: required because it appears within the type `tcl_compiler::command_binding::original_name_value::OriginalRegisteredInstanceSourceCache`
+2026-10-23T00:54:51.7451224Z     --> rust/tcl-compiler/src/command_binding/original_name_value.rs:739:19
+2026-10-23T00:54:51.7451608Z      |
+2026-10-23T00:54:51.7451993Z  739 | pub(super) struct OriginalRegisteredInstanceSourceCache {
+2026-10-23T00:54:51.7452510Z      |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7453087Z      = note: required for `Arc<OriginalRegisteredInstanceSourceCache>` to implement `Sync`
+2026-10-23T00:54:51.7453717Z note: required because it appears within the type `SourceCommandBindings`
+2026-10-23T00:54:51.7454210Z     --> rust/tcl-compiler/src/command_binding.rs:3775:12
+2026-10-23T00:54:51.7454522Z      |
+2026-10-23T00:54:51.7454833Z 3775 | pub struct SourceCommandBindings {
+2026-10-23T00:54:51.7455229Z      |            ^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7455711Z      = note: required for `Arc<SourceCommandBindings>` to implement `Sync`
+2026-10-23T00:54:51.7456592Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::RegionPayload`
+2026-10-23T00:54:51.7457319Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:146:8
+2026-10-23T00:54:51.7457715Z      |
+2026-10-23T00:54:51.7457993Z  146 | struct RegionPayload {
+2026-10-23T00:54:51.7458326Z      |        ^^^^^^^^^^^^^
+2026-10-23T00:54:51.7459010Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::region::RegionPayload>` to implement `Sync`
+2026-10-23T00:54:51.7459775Z note: required because it appears within the type `OriginalSourceConditionalRegion`
+2026-10-23T00:54:51.7460395Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:145:12
+2026-10-23T00:54:51.7460956Z      |
+2026-10-23T00:54:51.7461368Z  145 | pub struct OriginalSourceConditionalRegion(Arc<RegionPayload>);
+2026-10-23T00:54:51.7461853Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7462424Z note: required because it appears within the type `PhantomData<OriginalSourceConditionalRegion>`
+2026-10-23T00:54:51.7463144Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11
+2026-10-23T00:54:51.7463907Z note: required because it appears within the type `alloc::raw_vec::RawVec<OriginalSourceConditionalRegion>`
+2026-10-23T00:54:51.7464639Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18
+2026-10-23T00:54:51.7465310Z note: required because it appears within the type `Vec<OriginalSourceConditionalRegion>`
+2026-10-23T00:54:51.7496521Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11
+2026-10-23T00:54:51.7497788Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::RegionSetPayload`
+2026-10-23T00:54:51.7498572Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:171:8
+2026-10-23T00:54:51.7498984Z      |
+2026-10-23T00:54:51.7499613Z  171 | struct RegionSetPayload {
+2026-10-23T00:54:51.7499977Z      |        ^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7500730Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::region::RegionSetPayload>` to implement `Send`
+2026-10-23T00:54:51.7501728Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::ConditionalOutcomeKind`
+2026-10-23T00:54:51.7502525Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:221:6
+2026-10-23T00:54:51.7502934Z      |
+2026-10-23T00:54:51.7503250Z  221 | enum ConditionalOutcomeKind {
+2026-10-23T00:54:51.7503668Z      |      ^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7504200Z note: required because it appears within the type `OriginalSourceConditionalOutcome`
+2026-10-23T00:54:51.7504837Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:219:12
+2026-10-23T00:54:51.7505277Z      |
+2026-10-23T00:54:51.7505772Z  219 | pub struct OriginalSourceConditionalOutcome(ConditionalOutcomeKind);
+2026-10-23T00:54:51.7506409Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7507135Z note: required because it appears within the type `std::option::Option<OriginalSourceConditionalOutcome>`
+2026-10-23T00:54:51.7507998Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+2026-10-23T00:54:51.7509030Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::SourceConditionalContinuationPayload`
+2026-10-23T00:54:51.7509914Z     --> rust/tcl-compiler/src/command_binding/conditional_source.rs:344:8
+2026-10-23T00:54:51.7510352Z      |
+2026-10-23T00:54:51.7510757Z  344 | struct SourceConditionalContinuationPayload {
+2026-10-23T00:54:51.7511284Z      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7512149Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::SourceConditionalContinuationPayload>` to implement `Send`
+2026-10-23T00:54:51.7513213Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::RegionEntryPayload`
+2026-10-23T00:54:51.7514197Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:25:8
+2026-10-23T00:54:51.7514666Z      |
+2026-10-23T00:54:51.7514988Z   25 | struct RegionEntryPayload {
+2026-10-23T00:54:51.7515402Z      |        ^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7516287Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::region::RegionEntryPayload>` to implement `Send`
+2026-10-23T00:54:51.7517452Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::SourceConditionalRegionEntry`
+2026-10-23T00:54:51.7518362Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:24:39
+2026-10-23T00:54:51.7518776Z      |
+2026-10-23T00:54:51.7519370Z   24 | pub(in crate::command_binding) struct SourceConditionalRegionEntry(Arc<RegionEntryPayload>);
+2026-10-23T00:54:51.7520073Z      |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7520682Z note: required because it appears within the type `Option<SourceConditionalRegionEntry>`
+2026-10-23T00:54:51.7521438Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+2026-10-23T00:54:51.7522469Z note: required because it appears within the type `tcl_compiler::command_binding::source_point_entry::SourcePointPayload`
+2026-10-23T00:54:51.7523244Z     --> rust/tcl-compiler/src/command_binding/source_point_entry.rs:47:8
+2026-10-23T00:54:51.7523631Z      |
+2026-10-23T00:54:51.7523985Z   47 | struct SourcePointPayload {
+2026-10-23T00:54:51.7524365Z      |        ^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7525122Z      = note: required for `Arc<tcl_compiler::command_binding::source_point_entry::SourcePointPayload>` to implement `Send`
+2026-10-23T00:54:51.7556395Z note: required because it appears within the type `OriginalSourcePointEntry`
+2026-10-23T00:54:51.7557187Z     --> rust/tcl-compiler/src/command_binding/source_point_entry.rs:20:12
+2026-10-23T00:54:51.7557604Z      |
+2026-10-23T00:54:51.7557942Z   20 | pub struct OriginalSourcePointEntry {
+2026-10-23T00:54:51.7558414Z      |            ^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7559429Z note: required because it appears within the type `tcl_compiler::command_binding::SourceConditionalHandlerNormal`
+2026-10-23T00:54:51.7560082Z     --> rust/tcl-compiler/src/command_binding.rs:6509:8
+2026-10-23T00:54:51.7560435Z      |
+2026-10-23T00:54:51.7560785Z 6509 | struct SourceConditionalHandlerNormal {
+2026-10-23T00:54:51.7561213Z      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7562017Z note: required because it appears within the type `std::option::Option<tcl_compiler::command_binding::SourceConditionalHandlerNormal>`
+2026-10-23T00:54:51.7562953Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9
+2026-10-23T00:54:51.7563726Z note: required because it appears within the type `tcl_compiler::command_binding::SourceOutcomes`
+2026-10-23T00:54:51.7564318Z     --> rust/tcl-compiler/src/command_binding.rs:6538:8
+2026-10-23T00:54:51.7564663Z      |
+2026-10-23T00:54:51.7564962Z 6538 | struct SourceOutcomes {
+2026-10-23T00:54:51.7565336Z      |        ^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7566076Z      = note: required for `Arc<tcl_compiler::command_binding::SourceOutcomes>` to implement `Sync`
+2026-10-23T00:54:51.7566907Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::SourceConditionalContinuationPayload`
+2026-10-23T00:54:51.7568042Z     --> rust/tcl-compiler/src/command_binding/conditional_source.rs:344:8
+2026-10-23T00:54:51.7568468Z      |
+2026-10-23T00:54:51.7568846Z  344 | struct SourceConditionalContinuationPayload {
+2026-10-23T00:54:51.7569312Z      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7570123Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::SourceConditionalContinuationPayload>` to implement `Sync`
+2026-10-23T00:54:51.7571186Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::RegionEntryPayload`
+2026-10-23T00:54:51.7571962Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:25:8
+2026-10-23T00:54:51.7572365Z      |
+2026-10-23T00:54:51.7572676Z   25 | struct RegionEntryPayload {
+2026-10-23T00:54:51.7573037Z      |        ^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7573737Z      = note: required for `Arc<tcl_compiler::command_binding::conditional_source::region::RegionEntryPayload>` to implement `Sync`
+2026-10-23T00:54:51.7574882Z note: required because it appears within the type `tcl_compiler::command_binding::conditional_source::region::SourceConditionalRegionEntry`
+2026-10-23T00:54:51.7575695Z     --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:24:39
+2026-10-23T00:54:51.7576221Z      |
+2026-10-23T00:54:51.7576767Z   24 | pub(in crate::command_binding) struct SourceConditionalRegionEntry(Arc<RegionEntryPayload>);
+2026-10-23T00:54:51.7577350Z      |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-23T00:54:51.7577883Z note: required by a bound in `std::thread::scoped::<impl Builder>::spawn_scoped`
+2026-10-23T00:54:51.7578538Z     --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/scoped.rs:256:4
+2026-10-23T00:54:51.7579532Z      = note: the full name for the type has been written to '/home/runner/work/tcl-lsp/tcl-lsp/target/debug/deps/spec_corpus-706272c66c4eb4f2.long-type-15781247488874225822.txt'
+2026-10-23T00:54:51.7580429Z      = note: consider using `--verbose` to print the full type name to the console
+2026-10-23T00:54:51.7580746Z 
+2026-10-23T00:54:51.7581093Z For more information about this error, try `rustc --explain E0275`.
+2026-10-23T00:54:51.7656136Z error: could not compile `tcl-spectcl` (test "spec_corpus") due to 1 previous error
+2026-10-23T00:54:51.7657972Z warning: build failed, waiting for other jobs to finish...
+2026-10-23T00:54:53.7775128Z make: *** [Makefile:1205: test-spectcl-compat] Error 101
+2026-10-23T00:54:53.7786394Z ##[error]Process completed with exit code 2.

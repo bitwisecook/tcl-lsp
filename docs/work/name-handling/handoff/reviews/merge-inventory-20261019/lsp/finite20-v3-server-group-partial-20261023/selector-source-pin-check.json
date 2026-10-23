@@ -1,0 +1,38 @@
+[
+  {
+    "path": "rust/tcl-lsp-core/src/minify.rs",
+    "sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+    "actual": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+    "matches": true
+  },
+  {
+    "path": "rust/tcl-lsp-core/src/minify/original.rs",
+    "sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+    "actual": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+    "matches": true
+  },
+  {
+    "path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+    "sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc",
+    "actual": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc",
+    "matches": true
+  },
+  {
+    "path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+    "sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b",
+    "actual": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b",
+    "matches": true
+  },
+  {
+    "path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+    "sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22",
+    "actual": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22",
+    "matches": true
+  },
+  {
+    "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+    "sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+    "actual": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+    "matches": true
+  }
+]

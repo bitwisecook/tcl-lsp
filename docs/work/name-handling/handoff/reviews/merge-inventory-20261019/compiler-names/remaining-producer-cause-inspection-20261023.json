@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-23T01:03:51Z",
+  "status": "bounded off-tree cause inspection; no product patch justified yet",
+  "basis": "actual remaining33 20261023T000317Z; 12PASS21FAIL unchanged",
+  "immediate_body": {
+    "actual_failure": "original_body_namespace.rs readonly executed_script_namespace_context at old line454 returns None after original_body_namespace_context lexical positive passed",
+    "producer_path": "walk_conditional evaluates condition before walk_body_operand; only latter records conditional in-frame observation; no normal condition route skips observer",
+    "oracle": "existing immediate-conditional-compiler-oracle.json shows C8.5\u20139.1 compile visits both bodies, runtime missing condition Error and result absent; C8.4 missing disassemble API",
+    "limit": "actual entered/compiled/conditional inventories must remain distinct; no entered frame or Normal authority can be inferred from compiler visit",
+    "next": "compiler49 exact current result then inspect original entered_scripts/conditional_namespace inventory at first actual body and parent dispatch; no blanket assertion inversion"
+  },
+  "namespace_import": {
+    "actual_failure": "completed world absent, old exact trace at 20261022T201845.366186Z shows export/import binding receipts complete but both enclosing namespace bodies child_complete=false and Error alternative; root unclosed true, opaque false",
+    "fresh_c_oracle": "exact source succeeds C8.4\u20139.1; B::p actual namespace origin ::A::p",
+    "next": "await compiler49 before attributing any remaining current preflight provider/require_provider branch; do not relax completion or import guards"
+  },
+  "allocator": {
+    "actual_failure": "final SourceLoad source_point_entry refuses state-or-alternatives at152: opaque=false unclosed=true step=false quiet=true registry_target=true native=false hosted=false",
+    "fresh_c_oracle": "exact namespace/list prefix succeeds C8.5\u20139.1 preserving a namespace path ::lib and b ::other; C8.4 lacks path and is not fixture environment (tcl8.6)",
+    "limit": "external source child.tcl not executed; prefix evidence only; no source completion claim",
+    "next": "current compiler49 then exact ZZ_UNCLOSED producer attribution if still fails; inherited source-only and AuthoredSimulation candidates already integrated are not duplicated"
+  },
+  "constraints": [
+    "No Cargo, build queue, Git or source changes",
+    "BPF81f remains withheld pending actual observer evidence",
+    "13:17 compilerReached gives no Native/frame/normal-completion authority"
+  ]
+}

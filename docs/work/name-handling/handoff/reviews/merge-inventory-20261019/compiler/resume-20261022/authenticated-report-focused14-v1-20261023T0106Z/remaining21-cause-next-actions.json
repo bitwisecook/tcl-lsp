@@ -1,0 +1,31 @@
+{
+  "basis": "remaining33 actual12PASS21FAIL old product before integrated narrow source fixes; not current-source failures until compiler49 measures",
+  "families": [
+    {
+      "count": 4,
+      "family": "first six G4 after-load target expectations (remaining four of six)",
+      "evidence": "proved_execution_target().is_none assertion contradicts observed Reached actual compiler visit; first six correction integrated under13:17 narrow decision",
+      "next": "49 validates narrow corrected assertions and later unchanged guards; no blanket inversion"
+    },
+    {
+      "count": 2,
+      "family": "immediate namespace and import allocation",
+      "evidence": "broad executed_script_namespace_context None; closed original namespace operations None",
+      "next": "49 first; preserve readonly versus runtime context distinction, no Native/Normal fabrication"
+    },
+    {
+      "count": 14,
+      "family": "N13 region3 sequential2 allocator1 frontier4 purpose2 foreign1 declaration1",
+      "evidence": "source-point chain producers return None/Unknown before target refusal assertions; source_transition_advice/source_point.rs333 conditional_continuation unwrap; actual traces show generic source entry and no native/hosted context",
+      "next": "49 measures already integrated source-only point/currentness/inherited selection repairs; if failures persist inspect first existing refusal predicate using retained traces, propose one minimal owner join repair only with authentic full input/parent-child linkage; no new observer requested"
+    },
+    {
+      "count": 1,
+      "family": "aliases strict full Eq diagnostic",
+      "evidence": "actual two distinct roles Named and NamespaceScript at shared declaration, strict global Eq false",
+      "next": "Keep strict failure unchanged; new separate reportAPI14 verifies complete unique role correspondence then external full corpus proof"
+    }
+  ],
+  "sum": 21,
+  "no_new_source_patch": "No evidence yet justifies another source edit before guarded49. Existing minimal causes/fixes are integrated and unmeasured. Avoid speculative architecture or extra observers."
+}

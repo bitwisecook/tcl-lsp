@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T01:00:03Z",
+  "verdict": "CLEAR bounded static v7 test-only delta; no new concrete blocker",
+  "patch_sha256": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b",
+  "delta_sha256": "23109b16fe549f341c4781b0b1f033b0371a61a4af213f8f7b602e968b8fefc8",
+  "predecessor": "v6 e290fc200ccf38e72eb7ffe23d68101b097d580ae7b8aaabc59c943037c2ed5d; prior names review 2050e45b",
+  "scope": [
+    "Exact cumulative path comparison: only body_correspondence.rs differs versus v6; delta adds one fixture-backed test",
+    "Actual independently analysed original aliases.tcl used without fixture modification",
+    "Existence requires Named(Named) plus Unit(NamespaceScript) at same nonempty site and same declaration; exactly two retained IDs required distinct",
+    "Capture requires equal complete inventory lengths, unique matching candidate and unique right IDs, complete pair totals and joined definition parents before full API Equal",
+    "No production core, original global Eq assertion, countguard, cache, runtime or Native eligibility change"
+  ],
+  "limits": [
+    "No Cargo, typecheck or runtime execution",
+    "No complete 90-field/12-subject acceptance or old-old/mixed/hosted corpus result",
+    "No performance acceptance; unsupported/missing/stale/ambiguous correspondence remains Unavailable"
+  ],
+  "remaining33": {
+    "pass": 12,
+    "fail": 21
+  }
+}

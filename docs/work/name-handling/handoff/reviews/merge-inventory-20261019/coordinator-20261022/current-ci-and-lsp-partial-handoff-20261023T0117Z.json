@@ -1,0 +1,24 @@
+{
+  "recorded_utc": "2026-10-23T01:17:38.958096+00:00",
+  "source_product": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "active_branch": "work",
+  "lsp20_partial": "server group1PASS15.71s;19selectors and finalsource/provider guards pending",
+  "ci5206_scoped_regressions": {
+    "runtime_no_tommath": 16,
+    "wasm_real_link": 7,
+    "wasi_host": 3
+  },
+  "ledgers_are_separate_not_summed": true,
+  "main_shard4": "E0275compile/listingfailure;zero namedoutcomes",
+  "runtime_count_reconciliation": "1091rawterminalobservations with1same-PASSduplicate;1090unique=982PASS+108FAIL;1057of2147 no terminal",
+  "guard_admissions": [],
+  "canonical_source_changes": false,
+  "proposals_not_integrated": [
+    "reportv7",
+    "WASM763f9c9d",
+    "SpecTcl735d71b4",
+    "VMc12f266e",
+    "CCGABIcandidate pendingreview"
+  ],
+  "regular_next_due": "2026-10-23T01:25:37+00:00"
+}

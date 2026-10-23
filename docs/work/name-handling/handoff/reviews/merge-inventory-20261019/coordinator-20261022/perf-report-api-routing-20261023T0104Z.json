@@ -1,0 +1,18 @@
+{
+  "recorded_utc": "2026-10-23T01:05:06.334470+00:00",
+  "external_owner": "perf",
+  "owner_header_unchanged": true,
+  "user_decision": "user-decisions-20261022T2256Z.json",
+  "proposal_patch": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b",
+  "canonical_status": "not_applied_not_typed_not_run",
+  "allowed_next": "off-tree harness preparation only from frozen API",
+  "required_before_patch_acceptance": [
+    "reviewed source integration and typing",
+    "exact14 controls including strict identity/alias/hosted controls",
+    "complete actual all-old corpus",
+    "complete actual mixed corpus"
+  ],
+  "global_eq_cache_runtime": "strict_unchanged",
+  "realm_interprocedural_patch": "withheld",
+  "no_duplicate_external_role": true
+}

@@ -1,0 +1,83 @@
+{
+  "captured_utc": "2026-10-23T01:16:26Z",
+  "run_id": 39879737945,
+  "source_head": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "log_cap_bytes": 20971520,
+  "logs": [
+    {
+      "file": "logs/ci5206-job-120175507888-connector.log",
+      "bytes": 104411,
+      "sha256": "995a60659a335c5d9aa956bd6913e10f65410c372f8064bfd1205acc0c1815f8",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175507991-connector.log",
+      "bytes": 1078658,
+      "sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508114-connector.log",
+      "bytes": 98349,
+      "sha256": "dc203a0d3bd6688ab6cb57f57589dc780ac4f76e8ba90e619ba60132d29a798b",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508284-connector.log",
+      "bytes": 153244,
+      "sha256": "d81f58be2ed9a21f7bf127a86f3f3f90bc3e9bee23734c1a494aac727bb5e45c",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508339-connector.log",
+      "bytes": 216231,
+      "sha256": "6538ace18ce720aabb808ab5a2c02cbff2b44bc08f4f5ec6d36689a84f3ecd7d",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508422-connector.log",
+      "bytes": 63592,
+      "sha256": "d9ef95c4bdc5369670adf68f242d5f9ede72b2219b71847de1de016573da80c7",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508425-connector.log",
+      "bytes": 80205,
+      "sha256": "addbaaace0458d038a89622544111b65af51250a57cfb6f4d2cc3782ea77e02f",
+      "under_cap": true
+    },
+    {
+      "file": "logs/ci5206-job-120175508634-connector.log",
+      "bytes": 169778,
+      "sha256": "f1efa7b3470472fd263a1880a2e509aa47d274d7778ee23ccfe8eb4cdd2b6ebf",
+      "under_cap": true
+    }
+  ],
+  "archive": {
+    "file": "ci5206-connector-logs.tar.gz",
+    "bytes": 327733,
+    "sha256": "1fe78209eb244ad7fc3e00e4cff45645c233e956a407cdd025664450de3518a7"
+  },
+  "roster_snapshot": {
+    "file": "roster-20261023T010355Z.json",
+    "captured_utc": "2026-10-23T01:04:01Z",
+    "total_count": 30,
+    "rows": 30,
+    "status_counts": {
+      "completed/success": 7,
+      "completed/failure": 8,
+      "in_progress/None": 13,
+      "completed/skipped": 2
+    }
+  },
+  "classification_receipts": {
+    "classification.json": {
+      "bytes": 11524,
+      "sha256": "7a489b33cbb57718430bafd67820b4740db16bc36ed15ae0198c43205f8cfa88"
+    },
+    "classification-v1-20261023T011356Z.json": {
+      "bytes": 8977,
+      "sha256": "0ca851f9d4cd9bd043decf82bdcc9dc01f1e4c85fafdb4cadfea0149457552c4"
+    }
+  }
+}

@@ -1,0 +1,102 @@
+[
+  {
+    "version": "8.4",
+    "case": "import",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "executable_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+    "source": "set source {rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list imported [namespace origin ::B::p] local [info commands ::A::p]]\n",
+    "exit": 0,
+    "stdout": "code 0 value {}\nimported ::A::p local ::A::p\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.4",
+    "case": "allocator",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "executable_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+    "source": "set source {namespace eval lib {}; namespace eval other {}; namespace eval a {namespace path ::lib; list ONE}; namespace eval b {namespace path ::other; list TWO}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list a [namespace eval a {namespace path}] b [namespace eval b {namespace path}]]\n",
+    "exit": 0,
+    "stdout": "code 1 value {bad option \"path\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+    "stderr": "bad option \"path\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which\n"
+  },
+  {
+    "version": "8.5",
+    "case": "import",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "executable_sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+    "source": "set source {rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list imported [namespace origin ::B::p] local [info commands ::A::p]]\n",
+    "exit": 0,
+    "stdout": "code 0 value {}\nimported ::A::p local ::A::p\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.5",
+    "case": "allocator",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "executable_sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+    "source": "set source {namespace eval lib {}; namespace eval other {}; namespace eval a {namespace path ::lib; list ONE}; namespace eval b {namespace path ::other; list TWO}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list a [namespace eval a {namespace path}] b [namespace eval b {namespace path}]]\n",
+    "exit": 0,
+    "stdout": "code 0 value TWO\na ::lib b ::other\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6",
+    "case": "import",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "source": "set source {rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list imported [namespace origin ::B::p] local [info commands ::A::p]]\n",
+    "exit": 0,
+    "stdout": "code 0 value {}\nimported ::A::p local ::A::p\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6",
+    "case": "allocator",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "source": "set source {namespace eval lib {}; namespace eval other {}; namespace eval a {namespace path ::lib; list ONE}; namespace eval b {namespace path ::other; list TWO}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list a [namespace eval a {namespace path}] b [namespace eval b {namespace path}]]\n",
+    "exit": 0,
+    "stdout": "code 0 value TWO\na ::lib b ::other\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0",
+    "case": "import",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "executable_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+    "source": "set source {rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list imported [namespace origin ::B::p] local [info commands ::A::p]]\n",
+    "exit": 0,
+    "stdout": "code 0 value {}\nimported ::A::p local ::A::p\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0",
+    "case": "allocator",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "executable_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+    "source": "set source {namespace eval lib {}; namespace eval other {}; namespace eval a {namespace path ::lib; list ONE}; namespace eval b {namespace path ::other; list TWO}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list a [namespace eval a {namespace path}] b [namespace eval b {namespace path}]]\n",
+    "exit": 0,
+    "stdout": "code 0 value TWO\na ::lib b ::other\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1",
+    "case": "import",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "executable_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+    "source": "set source {rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list imported [namespace origin ::B::p] local [info commands ::A::p]]\n",
+    "exit": 0,
+    "stdout": "code 0 value {}\nimported ::A::p local ::A::p\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1",
+    "case": "allocator",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "executable_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+    "source": "set source {namespace eval lib {}; namespace eval other {}; namespace eval a {namespace path ::lib; list ONE}; namespace eval b {namespace path ::other; list TWO}}\nset code [catch {uplevel #0 $source} value]\nputs [list code $code value $value]\nputs [list a [namespace eval a {namespace path}] b [namespace eval b {namespace path}]]\n",
+    "exit": 0,
+    "stdout": "code 0 value TWO\na ::lib b ::other\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,88 @@
+{
+  "utc": "2026-10-23T01:15:26.673612+00:00",
+  "status": "PARTIAL SERVER GROUP ONLY; final whole20 source/provider/executable guards PENDING",
+  "run_path": "/tmp/lsp-folder-minify-current20-v3",
+  "exact_selector": "original_document_metadata_tests::folder_context_exact_inputs_keep_compiler_report_available",
+  "completed": 1,
+  "expected_total": 20,
+  "passed": 1,
+  "failed": 0,
+  "exit_code": 0,
+  "seconds": 15.71,
+  "all6_expected_folder_observations": true,
+  "build_exit": "0 0",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_server-f8826932e569f8a0",
+  "artifact_before_sha256": "2054dc3616df0cf8d4a8b45bbe40d59db3592abaffab4df5fac88853f71e4144",
+  "artifact_after_sha256": "2054dc3616df0cf8d4a8b45bbe40d59db3592abaffab4df5fac88853f71e4144",
+  "artifact_archive_check_sha256": "2054dc3616df0cf8d4a8b45bbe40d59db3592abaffab4df5fac88853f71e4144",
+  "initial_source_provider_seals_copied": true,
+  "final_source_provider_seals": "PENDING; no whole-phase admission",
+  "next_group": "Core lib no-run build active",
+  "files": [
+    {
+      "path": "plan.json",
+      "bytes": 13263,
+      "sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73"
+    },
+    {
+      "path": "immutable-manifest.json",
+      "bytes": 611,
+      "sha256": "f5dac8a29ffbc8f3bd9bfdcd210240b1307736d2756f1a3d6ac7a84c4e432947"
+    },
+    {
+      "path": "head.txt",
+      "bytes": 41,
+      "sha256": "03c7857107724a3dba9bf270f453758b1a97905d317c1fd24d55235dee1abd43"
+    },
+    {
+      "path": "start.txt",
+      "bytes": 58,
+      "sha256": "f6d351baf5e0f139a78c4432436f24fe4c952683d675f285cf70b13c775dfaaa"
+    },
+    {
+      "path": "stack.txt",
+      "bytes": 42,
+      "sha256": "f3a1b6db18e2e9863c9642b5e444602c30089ff884a8fd87d45b1b41e19da0b3"
+    },
+    {
+      "path": "selector-source-pin-check.json",
+      "bytes": 1518,
+      "sha256": "35beb30624b1d3e4eb1fa57b4baeffa9bf1e9f0f608be1fc52971462d46cb637"
+    },
+    {
+      "path": "source-before.json",
+      "bytes": 6659346,
+      "sha256": "ef6b9f695c0105fc8d879fbac5a555495570652848e72a64caaca2da92cf150a"
+    },
+    {
+      "path": "providers-before.json",
+      "bytes": 498685,
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    {
+      "path": "server_lib-build.log",
+      "bytes": 2426,
+      "sha256": "64a6b06796e2b019b1f03e1afbc258b53dd83c558225769f2998c82d56886abc"
+    },
+    {
+      "path": "server_lib-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "path": "server_lib-artifact.txt",
+      "bytes": 93,
+      "sha256": "a8bee0151529734109acbb9cce95b7cb545737e5bd7e9660a944cef7049d0819"
+    },
+    {
+      "path": "folder_context_exact_inputs_keep_compiler_report_available.json",
+      "bytes": 755,
+      "sha256": "8741fb8d7573bc70149e2bbfe5e692e39d9c2c5f11bed0898fd7119c78cc1338"
+    },
+    {
+      "path": "folder_context_exact_inputs_keep_compiler_report_available.log",
+      "bytes": 1729,
+      "sha256": "f60e3febc2bde1177bd14892ab0731d10ebe2bbfd47a634bb1a6977047f57550"
+    }
+  ]
+}
