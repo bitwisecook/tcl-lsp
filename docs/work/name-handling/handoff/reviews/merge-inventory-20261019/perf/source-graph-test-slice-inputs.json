@@ -1,0 +1,10 @@
+{
+  "base": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "file": "rust/tcl-compiler/src/source_graph.rs",
+  "status": "BLOCKED/routed compiler: existing upstream lib-test type error; off-tree one-line type correction; no production edit or assertions changed",
+  "error": "E0277 Arc<[u8]>: From<&[u8;14]> not implemented at source_graph.rs560",
+  "change": "borrow identical b\"changed source\" bytes as &[u8]; preserve exact image channel and every following assertion",
+  "before_sha256": "91e746619f036f7e78dc700b2fa3370b01d976148359e359b62b6129ba90abc9",
+  "after_sha256": "dd77bf62437ea9b2924504e9c1a6ba1f0efdf2ffd3e4046ed4a5ce00d67a4136",
+  "latest_checked": "origin/work1dd84381 still has the offending call"
+}
