@@ -1,0 +1,146 @@
+{
+  "schema": "compiler-jim-source46-finite-inventory-v1",
+  "utc": "2026-10-23T04:35:40.779748+00:00",
+  "status": "FROZEN INVENTORY ONLY; NOT RUNNABLE; no GO/Cargo/queue",
+  "intended_source": "root next v4 cumulative46; actual integrated product/HEAD binding pending",
+  "composition_manifest_path": "/tmp/coordinator-next-batch-v4-20261023T043343Z/manifest.json",
+  "composition_manifest_sha256": "d5c0674176c80a311a5fc9f460304ea4e2223c3f4c834f356b38d93f23fea236",
+  "combined_patch_sha256": "8460f1a5cb239f211a431ef6269c3478e091ade157d40902632c10d1ccb8d834",
+  "actual_integrated_product": null,
+  "approved_integrated_head": null,
+  "whole_product_source_manifest": null,
+  "expected_filters": 7,
+  "expected_selected": 7,
+  "artifact_count": 2,
+  "selectors": [
+    {
+      "group": "jim-source-owner-original5",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_document",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-source-owner-original5",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_document",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-source-owner-original5",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_document",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-source-owner-original5",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_document",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-source-owner-original5",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_document",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-proc-row-original2",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_own_surface",
+      "artifact_key": "tcl-spectcl:test:jim_own_surface",
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source_path": "rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "source_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "assertions": "original unchanged"
+    },
+    {
+      "group": "jim-proc-row-original2",
+      "package": "tcl-spectcl",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "jim_own_surface",
+      "artifact_key": "tcl-spectcl:test:jim_own_surface",
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source_path": "rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "source_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "assertions": "original unchanged"
+    }
+  ],
+  "overlap_check": {
+    "policy": "Package-aware exact/substring selector matching, even across different target artifacts; zero matches against immutable compiler54 and LSP23 inventories",
+    "collisions": [],
+    "compiler_design_sha256": "98a46a6b7b2fd10c52fbcfdb2ea1c3276a01e46e2b1a4a2ffe8f91d87b406c7c",
+    "lsp_inventory_sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790"
+  },
+  "future_protocol_contract": "Wait actual integrated source46 product/full manifest/approved HEAD. Fresh same-product eight-package all-target typecheck0W incl bpf-tcl-ir before runtime. Fresh exact Cargo JSON integration artifacts keyed package+test target; no copied/cached executable selection. Inherit direct strict executor88125, actual completed valid49 authentication (failed rows allowed), source/input/provider/artifact/process/disk before/between/after seals, rootGO exact final pins, timer pre-spawn180s/20MiB/2GiB, selected=started=summary pass+fail=1 ignored0 warningsfalse per row; waitidWNOWAIT + both EOF + two empty process scans before reap; final/launcher exits reconcile actual rows. Failed assertions remain valid measurements; no unrelated green prerequisite. No runtime grant/Native/body authority from traces. Own-surface2 env empty because no relevant existing proc-row first-gate trace identified; do not claim classtrace diagnoses proc-row selection."
+}

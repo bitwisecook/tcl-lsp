@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T04:36:52.383332+00:00",
+  "protocol": "/tmp/name-handling-eight-package-check-v8-source46",
+  "plan_sha256": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+  "runner_input_manifest_sha256": "611f5e485c30ac708c017ad9fb503daff05491a20a38ec53079b9ab50457645d",
+  "source46_manifest_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "suite_sha256": "8b768f68672502a6feaad4af246eafd2f8cb86009b29517e72fa16bf4f0849c7",
+  "verified": [
+    "v7-to-v8 exact version/path/source39-to46/count substitutions only for suite/launch/run",
+    "All runner inputs and executor current",
+    "46 unique candidate final hashes independently matched composed28/current source30",
+    "Every46 baseline independently matched actual3b1 git blob or authenticated missing/newfile"
+  ],
+  "status": "CLEAR bounded static successor; no actual integratedHEAD/tree/GO/build yet",
+  "scope": "Retains v7 env/process/finalHEAD guards; source/provider HOLD during Spec66; no typing/runtime/strictlint admission."
+}

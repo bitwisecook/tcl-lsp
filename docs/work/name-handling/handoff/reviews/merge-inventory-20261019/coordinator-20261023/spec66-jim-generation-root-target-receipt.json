@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:39:49.155197+00:00",
+  "target": "jim_generation_zero",
+  "observed": 3,
+  "passes": 3,
+  "failures": 0,
+  "manifest_sha256": "e8b09c544e95facd5422994c607052ddb692ce7fcc60709ed1ae54bbaa4b1a2c",
+  "payload_files_verified": 36,
+  "all_target_guards_valid": true,
+  "full66_closure_claim": false
+}

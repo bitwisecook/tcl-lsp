@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T04:33:38.451461Z
+Last updated: 2026-10-23T04:35:42.404086Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Root final46 typecheck binding-only successor prepared:** `/tmp/name-handling-eight-package-check-v8-source46`, plan5b60b936/source469fdfc31e/inputs611f5e48/suite8b768f68/manifest9d1c2bd5. Root frozen nextbatchv4 has28 current4d4 paths/cumulative46; all28 actualbefore+46candidatefinal pins PASS, allprior39map rows unchanged+7new. Suite/launcher/wrapper differ only version/path/manifest/count substitutions from reviewedv7; executor and every environment/process/0W/approvedproduct/docs-onlyHEAD/finalsample guard unchanged. Parse3+absentGOrefusalPASS before runner/lock/Cargo. Root must verify actual integrated46/baselines/approvedHEAD/tree and mintGO after Spec66closure; no fictional identity/build/Git by Names. Receipt `eight-package-typecheck-v8-source46-preparation.json`; v7/39 preserved unchanged.
 
 **Jim first-declining source-owner diagnostic peer:** compiler frozen4file68062b5d bounded Names static CLEAR, exact current4before/finalpins/zero-fuzz shadow apply/pinned2024fmt PASS. Dedicated debug_assertions+env Option identity retains original values/single evaluation/?+filter order, crate access and all source/input/context/tape/argv/refusal/assertion gates; integration visibility without Native/body/Normal grant. Receipt `jim-source-stage-diagnostic-v1-peer.json`. Original5finite Jim selectors/type/runtime/cause remain unrun. Root may compose separately after current66closure with new actual source map/protocol; frozen source39v7 unchanged. No Cargo/Git/source/provider/GO action.
 

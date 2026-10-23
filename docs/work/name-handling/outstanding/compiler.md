@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T04:32:13.461463+00:00 (Jim first-stage diagnostic68062b5d prepared; actual Jim34=21PASS13FAIL; source HOLD)
+Last updated: 2026-10-23T04:35:55.509098+00:00 (Jim7 source46 inventory frozen; trace68062b5d peerCLEAR51d3caf0; integration/typing pending)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Jim source46 inventory frozen, not runnable:** `compiler/resume-20261022/jim-source46-finite-inventory-v1/inventory.json` SHA186ce988c48a110fa054a676120f637dbfac453c8064e5496f996aa2b6c2497d: exact original Jim document5 with existing proposed pure trace env plus separately identifiable original own-surface2 proc-row failures,7filters7tests/two fresh target-specific CargoJSON integration artifacts. Zero package-aware exact/substring overlap with immutable compiler54 and LSP23. Intended root NEXTv4 cumulative46 manifest/patch pinned; actual integrated product/HEAD/full-source binding pending. No runnable launcher/GO or oldprotocol modification. Diagnostic68062b5d bounded names staticCLEAR51d3caf052a5c1602d636e74f7c0bbc6b86cecf1cb9ad4a4c9a1f9e6336291e3, separately archived; untyped/unrun. Root selects diagnostic4 plus CCG structural3 into next batch; no more components before typing. Source/Cargo/Git HOLD.
 
 **Jim first-stage measurement PREPARED, not executed:** Current Spec66 Jim34 actual21PASS13FAIL (original26=15PASS11FAIL; added8=6PASS2FAIL), VM target postguards passed. Older Jim and nested original-authored source receipts independently fail; no blanket shared cause inferred. Separate later-batch pure diagnostic `jim-source-stage-diagnostic-v1/proposal.patch.txt` SHA68062b5d24c349cce626d7bda30da5ba759137c4d642152d5fe0a2bc05e4d9e5 instruments four existing current-source30 paths using original Option values once and original short-circuit order. Dedicated env `TCL_LSP_TRACE_JIM_SOURCE_OWNER=1`, debug_assertions logging necessary because compiler cfg(test) is absent in integration dependency. Existing ORIGINAL_CHILD/FACTORY flags do not expose these Jim stages. Exact original five-selector measurement recommendation and source-only issuer reuse design archived alongside. Names peer pending; no typing/runtime/source application, current frozen21/39 unaffected. Potential source-only call issuer may reuse actual AdviceCell::AuthoredJimClass selection/aliases/lineage and exact span/current-tape metadata, never Logical/name fallback or Native/body-frame grant; first declining stage must be observed first.
 

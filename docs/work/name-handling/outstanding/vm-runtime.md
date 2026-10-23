@@ -2,11 +2,18 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:34Z (Spec66v4 RUNNING; thirdtarget Jimroster4/4PASS guarded; total49=34PASS15FAIL; generationzero3next)
+Last updated: 2026-10-23T04:38Z (Spec66v4 RUNNING; generationzero3/3PASS targetguardsvalid; total52=37PASS15FAIL; seedafterpublish1next)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Fourth target jim_generation_zero3 completed3/3PASS, build0W and targetsource/
+provider/artifactguards valid. Original longest selector91.19s remained
+within180s. Stablearchive `vm-runtime/runs/spec66-jim_generation_zero-target-20261023/manifest.txt`
+SHAe8b09c54,36logicalfiles; root notified pertargetpush. Total52observed
+37PASS15FAIL, finalphasepending; seedafterpublish1 build next.
+
 
 Third target jim_surface_roster4 closed4/4PASS,0W,targetsource/provider/
 artifactguards stable. Archive `vm-runtime/runs/spec66-jim_surface_roster-target-20261023/manifest.txt`

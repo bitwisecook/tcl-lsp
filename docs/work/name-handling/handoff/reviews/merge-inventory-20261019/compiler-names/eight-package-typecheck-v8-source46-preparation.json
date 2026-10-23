@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T04:35:42.400487+00:00",
+  "status": "OFFTREE binding-only v8 prepared; root actual46 integration/GO and build pending",
+  "path": "/tmp/name-handling-eight-package-check-v8-source46",
+  "pins": {
+    "plan.json": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+    "suite.py": "8b768f68672502a6feaad4af246eafd2f8cb86009b29517e72fa16bf4f0849c7",
+    "source46-manifest.json": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "runner-input-manifest.json": "611f5e485c30ac708c017ad9fb503daff05491a20a38ec53079b9ab50457645d",
+    "manifest.json": "9d1c2bd5ee8e83334fc1e03929829a5f06b48a27dfa3d6bd1272da01d332e153"
+  },
+  "composition": {
+    "path": "/tmp/coordinator-next-batch-v4-20261023T043343Z/manifest.json",
+    "sha256": "d5c0674176c80a311a5fc9f460304ea4e2223c3f4c834f356b38d93f23fea236",
+    "combined_patch_sha256": "8460f1a5cb239f211a431ef6269c3478e091ade157d40902632c10d1ccb8d834"
+  },
+  "checks": {
+    "current_before_pins": 28,
+    "candidate_final_pins": 46,
+    "all_prior39_map_rows_identical": true,
+    "unique_new_map_rows": 7,
+    "python_parse": "PASS3",
+    "absent_GO_launch_refusal": "PASS2 before runner/lock/Cargo",
+    "executable_delta": "EXACT version/path/source39\u219246/count substitutions only; all v7 env/process/product/docsHEAD/finalsampling guards retained",
+    "executor_byte_identical": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "baseline_limits": "No Git by Names. Existing source30 guarded typecheck proved exact30 before/baseline+all-other-product equality to3b1. New16 current4d4 before pins supply unchanged baseline transitively. Root runner independently validates every46 baseline/currentapprovedblob before lock; actual finalHEAD/tree/GO absent here.",
+  "authority": "No Cargo/build/Git/provider/canonical source/GO/HEAD fabrication; template preparation only."
+}
