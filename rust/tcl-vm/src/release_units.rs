@@ -75,7 +75,7 @@ pub(crate) struct ReleaseUnits {
         not(test),
         expect(
             dead_code,
-            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+            reason = "unit inheritance into child activations is not ported yet"
         )
     )]
     inherited: Option<InheritedUnit>,
@@ -171,7 +171,7 @@ impl ReleaseUnits {
         not(test),
         expect(
             dead_code,
-            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+            reason = "unit inheritance into child activations is not ported yet"
         )
     )]
     pub(crate) fn inherit(&mut self, unit: InheritedUnit) {
@@ -186,7 +186,7 @@ impl ReleaseUnits {
         not(test),
         expect(
             dead_code,
-            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+            reason = "unit inheritance into child activations is not ported yet"
         )
     )]
     pub(crate) fn inherited(&self) -> Option<InheritedUnit> {
@@ -199,7 +199,7 @@ impl ReleaseUnits {
     not(test),
     expect(
         dead_code,
-        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet"
     )
 )]
 #[derive(Debug, Clone, Copy)]
@@ -217,7 +217,7 @@ pub(crate) enum Held {
     not(test),
     expect(
         dead_code,
-        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet"
     )
 )]
 #[derive(Debug, Clone)]
@@ -234,7 +234,7 @@ struct Change {
     not(test),
     expect(
         dead_code,
-        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet"
     )
 )]
 #[derive(Debug, Default)]
@@ -246,7 +246,7 @@ pub(crate) struct CommandTableHistory {
     not(test),
     expect(
         dead_code,
-        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet"
     )
 )]
 impl CommandTableHistory {
