@@ -1,0 +1,26 @@
+{
+  "patch_sha256": "68062b5d24c349cce626d7bda30da5ba759137c4d642152d5fe0a2bc05e4d9e5",
+  "files": {
+    "rust/tcl-compiler/src/registry_invocation/source_structure.rs": {
+      "before": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23",
+      "final": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875"
+    },
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": {
+      "before": "e8a58acecb77f684f966e58b5de935acd8cd07003a3010eb4115fb94a5612b42",
+      "final": "34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8"
+    },
+    "rust/tcl-compiler/src/analyser/original_definer.rs": {
+      "before": "49ef5ed00c44116dd5c404f4da8639c0ef0376ebd604d7e80e936cf6b025f606",
+      "final": "e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed"
+    },
+    "rust/tcl-compiler/src/analyser/oo.rs": {
+      "before": "812b6b2ed0dfe48b8ed1096a43dac6bcd3e7aa2f599f220e3efb162f188f9151",
+      "final": "88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e"
+    }
+  },
+  "status": "PREPARED_STATIC_ONLY",
+  "env": {
+    "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+  },
+  "limits": "No typing/Cargo/runtime. Debug-assertions gate is necessary for integration-library visibility. Options evaluated once in original order; no assertions/authority changes."
+}

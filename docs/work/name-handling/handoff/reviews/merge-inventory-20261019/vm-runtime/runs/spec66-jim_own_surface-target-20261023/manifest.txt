@@ -1,0 +1,532 @@
+{
+  "utc": "2026-10-23T04:32:25.787178+00:00",
+  "status": "completed target only; target guards valid; fullphase running/finalpending",
+  "target": "jim_own_surface",
+  "counts": {
+    "observed": 11,
+    "PASS": 9,
+    "FAIL": 2
+  },
+  "target_source_provider_artifact_valid": true,
+  "build_warnings": [],
+  "artifact": {
+    "event": {
+      "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1",
+      "features": [],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1"
+      ],
+      "fresh": false,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": false,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "test"
+        ],
+        "name": "jim_own_surface",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+        "test": true
+      }
+    },
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_own_surface-80b271d01967f8c1",
+    "sha256": "87ddeb27618e551e0b4f17f9de24d433059b0205ff5b0bc7209983fe8da18f84"
+  },
+  "failures": [
+    "a_jim_document_resolves_every_declared_command",
+    "a_pack_carrying_jim_store_keeps_jims_own_surface"
+  ],
+  "files": [
+    {
+      "path": "run/before.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz"
+    },
+    {
+      "path": "run/before.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz"
+    },
+    {
+      "path": "run/before.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz"
+    },
+    {
+      "path": "run/build-jim_own_surface.artifact.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_own_surface.artifact.json",
+      "sha256": "c919f0e30f96e46688880355381415edc9c77bd11335a34a444d812d562cd5a0",
+      "bytes": 1207,
+      "blob": "blobs/c919f0e30f96e46688880355381415edc9c77bd11335a34a444d812d562cd5a0.gz"
+    },
+    {
+      "path": "run/build-jim_own_surface.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_own_surface.process.json",
+      "sha256": "cc77864c033ba94be8aa3fa148596430685faa461fdec6470a2b605a0e316a05",
+      "bytes": 2386,
+      "blob": "blobs/cc77864c033ba94be8aa3fa148596430685faa461fdec6470a2b605a0e316a05.gz"
+    },
+    {
+      "path": "run/build-jim_own_surface.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_own_surface.stderr",
+      "sha256": "91d5db998061b796d3c4388ebaf3d18eb8729d88ef4c165de828430b60ec8ae9",
+      "bytes": 156,
+      "blob": "blobs/91d5db998061b796d3c4388ebaf3d18eb8729d88ef4c165de828430b60ec8ae9.gz"
+    },
+    {
+      "path": "run/build-jim_own_surface.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_own_surface.stdout",
+      "sha256": "c39dcde87960c078c19b65e465464667852e2a6d18fa7d1f08d736febf995487",
+      "bytes": 130159,
+      "blob": "blobs/c39dcde87960c078c19b65e465464667852e2a6d18fa7d1f08d736febf995487.gz"
+    },
+    {
+      "path": "run/build-jim_own_surface.warnings.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_own_surface.warnings.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "blob": "blobs/37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570.gz"
+    },
+    {
+      "path": "run/jim_own_surface-00.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-00.process.json",
+      "sha256": "4d9d86914d1c1580addd61a14345b665584f98d6f2a78635180034a8132c3605",
+      "bytes": 2413,
+      "blob": "blobs/4d9d86914d1c1580addd61a14345b665584f98d6f2a78635180034a8132c3605.gz"
+    },
+    {
+      "path": "run/jim_own_surface-00.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-00.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-00.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-00.stdout",
+      "sha256": "61b7b7463c3f0e6569d8ba8176b44c53bede7393c0d028cfcc4863e621ee5035",
+      "bytes": 176,
+      "blob": "blobs/61b7b7463c3f0e6569d8ba8176b44c53bede7393c0d028cfcc4863e621ee5035.gz"
+    },
+    {
+      "path": "run/jim_own_surface-00.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-00.summary-admission.json",
+      "sha256": "2abeff02438929341428013896c082aa89e04b00882b842399b4c88275f0b0f9",
+      "bytes": 2776,
+      "blob": "blobs/2abeff02438929341428013896c082aa89e04b00882b842399b4c88275f0b0f9.gz"
+    },
+    {
+      "path": "run/jim_own_surface-01.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-01.process.json",
+      "sha256": "8931450f2fd6ff0bc08db9b2435e169743376f713d92a51a0980b7770d081455",
+      "bytes": 2411,
+      "blob": "blobs/8931450f2fd6ff0bc08db9b2435e169743376f713d92a51a0980b7770d081455.gz"
+    },
+    {
+      "path": "run/jim_own_surface-01.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-01.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-01.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-01.stdout",
+      "sha256": "6ba8eb830e404e608490b2f5715f973622b87ebddc0e091800b7281b09908953",
+      "bytes": 175,
+      "blob": "blobs/6ba8eb830e404e608490b2f5715f973622b87ebddc0e091800b7281b09908953.gz"
+    },
+    {
+      "path": "run/jim_own_surface-01.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-01.summary-admission.json",
+      "sha256": "90ebb5d7618e0ee2fb9db1f97f34a82976fd3c6bbaf60a3310dbd673487949ef",
+      "bytes": 2774,
+      "blob": "blobs/90ebb5d7618e0ee2fb9db1f97f34a82976fd3c6bbaf60a3310dbd673487949ef.gz"
+    },
+    {
+      "path": "run/jim_own_surface-02.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-02.process.json",
+      "sha256": "5ae9cc6e5b38e3942c2f2fe72e8b444a9ba89264b22d23822dedef3b957bd829",
+      "bytes": 2415,
+      "blob": "blobs/5ae9cc6e5b38e3942c2f2fe72e8b444a9ba89264b22d23822dedef3b957bd829.gz"
+    },
+    {
+      "path": "run/jim_own_surface-02.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-02.stderr",
+      "sha256": "fdf1f36b333b19bd118a39077a92798e033a1fd021525306be899ae1dc4c48ae",
+      "bytes": 243,
+      "blob": "blobs/fdf1f36b333b19bd118a39077a92798e033a1fd021525306be899ae1dc4c48ae.gz"
+    },
+    {
+      "path": "run/jim_own_surface-02.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-02.stdout",
+      "sha256": "bd248768aff29b054e89871ab38e84886e02e8032228aa12e118eafc700d67b0",
+      "bytes": 253,
+      "blob": "blobs/bd248768aff29b054e89871ab38e84886e02e8032228aa12e118eafc700d67b0.gz"
+    },
+    {
+      "path": "run/jim_own_surface-02.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-02.summary-admission.json",
+      "sha256": "f987bf67b1c166df0ccc6b51998f3c9f995dee5c84a68cb9abb0e5af14b9959b",
+      "bytes": 2790,
+      "blob": "blobs/f987bf67b1c166df0ccc6b51998f3c9f995dee5c84a68cb9abb0e5af14b9959b.gz"
+    },
+    {
+      "path": "run/jim_own_surface-03.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-03.process.json",
+      "sha256": "60463cd282d9c8dffced52fffa1666f778ff05c0e1acc58132d438f9e35d404a",
+      "bytes": 2402,
+      "blob": "blobs/60463cd282d9c8dffced52fffa1666f778ff05c0e1acc58132d438f9e35d404a.gz"
+    },
+    {
+      "path": "run/jim_own_surface-03.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-03.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-03.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-03.stdout",
+      "sha256": "5fd1b86b0b18c516ff4a31544b301819b204e8b98eadebc77c1a85e22238da5c",
+      "bytes": 165,
+      "blob": "blobs/5fd1b86b0b18c516ff4a31544b301819b204e8b98eadebc77c1a85e22238da5c.gz"
+    },
+    {
+      "path": "run/jim_own_surface-03.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-03.summary-admission.json",
+      "sha256": "b45da74ee62a7a71341f9535d3b453e902e04fa7fab4b1c0816c8e03823f990b",
+      "bytes": 2765,
+      "blob": "blobs/b45da74ee62a7a71341f9535d3b453e902e04fa7fab4b1c0816c8e03823f990b.gz"
+    },
+    {
+      "path": "run/jim_own_surface-04.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-04.process.json",
+      "sha256": "99687821b66d79c6207d67df5b568490aaa3d050376087214477550d7471cb57",
+      "bytes": 2411,
+      "blob": "blobs/99687821b66d79c6207d67df5b568490aaa3d050376087214477550d7471cb57.gz"
+    },
+    {
+      "path": "run/jim_own_surface-04.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-04.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-04.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-04.stdout",
+      "sha256": "7d17fd7e931d8f035c8283d7da1a0d49470ffe01b1581746a2c38466cf4f7d94",
+      "bytes": 175,
+      "blob": "blobs/7d17fd7e931d8f035c8283d7da1a0d49470ffe01b1581746a2c38466cf4f7d94.gz"
+    },
+    {
+      "path": "run/jim_own_surface-04.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-04.summary-admission.json",
+      "sha256": "cad2b41d02ef79d16958548bf72bda3a6e00462066542a0c73a5d6a97a5fac57",
+      "bytes": 2774,
+      "blob": "blobs/cad2b41d02ef79d16958548bf72bda3a6e00462066542a0c73a5d6a97a5fac57.gz"
+    },
+    {
+      "path": "run/jim_own_surface-05.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-05.process.json",
+      "sha256": "7761a324e9b80160d1771499fcf73ce6e49cb43981247760c2f82cf7dc480a3d",
+      "bytes": 2400,
+      "blob": "blobs/7761a324e9b80160d1771499fcf73ce6e49cb43981247760c2f82cf7dc480a3d.gz"
+    },
+    {
+      "path": "run/jim_own_surface-05.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-05.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-05.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-05.stdout",
+      "sha256": "3e84180ee2896347e4e5de06e4d59cc8e23d3d7ca16f561cdf0435b47613ddb8",
+      "bytes": 163,
+      "blob": "blobs/3e84180ee2896347e4e5de06e4d59cc8e23d3d7ca16f561cdf0435b47613ddb8.gz"
+    },
+    {
+      "path": "run/jim_own_surface-05.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-05.summary-admission.json",
+      "sha256": "fa23575aa53951cecaef066880f550365c1339028d14807dc7b11db685d65e19",
+      "bytes": 2763,
+      "blob": "blobs/fa23575aa53951cecaef066880f550365c1339028d14807dc7b11db685d65e19.gz"
+    },
+    {
+      "path": "run/jim_own_surface-06.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-06.process.json",
+      "sha256": "60690f743c37d02615d55ffa1e1eaa95b9570173cd8fce54f84ad0ae2858b45f",
+      "bytes": 2402,
+      "blob": "blobs/60690f743c37d02615d55ffa1e1eaa95b9570173cd8fce54f84ad0ae2858b45f.gz"
+    },
+    {
+      "path": "run/jim_own_surface-06.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-06.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-06.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-06.stdout",
+      "sha256": "ff34c541dd47d3da3c8190fee5049fafe674bd8aaf65fb92d4d0aaf31d55552f",
+      "bytes": 165,
+      "blob": "blobs/ff34c541dd47d3da3c8190fee5049fafe674bd8aaf65fb92d4d0aaf31d55552f.gz"
+    },
+    {
+      "path": "run/jim_own_surface-06.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-06.summary-admission.json",
+      "sha256": "1c1968fb620bf4719d797b669b4ae17643d43399ea66e33f0860db92198b5f51",
+      "bytes": 2765,
+      "blob": "blobs/1c1968fb620bf4719d797b669b4ae17643d43399ea66e33f0860db92198b5f51.gz"
+    },
+    {
+      "path": "run/jim_own_surface-07.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-07.process.json",
+      "sha256": "12848ff03379f8071215a85e8cb01fc076da2e4db2a504fe71a01a04d4359619",
+      "bytes": 2415,
+      "blob": "blobs/12848ff03379f8071215a85e8cb01fc076da2e4db2a504fe71a01a04d4359619.gz"
+    },
+    {
+      "path": "run/jim_own_surface-07.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-07.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-07.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-07.stdout",
+      "sha256": "5b89f95f9ea2ed2fd792441682ab94f9e9b00ae22f69a697526e426b139fb463",
+      "bytes": 178,
+      "blob": "blobs/5b89f95f9ea2ed2fd792441682ab94f9e9b00ae22f69a697526e426b139fb463.gz"
+    },
+    {
+      "path": "run/jim_own_surface-07.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-07.summary-admission.json",
+      "sha256": "0f6e32499629dac07e88f4c365adb2e5a3719aec942b30a19dbbcd8aaa3772d4",
+      "bytes": 2778,
+      "blob": "blobs/0f6e32499629dac07e88f4c365adb2e5a3719aec942b30a19dbbcd8aaa3772d4.gz"
+    },
+    {
+      "path": "run/jim_own_surface-08.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-08.process.json",
+      "sha256": "db9955d803b7145973b5f79156f06580d229243f0081b0542f2e477ab7702534",
+      "bytes": 2402,
+      "blob": "blobs/db9955d803b7145973b5f79156f06580d229243f0081b0542f2e477ab7702534.gz"
+    },
+    {
+      "path": "run/jim_own_surface-08.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-08.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-08.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-08.stdout",
+      "sha256": "85795967dfa5d7b343ccad863ab43b67537798af1b6bf3110d2c6ddca8064341",
+      "bytes": 165,
+      "blob": "blobs/85795967dfa5d7b343ccad863ab43b67537798af1b6bf3110d2c6ddca8064341.gz"
+    },
+    {
+      "path": "run/jim_own_surface-08.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-08.summary-admission.json",
+      "sha256": "3e2e5b20e0aecb1ac47476437e591340d26ba8d53ac96cbf3916d415c6b20494",
+      "bytes": 2765,
+      "blob": "blobs/3e2e5b20e0aecb1ac47476437e591340d26ba8d53ac96cbf3916d415c6b20494.gz"
+    },
+    {
+      "path": "run/jim_own_surface-09.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-09.process.json",
+      "sha256": "4106df6d47f62b492edeab3d1a5056056d78c0114d2a6c90b983e9384565e1a1",
+      "bytes": 2406,
+      "blob": "blobs/4106df6d47f62b492edeab3d1a5056056d78c0114d2a6c90b983e9384565e1a1.gz"
+    },
+    {
+      "path": "run/jim_own_surface-09.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-09.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/jim_own_surface-09.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-09.stdout",
+      "sha256": "9e74d842c64cf7db33bca2779307f0b26c80d111dd88491efb882edbf637eb5b",
+      "bytes": 169,
+      "blob": "blobs/9e74d842c64cf7db33bca2779307f0b26c80d111dd88491efb882edbf637eb5b.gz"
+    },
+    {
+      "path": "run/jim_own_surface-09.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-09.summary-admission.json",
+      "sha256": "f2bfe54bb76f43e6475d9c3041fcf05f4dbfbfeebdee13733239c29304eb7a6d",
+      "bytes": 2769,
+      "blob": "blobs/f2bfe54bb76f43e6475d9c3041fcf05f4dbfbfeebdee13733239c29304eb7a6d.gz"
+    },
+    {
+      "path": "run/jim_own_surface-10.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-10.process.json",
+      "sha256": "9d19f7bdf6c93196349ca12ab7e13d29973f16a92b058a84b4100f7f41da07fd",
+      "bytes": 2417,
+      "blob": "blobs/9d19f7bdf6c93196349ca12ab7e13d29973f16a92b058a84b4100f7f41da07fd.gz"
+    },
+    {
+      "path": "run/jim_own_surface-10.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-10.stderr",
+      "sha256": "99ad01ac185e4454d7d32def8a5c5a77d9947ff876cba63a3f0b728fd1f2aaf9",
+      "bytes": 255,
+      "blob": "blobs/99ad01ac185e4454d7d32def8a5c5a77d9947ff876cba63a3f0b728fd1f2aaf9.gz"
+    },
+    {
+      "path": "run/jim_own_surface-10.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-10.stdout",
+      "sha256": "34b4c997e74eb87495955314b9537975da81cf538de4760c3c5bf2ddccb46e0d",
+      "bytes": 257,
+      "blob": "blobs/34b4c997e74eb87495955314b9537975da81cf538de4760c3c5bf2ddccb46e0d.gz"
+    },
+    {
+      "path": "run/jim_own_surface-10.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-10.summary-admission.json",
+      "sha256": "17e91654647f20a14c143b5a80054562b3bd021ecdfeeb962e6ed098652e47f5",
+      "bytes": 2792,
+      "blob": "blobs/17e91654647f20a14c143b5a80054562b3bd021ecdfeeb962e6ed098652e47f5.gz"
+    },
+    {
+      "path": "run/jim_own_surface-after.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-after.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz"
+    },
+    {
+      "path": "run/jim_own_surface-after.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-after.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz"
+    },
+    {
+      "path": "run/jim_own_surface-after.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_own_surface-after.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz"
+    },
+    {
+      "path": "run/roster-jim_own_surface.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_own_surface.process.json",
+      "sha256": "17c5f9448c8425689e8727c6884a4b8742112d38db1b14c3a7bc0450596a5e0a",
+      "bytes": 2348,
+      "blob": "blobs/17c5f9448c8425689e8727c6884a4b8742112d38db1b14c3a7bc0450596a5e0a.gz"
+    },
+    {
+      "path": "run/roster-jim_own_surface.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_own_surface.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/roster-jim_own_surface.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_own_surface.stdout",
+      "sha256": "c748ab99224eba4c1e190578a29c572236ef5d8893652e72e936c7c2edd90e06",
+      "bytes": 567,
+      "blob": "blobs/c748ab99224eba4c1e190578a29c572236ef5d8893652e72e936c7c2edd90e06.gz"
+    },
+    {
+      "path": "results-target-snapshot.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/results.json",
+      "sha256": "bcac9124278defd07358693c3ad9f77012558b946cf974a8733132b43317c6f1",
+      "bytes": 65486,
+      "blob": "blobs/bcac9124278defd07358693c3ad9f77012558b946cf974a8733132b43317c6f1.gz"
+    },
+    {
+      "path": "run/plan.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/plan.json",
+      "sha256": "8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6",
+      "bytes": 10399,
+      "blob": "blobs/8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6.gz"
+    },
+    {
+      "path": "run/go.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/go.json",
+      "sha256": "26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61",
+      "bytes": 646,
+      "blob": "blobs/26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61.gz"
+    },
+    {
+      "path": "protocol/suite.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/suite.py",
+      "sha256": "9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d",
+      "bytes": 11876,
+      "blob": "blobs/9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d.gz"
+    },
+    {
+      "path": "protocol/launch.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/launch.py",
+      "sha256": "c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f",
+      "bytes": 2295,
+      "blob": "blobs/c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f.gz"
+    },
+    {
+      "path": "protocol/run.sh",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/run.sh",
+      "sha256": "ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c",
+      "bytes": 181,
+      "blob": "blobs/ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c.gz"
+    },
+    {
+      "path": "protocol/guarded-exec.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "protocol/providers.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "bytes": 2286,
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "path": "protocol/provider-chain.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "bytes": 2324,
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "path": "protocol/runner-input-manifest.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/runner-input-manifest.json",
+      "sha256": "f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8",
+      "bytes": 1448,
+      "blob": "blobs/f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8.gz"
+    }
+  ],
+  "roundtrip_verified": true,
+  "full66_closure_claim": false
+}

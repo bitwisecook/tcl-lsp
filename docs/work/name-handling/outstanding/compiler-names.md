@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T04:28:56.428653Z
+Last updated: 2026-10-23T04:33:38.451461Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Jim first-declining source-owner diagnostic peer:** compiler frozen4file68062b5d bounded Names static CLEAR, exact current4before/finalpins/zero-fuzz shadow apply/pinned2024fmt PASS. Dedicated debug_assertions+env Option identity retains original values/single evaluation/?+filter order, crate access and all source/input/context/tape/argv/refusal/assertion gates; integration visibility without Native/body/Normal grant. Receipt `jim-source-stage-diagnostic-v1-peer.json`. Original5finite Jim selectors/type/runtime/cause remain unrun. Root may compose separately after current66closure with new actual source map/protocol; frozen source39v7 unchanged. No Cargo/Git/source/provider/GO action.
 
 **Root-requested next typecheck template:** off-tree `/tmp/name-handling-eight-package-check-v7-source39` prepares eight packages including actual bpf-tcl-ir caller alltargets, exact39 candidate product map, same reviewed executor/process/singlelock/0W guards. V5 held for inherited override gap; v6 rejects flags/wrappers/build-target overrides and pins required successful environment/absolute Rustc/PATH plus suite.py itself. Root-authorised docs snapshots may advance actual HEAD only via monotonic docs-only descendants of exact approved product HEAD/tree; every39 approved blob and worktree product remain exact, full source/providers/GO immutable. Parse3/absentGOrefusal/pureenvcontrols PASS; oldv4 manifestfiles unchanged. V6 env/process peer CLEAR but superseded for final sampling gap; v7 reauthenticates final HEAD/product after complete source/provider snapshots and records post-Cargo+final HEAD ancestry. Plan18375e40/source395a6a3137/inputs285f7916/manifest1a8e489e. LSP focused final HEAD peer CLEAR026689ba; root owns exact v6→v7 environment/process preservation, CCG v6 prior env/process CLEARf940faf3. No fictional HEAD/GO, Cargo/build/Git/lock/source action; root actual final39 verification/integration/typecheck remains required. Preparation receipt `eight-package-typecheck-v7-source39-preparation.json`.
 

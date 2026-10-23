@@ -1,0 +1,173 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -16,6 +16,17 @@
+ 
+ use crate::analyser::AnalysisResult;
+ use tcl_registry::{CommandRegistry, InvocationArguments};
++
++/// Observe an existing source-owner Option without changing evaluation or authority.
++pub(crate) fn trace_jim_source_option<T>(stage: &str, value: Option<T>) -> Option<T> {
++    #[cfg(debug_assertions)]
++    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
++        eprintln!("JIM_SOURCE_OWNER stage={stage} present={}", value.is_some());
++    }
++    #[cfg(not(debug_assertions))]
++    let _ = stage;
++    value
++}
+ 
+ #[cfg(test)]
+ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
+@@ -2576,8 +2587,14 @@
+     analysis: &AnalysisResult,
+     offset: u32,
+ ) -> Option<crate::command_binding::OriginalSourceConstructorCall> {
+-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+-    realm.original_source_constructor_call(input, &native)
++    let (input, realm, native) = trace_jim_source_option(
++        "constructor.registered_words",
++        registered_original_words_at(source, analysis, offset),
++    )?;
++    trace_jim_source_option(
++        "constructor.realm_receipt",
++        realm.original_source_constructor_call(input, &native),
++    )
+ }
+ 
+ /// Actual whole `Class::proc` call and the [incr Tcl] source class its
+@@ -2735,8 +2752,14 @@
+     analysis: &AnalysisResult,
+     offset: u32,
+ ) -> Option<std::sync::Arc<crate::command_binding::OriginalAuthoredJimClass>> {
+-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+-    realm.original_authored_jim_class(input, &native)
++    let (input, realm, native) = trace_jim_source_option(
++        "authored.registered_words",
++        registered_original_words_at(source, analysis, offset),
++    )?;
++    trace_jim_source_option(
++        "authored.realm_receipt",
++        realm.original_authored_jim_class(input, &native),
++    )
+ }
+ 
+ /// Exact original selected class declaration at its authentic source occurrence.
+--- a/rust/tcl-compiler/src/realm/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/realm/source_transition_advice.rs
+@@ -472,8 +472,14 @@
+         input: &crate::analyser::ResolvedAnalysisInput,
+         original: &[tcl_lexer::NativeWord],
+     ) -> Option<Arc<crate::command_binding::OriginalAuthoredJimClass>> {
+-        self.matches_resolved_analysis_input(input).then_some(())?;
+-        let image = self.original_source_image()?;
++        crate::registry_invocation::source_structure::trace_jim_source_option(
++            "authored.input",
++            self.matches_resolved_analysis_input(input).then_some(()),
++        )?;
++        let image = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "authored.image",
++            self.original_source_image(),
++        )?;
+         let config = input.lexer_config();
+         self.matches_original_source_image(image, config)
+             .then_some(())?;
+@@ -482,10 +488,14 @@
+             self.bindings
+                 .original_source_transition_advice_tape(&context)
+         });
+-        let receipt = prepared
+-            .as_ref()
+-            .as_ref()?
+-            .authored_jim_class(original.first()?.span().start())?;
++        let tape = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "authored.tape",
++            prepared.as_ref().as_ref(),
++        )?;
++        let receipt = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "authored.tape_receipt",
++            tape.authored_jim_class(original.first()?.span().start()),
++        )?;
+         (receipt.matches_source_context(image, config, &context)
+             && receipt.factory().original_words() == original)
+             .then(|| Arc::clone(receipt))
+@@ -603,8 +613,14 @@
+         input: &crate::analyser::ResolvedAnalysisInput,
+         original: &[tcl_lexer::NativeWord],
+     ) -> Option<crate::command_binding::OriginalSourceConstructorCall> {
+-        self.matches_resolved_analysis_input(input).then_some(())?;
+-        let image = self.original_source_image()?;
++        crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.input",
++            self.matches_resolved_analysis_input(input).then_some(()),
++        )?;
++        let image = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.image",
++            self.original_source_image(),
++        )?;
+         let config = input.lexer_config();
+         self.matches_original_source_image(image, config)
+             .then_some(())?;
+@@ -613,10 +629,14 @@
+             self.bindings
+                 .original_source_transition_advice_tape(&context)
+         });
+-        let receipt = prepared
+-            .as_ref()
+-            .as_ref()?
+-            .constructor_call(original.first()?.span().start())?;
++        let tape = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.tape",
++            prepared.as_ref().as_ref(),
++        )?;
++        let receipt = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "constructor.tape_receipt",
++            tape.constructor_call(original.first()?.span().start()),
++        )?;
+         (receipt.matches_source_context(image, config, &context)
+             && receipt.original_words() == original)
+             .then(|| receipt.clone())
+--- a/rust/tcl-compiler/src/analyser/original_definer.rs
++++ b/rust/tcl-compiler/src/analyser/original_definer.rs
+@@ -115,12 +115,21 @@
+ 
+ impl OriginalClassCallSource {
+     pub(super) fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
+-        let call = crate::registry_invocation::source_structure::source_constructor_call_at(
+-            source, analysis, offset,
++        let call = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "capture.constructor",
++            crate::registry_invocation::source_structure::source_constructor_call_at(
++                source, analysis, offset,
++            ),
+         )?;
+         let context = analysis.resolved_input.as_ref()?.context_registry();
+-        let grammar = call.class_declaration().grammar(&context)?;
+-        call.class_declaration().source_class(analysis)?;
++        let grammar = crate::registry_invocation::source_structure::trace_jim_source_option(
++            "capture.grammar",
++            call.class_declaration().grammar(&context),
++        )?;
++        crate::registry_invocation::source_structure::trace_jim_source_option(
++            "capture.source_class",
++            call.class_declaration().source_class(analysis),
++        )?;
+         let mut arguments = Vec::new();
+         let mut tokens = Vec::new();
+         for (ordinal, value) in call.arguments().iter().enumerate() {
+--- a/rust/tcl-compiler/src/analyser/oo.rs
++++ b/rust/tcl-compiler/src/analyser/oo.rs
+@@ -2641,7 +2641,13 @@
+                     token.span.start(),
+                 )
+             })
+-            .filter(|source| source.matches_arguments(args, arg_tokens))
++            .filter(|source| {
++                crate::registry_invocation::source_structure::trace_jim_source_option(
++                    "ingress.arguments",
++                    source.matches_arguments(args, arg_tokens).then_some(()),
++                )
++                .is_some()
++            })
+         else {
+             return false;
+         };

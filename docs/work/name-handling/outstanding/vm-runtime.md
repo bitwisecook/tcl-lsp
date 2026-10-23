@@ -2,11 +2,27 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:30:01.925595+00:00 (Spec66v4 RUNNING; Jim34closed21PASS13FAIL withtargetguards stable, original26=15/11 added8=6/2; after8b32started)
+Last updated: 2026-10-23T04:34Z (Spec66v4 RUNNING; thirdtarget Jimroster4/4PASS guarded; total49=34PASS15FAIL; generationzero3next)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Third target jim_surface_roster4 closed4/4PASS,0W,targetsource/provider/
+artifactguards stable. Archive `vm-runtime/runs/spec66-jim_surface_roster-target-20261023/manifest.txt`
+SHA87b0caaa,40logicalfiles; root notified for completedtargetpush. Total49
+observed34PASS15FAIL, fullphase pending; generationzero3 build starts.
+Passing roster does not close earlier document/row-selection failures.
+
+
+Second Spec66v4 target jim_own_surface11 closed9PASS2FAIL with targetsource/
+provider/artifactguards valid and build0W; exact failures row-selection of
+proc in document and pack-carrying store, rawindices02/10 routedcompiler.
+Completed stable archive `vm-runtime/runs/spec66-jim_own_surface-target-20261023/manifest.txt`
+SHA84045add,68logicalfiles roundtripverified; root notified for pertargetpush.
+Totals45observed30PASS15FAIL, finalphase pending; next jim_surface_roster4
+build underway. No common producer cause inferred or duplicate VM repair.
+
 
 CompletedJim34 target lossless checkpoint archive ready for root immediate
 push: `vm-runtime/runs/spec66-jim34-target-20261023T0430Z/manifest.txt`,

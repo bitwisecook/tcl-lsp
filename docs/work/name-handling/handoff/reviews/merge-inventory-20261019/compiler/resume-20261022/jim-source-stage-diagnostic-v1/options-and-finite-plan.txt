@@ -1,0 +1,16 @@
+PREPARED ONLY; separate later batch, current frozen21/39 unchanged.
+
+Existing trace inventory: TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS logs unrelated child gates; TCL_LSP_TRACE_ORIGINAL_FACTORY_GUARDS logs factory attempts and folded-case helpers. Both cfg(test); absent in tcl-compiler dependency linked into SpecTcl integration tests. No existing Jim authored/class-member first-stage coverage found.
+
+Proposed env TCL_LSP_TRACE_JIM_SOURCE_OWNER=1, debug_assertions only. Run ORIGINAL exact selectors,1 each, against fresh jim_document executable:
+a_class_records_the_variables_its_dictionary_names
+a_method_body_sees_the_instance_variables_and_self
+older_jim_retains_positive_logical_source_purpose_without_native_promotion
+nested_jim_headers_retain_the_authentic_conditional_source_parent
+Control authored_jim_dictionary_and_odd_shape_use_the_original_list_fields (currently PASS) distinguishes common preflight versus older/nested purpose-specific failure. All original assertions preserved. Failed measurements allowed with strict current-source/provider/artifact/count/process guards. No runnable protocol minted or launch authorized here.
+
+Static issuer options, NOT fixes or measured causes:
+1. Reuse existing AuthoredJimClass source cell and publication selection, not OriginalSourceClassDeclaration. install_authored_jim_class already inserts AdviceCell::AuthoredJimClass only for statically complete lists/bases; malformed/computed replacement shadows. Current resolve_source_class_bytes only accepts AdviceCell::SourceClass plus exact alias traversal. An independent source-only Jim call receipt could use same selected_head_key/alias_target_key/cycle/alias-prefix/lineage machinery, accept only actual AuthoredJimClass cell, and preserve original full argv, source image/config/context, input and parent obligations. Missing/changed/uncertain state stays unavailable.
+2. Reuse the existing OriginalAuthoredJimClass::metadata correspondence internally: exact current tape receipt, factory/purpose, actual declaration name/body spans and unique record. Never all_classes lookup by printed name, Logical reporting fallback, or Native name issuance. Make any shared narrow metadata accessor crate-private and source-only.
+3. A member syntax issuer must additionally require actual class descriptor member layout and original static member word, complete original argv/formals/body geometry. Class source ownership alone does not authorize walking a body as an entered frame: obtain independent compiler source-body syntax/purpose; seeded instance/self metadata must remain conditional source reporting, never Native variable identity, successful constructor, method-table closure or runtime grant.
+4. First measure diagnostic stages before implementing. Older Jim and nested source receipt failures are independent current outcomes and may arise upstream of any class-call receipt. Bodyv3 source syntax is geometry only and cannot mint Native class evidence. No blanket all-class explanation.

@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T04:34:10.480030+00:00",
+  "target": "jim_own_surface",
+  "observed": 11,
+  "passes": 9,
+  "failures": 2,
+  "manifest_sha256": "84045addd7eb1588401149a8ea85937cd0a2fa74d5248092e89228765c6a5eac",
+  "payload_files_verified": 68,
+  "source_provider_artifact_equal": true,
+  "all_direct_counts_status_exit_warning_guards_valid": true,
+  "full66_closure_claim": false
+}

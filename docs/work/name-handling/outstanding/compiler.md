@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T04:28:33.597423+00:00 (next-batch design31filters54tests; current Jim original failures under static triage; source HOLD)
+Last updated: 2026-10-23T04:32:13.461463+00:00 (Jim first-stage diagnostic68062b5d prepared; actual Jim34=21PASS13FAIL; source HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Jim first-stage measurement PREPARED, not executed:** Current Spec66 Jim34 actual21PASS13FAIL (original26=15PASS11FAIL; added8=6PASS2FAIL), VM target postguards passed. Older Jim and nested original-authored source receipts independently fail; no blanket shared cause inferred. Separate later-batch pure diagnostic `jim-source-stage-diagnostic-v1/proposal.patch.txt` SHA68062b5d24c349cce626d7bda30da5ba759137c4d642152d5fe0a2bc05e4d9e5 instruments four existing current-source30 paths using original Option values once and original short-circuit order. Dedicated env `TCL_LSP_TRACE_JIM_SOURCE_OWNER=1`, debug_assertions logging necessary because compiler cfg(test) is absent in integration dependency. Existing ORIGINAL_CHILD/FACTORY flags do not expose these Jim stages. Exact original five-selector measurement recommendation and source-only issuer reuse design archived alongside. Names peer pending; no typing/runtime/source application, current frozen21/39 unaffected. Potential source-only call issuer may reuse actual AdviceCell::AuthoredJimClass selection/aliases/lineage and exact span/current-tape metadata, never Logical/name fallback or Native/body-frame grant; first declining stage must be observed first.
 
 **Current next-batch readiness:** Frozen DESIGN ONLY `compiler/resume-20261022/next-batch-finite-design-v1`, plan98a46a6b7b2fd10c52fbcfdb2ea1c3276a01e46e2b1a4a2ffe8f91d87b406c7c. Root selected core48+BPF6=31filters54tests across five actual executables; independently joined LSP inventory23 with zero package/selector duplicates. Eight-package all-target typecheck including bpf-tcl-ir must complete0W before fresh selector runs. Exact final integrated product/full cumulative39 map/approved HEAD pending; no runnable launcher/GO or source30 protocol refresh. Original report14, diagnostic11, C6 SH/TNT, RBS3 and integration3 groups remain separately identifiable, original assertions unchanged; actual failed-valid49 allowed.
 
