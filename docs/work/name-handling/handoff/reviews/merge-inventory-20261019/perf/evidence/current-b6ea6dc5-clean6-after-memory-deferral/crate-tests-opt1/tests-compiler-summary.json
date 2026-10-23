@@ -1,8 +1,67 @@
 {
   "compiler/lib/new": {
-    "status": "pending"
+    "returncode": -9,
+    "seconds": 447.133,
+    "passed": 126,
+    "failed": 82,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 228,
+    "missing_tests": [
+      "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan",
+      "realm::tests::original_module_realm_reuses_positioned_inventory_across_native_engine_profiles",
+      "realm::tests::resolved_input_preserves_math_policy_without_catalogue_default",
+      "realm::tests::static_rename_moves_the_identity_and_clears_the_old_name",
+      "realm::tests::the_latest_applicable_fact_wins",
+      "realm::tests::the_shared_empty_map_binds_nothing",
+      "realm::tests::unavailable_irules_mutators_do_not_change_event_identity",
+      "registry_invocation::source_structure::tests::original_case_fold_child_keeps_declaration_realm_and_refuses_foreign_source_owners",
+      "taint::tests::callback_replays_batch_into_one_extra_interprocedural_build",
+      "taint::tests::interprocedural_passthrough_transfers_taint",
+      "var_escape::api::tests::interprocedural_flag_off_keeps_pure_leaf",
+      "var_escape::interprocedural::tests::caller_inherits_callee_upvar_sources",
+      "var_escape::interprocedural::tests::caller_with_matching_local_gets_frame_tag",
+      "var_escape::interprocedural::tests::empty_input_returns_empty",
+      "var_escape::interprocedural::tests::has_call_fallback_downgrades_when_all_callees_resolve",
+      "var_escape::interprocedural::tests::has_call_fallback_keeps_set_when_callee_unresolved",
+      "var_escape::interprocedural::tests::has_fallback_intraproc_value_preserved",
+      "var_escape::interprocedural::tests::self_recursion_does_not_loop",
+      "var_escape::interprocedural::tests::transitive_through_chain",
+      "var_escape::interprocedural::tests::unbounded_callee_marks_caller_pessimistic"
+    ],
+    "inventory_complete": false,
+    "log": "tests-compiler-lib-new.out",
+    "pass_to_fail": [
+      "realm::tests::original_module_realm_reuses_positioned_inventory_across_native_engine_profiles",
+      "realm::tests::resolved_input_preserves_math_policy_without_catalogue_default",
+      "realm::tests::static_rename_moves_the_identity_and_clears_the_old_name",
+      "realm::tests::the_latest_applicable_fact_wins",
+      "realm::tests::the_shared_empty_map_binds_nothing",
+      "taint::tests::interprocedural_passthrough_transfers_taint",
+      "var_escape::interprocedural::tests::caller_inherits_callee_upvar_sources",
+      "var_escape::interprocedural::tests::caller_with_matching_local_gets_frame_tag",
+      "var_escape::interprocedural::tests::empty_input_returns_empty",
+      "var_escape::interprocedural::tests::has_call_fallback_downgrades_when_all_callees_resolve",
+      "var_escape::interprocedural::tests::has_call_fallback_keeps_set_when_callee_unresolved",
+      "var_escape::interprocedural::tests::has_fallback_intraproc_value_preserved",
+      "var_escape::interprocedural::tests::self_recursion_does_not_loop",
+      "var_escape::interprocedural::tests::transitive_through_chain",
+      "var_escape::interprocedural::tests::unbounded_callee_marks_caller_pessimistic"
+    ],
+    "comparison_complete": false
   },
   "compiler/lib/old": {
-    "status": "pending"
+    "returncode": -9,
+    "seconds": 621.585,
+    "passed": 141,
+    "failed": 86,
+    "ignored": 0,
+    "timed_out": [],
+    "declared_count": 228,
+    "missing_tests": [
+      "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan"
+    ],
+    "inventory_complete": false,
+    "log": "tests-compiler-lib-old.out"
   }
 }

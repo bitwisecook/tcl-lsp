@@ -249,3 +249,35 @@ PackSet has8 packs/0 notices/0 errors and484936 ordered Debug lines. Its old
 endpoints are deterministic. Strict runtime AnalysisResult Eq remains false
 and is recorded independently. Raw: current-a8e7bc7a-test-slice/. No timing ratio
 is inferred across its opt0 profile and the opt1 origin baseline.
+
+## Frozen b6ea6dc5 authenticated report and PackSet timings
+
+Completed full-batch opt-level1, debug0, incremental0, debug/overflow assertions
+enabled. Wall milliseconds under concurrent builds/tests, not release latency.
+Analysis timings include `analyse_for_report` capture and exclude comparisons;
+origin/rust plain-analysis timings have a different capture boundary, so no
+origin ratio is inferred for these rows. Each synthetic has all3 authenticated
+Equal comparisons; strict runtime equality remains separately false.
+
+| Input | Old1 ms | New ms | Old2 ms |
+| --- | ---: | ---: | ---: |
+| calls:10 | 888 | 425 | 621 |
+| calls:20 | 1808 | 813 | 1352 |
+| calls:40 | 6216 | 1424 | 4232 |
+| calls:80 | 26815 | 2721 | 15968 |
+| procs:41 | 2184 | 1642 | 3269 |
+| upvar:10 | 10657 | 5094 | 6688 |
+| upvar:30 | 73450 | 15071 | 46401 |
+| load_embedded | 14514 | 2964 | 16003 |
+
+`load_embedded` uses the same ordinary API as the origin/rust4665ms baseline.
+Complete ordered PackSet Debug agrees in all3 directions (484936 lines,8packs,
+0notices/0errors); formatting time is excluded from the load timing. Source
+and executable receipts: current-b6ea6dc5-full-corpus/. No fields/order dropped.
+
+This is not full acceptance: mixed Tcl101/102 Equal plus native35Unavailable;
+all-old coverage101Equal/1Unavailable combines original77 reports and exact25
+tail recovery after resource kill. Original failed run remains failed. Both
+15-input iRules and all7 synthetic sizes pass in both old-only/mixed. Overall
+source diff unchanged and executables/probes removed. Allocated-empty capture
+repair and complete crate/resource checks remain pending.

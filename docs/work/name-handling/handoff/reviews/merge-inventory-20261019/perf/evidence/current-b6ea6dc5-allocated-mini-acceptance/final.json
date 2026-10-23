@@ -1,0 +1,10 @@
+{
+  "started_unix": 1792792626.9442234,
+  "scope": "Candidate API diagnostic on compact original failing source; unchanged full triple in both old-only/mixed modes. Uses existing candidate opt0 normal library; not full corpus acceptance.",
+  "results": [],
+  "build_exit": 101,
+  "warnings": 0,
+  "finished_unix": 1792792781.8380537,
+  "executables_removed": true,
+  "probe_removed": true
+}

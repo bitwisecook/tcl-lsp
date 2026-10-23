@@ -1,0 +1,9 @@
+{
+  "started_unix": 1792791962.0589497,
+  "pid": 67371,
+  "held_orchestrator": 65638,
+  "policy": "Hold only isolation orchestrator until candidate control retry completes; existing child test may finish naturally. No runtime child signalled. Finally resumes the same orchestrator.",
+  "held_unix": 1792791962.0590172,
+  "resumed_unix": 1792792184.2360117,
+  "finished_unix": 1792792184.2363753
+}

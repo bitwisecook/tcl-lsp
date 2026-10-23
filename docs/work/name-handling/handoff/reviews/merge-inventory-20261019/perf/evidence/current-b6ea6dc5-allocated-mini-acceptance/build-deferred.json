@@ -1,0 +1,6 @@
+{
+  "observed_unix": 1792792780.9594135,
+  "action": "SIGINT only the diagnostic mini-probe normal-library rustc; no runtime signalled",
+  "reason": "Previous candidate normal library was resource-killed, so the probe needed a rebuild. Defer that rebuild until isolated deep tests end, preserving their full memory window. Candidate control quiet retry already queued. No code/input/assertion change.",
+  "pid": 70094
+}

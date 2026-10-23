@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 21:34 UTC
+Last updated: 2026-10-23 22:00 UTC
 
 **Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
 All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
@@ -302,3 +302,18 @@ admission. Separate full original-allocation-card admission is a candidate in
 isolated diagnostic tree, with all old assertions plus new positive/negative
 controls; build underway, no Rust diagnostics yet. No repair acceptance or perf
 production commit is claimed. Main iRules/synthetics/PackSet continue.
+
+Frozen b6 opt1/report wall examples (capture included, comparisons excluded):
+calls80 old26815/new2721/old15968ms; upvar30 old73450/new15071/old46401ms, all3
+Equal. Ordinary load_embedded old14514/new2964/old16003ms; complete ordered
+PackSet equal/deterministic,8packs/0notices/0errors,484936 lines. Origin same API
+4665ms is a separate contended observation. Full timing/acceptance limits remain
+in evidence/timings.md; this does not accept the native35 refusal.
+
+Candidate report repair build retries are not green: first2 test-only Debug
+assertion type errors corrected without changing the predicate; subsequent
+build resource-killed while deep compiler test ran. Quiet retry now waits for
+isolated compiler recovery. Original clean6 suite has resource-based incomplete
+comparison/P2Fs; isolated227 nondeep outcomes are identical BOTH, zeroP2F,
+peak351180/352356KiB. Unchanged1000-depth case runs alone next. No runtime is
+paused and no original failure is removed. No repair/perf production commit.

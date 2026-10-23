@@ -1,0 +1,7 @@
+{
+  "observed_unix": 1792792166.7666876,
+  "base": "fe309232b54df7f4a2c1558893c23e308a9de2ed",
+  "status": "Blocked/routed to compiler/compiler-names; uncompiled, semantically unproven, not applied to any proof/production tree.",
+  "scope": "Avoid a full AdviceGraph clone when the existing checked region inventory is empty; old code clones then executes zero loop iterations. All checks before obtaining coverage and all nonempty-region logic remain. Existing earlier stack sample showed regions cloning, not a frequency estimate. This does not fix the1000-depth resource failure.",
+  "validation": "scoped parser/rustfmt only; require full authenticated AnalysisResult and ordered PackSet proof before acceptance."
+}

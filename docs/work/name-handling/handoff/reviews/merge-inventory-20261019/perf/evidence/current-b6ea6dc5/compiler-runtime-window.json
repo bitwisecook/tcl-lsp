@@ -17,5 +17,7 @@
     }
   ],
   "policy": "Hold only Python compiler-test driver while its Cargo/rustc children continue building. Resume after full corpus, tail recovery and isolated diagnostic finish naturally, so no runtime test competes with those jobs for memory. Never signal a test executable. Build wall time is not latency evidence.",
-  "held_unix": 1792787841.4697309
+  "held_unix": 1792787841.4697309,
+  "resumed_unix": 1792791099.2461252,
+  "finished_unix": 1792791099.2461765
 }

@@ -1,0 +1,8 @@
+{
+  "started_unix": 1792791853.9428775,
+  "pid": 65638,
+  "source_binary": "/workspace/tcl-lsp-owned/target/debug/deps/tcl_compiler-4d0d220b10221392",
+  "sha256": "dd8b6622d6f1880e4de90946e3aab2d0079c58e893ba427e8f9f9bf5b7d0af22",
+  "scope": "Preserve original incomplete suite. Run original nondeep tests together and unchanged1000-depth test alone, both modes, exact ELF. No assertions, inputs or thread limits changed. Incomplete/failed runs remain failed.",
+  "runs": []
+}

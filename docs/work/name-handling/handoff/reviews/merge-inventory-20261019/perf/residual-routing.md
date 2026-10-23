@@ -173,3 +173,16 @@ All three drafts refresh tob6ea6dc5. Ordered analyser application reproduces
 the scoped formatted snapshot. No production source is changed; all remain
 Blocked/routed, uncompiled and semantically unproven. The line-index and
 immutable-vector admission arguments retain the earlier documented limits.
+
+## Empty checked body coverage draft
+
+`perf-body-empty-regions.patch` is Blocked/routed to compiler/compiler-names.
+The existing regions helper clones the whole AdviceGraph even after checked
+coverage returns an empty vector, then executes zero iterations. This draft
+returns the same Some(()) after those same checks without that unused clone.
+No graph mutation, region guard, counter or nonempty traversal is changed.
+Only source/parser/fmt review exists; no compiled/equality proof or latency
+claim. It does not repair the1000-level nested-source resource failure. Owners
+must retain all guards and prove full AnalysisResult/PackSet equality before
+accepting it. The earlier one-stack clone observation is not a frequency or
+complexity estimate.

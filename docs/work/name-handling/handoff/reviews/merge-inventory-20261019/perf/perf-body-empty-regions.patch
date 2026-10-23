@@ -1,0 +1,12 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -766,6 +766,9 @@
+         let regions = regions?;
+         // Checked empty coverage supplies no evaluated child mutation and remains
+         // complete. Reference-only bodies are one such complete case.
++        if regions.is_empty() {
++            return Some(());
++        }
+         let original = graph.clone();
+         for region in regions {
+             if !region.matches_source(self.context.origin.source_image(), self.context.config)

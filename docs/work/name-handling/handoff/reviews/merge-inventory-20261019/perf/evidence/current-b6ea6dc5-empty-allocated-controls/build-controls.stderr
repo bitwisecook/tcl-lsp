@@ -1,1 +1,9 @@
    Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-spectcl)
+error: could not compile `tcl-compiler` (lib test) due to 2 previous errors
