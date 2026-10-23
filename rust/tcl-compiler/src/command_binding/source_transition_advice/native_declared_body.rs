@@ -677,13 +677,14 @@ impl crate::command_binding::SourceInvocationBinding {
         card: &crate::command_binding::OriginalNativeProcedureBody,
     ) -> bool {
         tokens.source_binding.as_ref() == Some(self)
-            && self
+            && (self
                 .original_native_source_command
                 .as_ref()
                 .is_some_and(|command| {
                     command.matches_tokens(tokens, input, registry)
                         && card.owns_source_declaration(&command.owner.declaration)
                 })
+                || card.owns_original_read_tokens(tokens, input, registry))
     }
 
     pub(crate) fn original_native_source_owner_for_body(
