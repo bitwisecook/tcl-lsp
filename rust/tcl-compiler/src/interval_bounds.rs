@@ -1150,29 +1150,17 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
         resolve_list_length(read.symbol, read.version?, &proofs)
     }
 
-    /// Evaluate one candidate index access; push a finding when the index
-    /// interval is provably out of range for the resolved length.
-    fn process(&self, cand: &Candidate, site: &CandidateSite, findings: &mut Vec<BoundsFinding>) {
+    fn selected_index_version(
+        &self,
+        cand: &Candidate,
+        site: &CandidateSite,
+    ) -> Option<(Symbol, Version)> {
         let ssa = self.ssa;
-        let Some((spelling, _)) = cand
-            .index_word
-            .as_ref()
-            .and_then(crate::ir::WordExpr::sole_variable_substitution)
-        else {
-            return;
-        };
-        let Some(index_var) = tcl_syntax::naming::whole_scalar_variable_reference_name(
-            spelling,
-            tcl_lexer::LexerConfig::from_grammar(self.grammar),
-        ) else {
-            return;
-        };
         let read = cand
             .index_word
             .as_ref()
             .and_then(|word| site.source_view(ssa).read_word(word));
-        let selected = read
-            .and_then(|read| read.version.map(|version| (read.symbol, version)))
+        read.and_then(|read| read.version.map(|version| (read.symbol, version)))
             .or_else(|| {
                 if !cand.conditional_handler {
                     return None;
@@ -1196,7 +1184,27 @@ impl<T: std::hash::BuildHasher> BoundsCtx<'_, T> {
                     },
                     self.semantics.registry,
                 )
-            });
+            })
+    }
+
+    /// Evaluate one candidate index access; push a finding when the index
+    /// interval is provably out of range for the resolved length.
+    fn process(&self, cand: &Candidate, site: &CandidateSite, findings: &mut Vec<BoundsFinding>) {
+        let ssa = self.ssa;
+        let Some((spelling, _)) = cand
+            .index_word
+            .as_ref()
+            .and_then(crate::ir::WordExpr::sole_variable_substitution)
+        else {
+            return;
+        };
+        let Some(index_var) = tcl_syntax::naming::whole_scalar_variable_reference_name(
+            spelling,
+            tcl_lexer::LexerConfig::from_grammar(self.grammar),
+        ) else {
+            return;
+        };
+        let selected = self.selected_index_version(cand, site);
         let Some((index_sym, index_version)) = selected else {
             return;
         };

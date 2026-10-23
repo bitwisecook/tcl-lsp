@@ -979,6 +979,39 @@ fn widen_registry_clobbers(
     changed
 }
 
+fn widen_unrepresented_statement(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    stmt_ssa: &SsaStatement,
+    positioned: bool,
+) -> bool {
+    let mut changed = false;
+    let keys: Vec<ValueKey> = if !positioned {
+        values.keys().copied().collect()
+    } else {
+        // Exact reads after an unrepresented store have no contents
+        // version. Earlier SSA versions remain immutable evidence.
+        Vec::new()
+    };
+    for k in keys {
+        if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
+            changed = true;
+        }
+    }
+    // A barrier also *defines* variables of its own (e.g. `dict for {x
+    // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
+    // set them to anything — so set each to `Overdefined`. Without this
+    // the def key is never inserted (the widen loop above only touches
+    // keys already present), so it stays `Unknown` and vanishes from a
+    // downstream phi join, letting a phi that merges a barrier-def with
+    // a constant fold to that constant and miscompile a following test.
+    for (&var, ver) in &stmt_ssa.defs {
+        if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
+            changed = true;
+        }
+    }
+    changed
+}
+
 fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
@@ -1031,30 +1064,8 @@ fn sccp_process_statements(
             // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
             // puts [expr {$n + 1}]` prints `100`. The value before
             // `uplevel` cannot justify folding that later expression.
-            let keys: Vec<ValueKey> = if ssa.point_contexts.is_none() {
-                values.keys().copied().collect()
-            } else {
-                // Exact reads after an unrepresented store have no contents
-                // version. Earlier SSA versions remain immutable evidence.
-                Vec::new()
-            };
-            for k in keys {
-                if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
-                    changed = true;
-                }
-            }
-            // A barrier also *defines* variables of its own (e.g. `dict for {x
-            // y} …` defines `x`/`y`). Those defs are opaque — the barrier can
-            // set them to anything — so set each to `Overdefined`. Without this
-            // the def key is never inserted (the widen loop above only touches
-            // keys already present), so it stays `Unknown` and vanishes from a
-            // downstream phi join, letting a phi that merges a barrier-def with
-            // a constant fold to that constant and miscompile a following test.
-            for (&var, ver) in &stmt_ssa.defs {
-                if set_value(values, (var, *ver), &LatticeValue::Overdefined) {
-                    changed = true;
-                }
-            }
+            changed |=
+                widen_unrepresented_statement(values, stmt_ssa, ssa.point_contexts.is_some());
             continue;
         }
         let observed = observed_store_keys(ssa, block, index, &stmt_ssa.statement, registry);

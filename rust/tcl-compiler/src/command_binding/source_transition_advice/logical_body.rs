@@ -520,20 +520,7 @@ impl LogicalBodyWalk<'_, '_> {
             parameters_text,
             self.context.config.list_parse,
         )?;
-        let dialect = crate::command_binding::source_analysis_entry::source_input_dialect(input);
-        let formal_topology = dialect.authored_name_policy().and_then(|policy| {
-            crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
-                &formal.original,
-                tcl_syntax::word_rules::WordValueRules::from_config(&self.context.config),
-                policy,
-            )
-            .and_then(|key| {
-                crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
-                    key, dialect,
-                )
-            })
-            .map(Arc::new)
-        });
+        let formal_topology = self.formal_topology(&formal.original, input);
         let card = Arc::new(OriginalLogicalProcedureBody {
             scope: Arc::clone(&scope),
             site: crate::command_binding::CommandAllocationSite {
@@ -554,15 +541,45 @@ impl LogicalBodyWalk<'_, '_> {
             card.site.offset,
             Some(card),
         );
-        let mut branch = graph.clone();
-        branch.apply(&receipt)?;
-        branch.logical_namespace = Some(key.namespace);
-        branch.handles.clear();
-        branch.class_handles.clear();
+        let branch = Self::prepare_procedure_branch(graph, &receipt, key.namespace)?;
         Some(Box::new(PreparedLogicalBodyBranch {
             graph: branch,
             scope,
         }))
+    }
+
+    fn prepare_procedure_branch(
+        graph: &AdviceGraph,
+        receipt: &Arc<super::OriginalSourceCommandTransition>,
+        namespace: tcl_core_types::ByteNamespacePath,
+    ) -> Option<AdviceGraph> {
+        let mut branch = graph.clone();
+        branch.apply(receipt)?;
+        branch.logical_namespace = Some(namespace);
+        branch.handles.clear();
+        branch.class_handles.clear();
+        Some(branch)
+    }
+
+    fn formal_topology(
+        &self,
+        formal: &NativeWord,
+        input: &crate::analyser::ResolvedAnalysisInput,
+    ) -> Option<Arc<crate::command_binding::formal_topology::OriginalFormalTopology>> {
+        let dialect = crate::command_binding::source_analysis_entry::source_input_dialect(input);
+        dialect.authored_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceNameKey::from_original_logical_source_word(
+                formal,
+                tcl_syntax::word_rules::WordValueRules::from_config(&self.context.config),
+                policy,
+            )
+            .and_then(|key| {
+                crate::command_binding::formal_topology::OriginalFormalTopology::from_original_key(
+                    key, dialect,
+                )
+            })
+            .map(Arc::new)
+        })
     }
 
     fn namespace(

@@ -760,10 +760,11 @@ struct ConditionalSourcePairingAdvice<'query, 'unit> {
     _obligations: &'query HashSet<CollectionSourceObligationKind>,
 }
 
-impl ConditionalSourcePairingAdvice<'_, '_> {
-    fn message(&self, source_pairing: String) -> String {
-        format!("Conditional source pairing (runtime applicability unproved): {source_pairing}")
-    }
+fn conditional_source_pairing_message(
+    _advice: &ConditionalSourcePairingAdvice<'_, '_>,
+    source_pairing: &str,
+) -> String {
+    format!("Conditional source pairing (runtime applicability unproved): {source_pairing}")
 }
 
 /// Conditional pairing under a closed retained handler-source census.
@@ -1935,7 +1936,7 @@ fn emit_missing_data_collect_warnings(
         out.push(IrulesCheckWarning {
             span,
             code: DiagCode::Irule1005,
-            message: advice.message(format!(
+            message: conditional_source_pairing_message(advice, &format!(
                 "'{event}' has no matching source {required_side} {} candidate in the retained handlers.",
                 proto_hint.join(" or "),
             )),
@@ -1983,7 +1984,7 @@ fn emit_payload_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: payload.span,
                 code: DiagCode::Irule1006,
-                message: advice.message(format!(
+                message: conditional_source_pairing_message(advice, &format!(
                     "Possible '{}::payload' without a matching source {} {}::collect candidate.",
                     payload.protocol, payload.side, payload.protocol,
                 )),
@@ -2028,7 +2029,7 @@ fn emit_collect_without_release_warnings(
             out.push(IrulesCheckWarning {
                 span: collect.span,
                 code: DiagCode::Irule1007,
-                message: advice.message(format!(
+                message: conditional_source_pairing_message(advice, &format!(
                     "Possible {}::collect without a matching source {}::release candidate on the {} side.",
                     collect.protocol, collect.protocol, collect.side,
                 )),
@@ -2054,7 +2055,7 @@ fn emit_release_without_collect_warnings(
             out.push(IrulesCheckWarning {
                 span: release.span,
                 code: DiagCode::Irule1008,
-                message: advice.message(format!(
+                message: conditional_source_pairing_message(advice, &format!(
                     "Possible {}::release without a matching source {}::collect candidate on the {} side.",
                     release.protocol, release.protocol, release.side,
                 )),

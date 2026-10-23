@@ -2864,6 +2864,31 @@ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFa
     facts.source_parameter_aliases.clear();
 }
 
+fn scan_literal_command_prefix_edges(
+    resolved: &str,
+    args: &[String],
+    arg_strs: &[&str],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    for (idx, _appended) in ctx
+        .surface()
+        .command_prefixes(resolved, arg_strs)
+        .into_iter()
+        .filter(|_| !ctx.positioned_substitutions)
+    {
+        if let Some(word) = args
+            .get(idx)
+            .and_then(|a| command_prefix_head(ctx.registry, a))
+            && is_plain_proc_name(&word)
+            && let Some(target) = possible_body_id(&word, ctx)
+        {
+            facts.procedure_calls.push((target, None));
+            facts.direct_calls.insert(target);
+        }
+    }
+}
+
 /// Process a `Statement::Call` for interprocedural facts: side-
 /// effects classification, internal-call resolution, and param
 /// trait inference.  Extracted from [`scan_statement`].
@@ -2895,20 +2920,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // rejects dynamic `$cb` / bracketed heads), mirroring the reference
     // extractor's bareword guard.
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    for (idx, _appended) in ctx
-        .surface()
-        .command_prefixes(resolved, &arg_strs)
-        .into_iter()
-        .filter(|_| !ctx.positioned_substitutions)
-    {
-        if let Some(word) = args.get(idx).and_then(|a| command_prefix_head(registry, a))
-            && is_plain_proc_name(&word)
-            && let Some(target) = possible_body_id(&word, ctx)
-        {
-            facts.procedure_calls.push((target, None));
-            facts.direct_calls.insert(target);
-        }
-    }
+    scan_literal_command_prefix_edges(resolved, args, &arg_strs, ctx, facts);
 
     let words: Vec<_> = arg_strs
         .iter()

@@ -1623,6 +1623,10 @@ impl Lowerer<'_> {
         }) {
             return self.lower_retained_script(source);
         }
+        self.lower_source_word_body(text, tok)
+    }
+
+    fn lower_source_word_body(&mut self, text: &str, tok: &tcl_lexer::Token) -> Script {
         let Some(origin) = self
             .source_bindings
             .as_ref()

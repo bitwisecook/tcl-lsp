@@ -2066,36 +2066,9 @@ fn record_nested_upframe_effects(
             continue;
         }
         if let Statement::Call { command, .. } | Statement::Barrier { command, .. } = stmt {
-            if let Some(bindings) = bindings
-                && bindings.input.has_logical_source_name_context()
-            {
-                let selected = script.retained_source_tokens_for_statement(stmt)
-                    .and_then(|tokens| {
-                        let metadata = tokens.source_binding.as_ref()?
-                            .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
-                        let invocation = crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
-                            registry, metadata, tokens,
-                        )?;
-                        Some((tokens, invocation))
-                    });
-                if let Some((tokens, invocation)) = selected {
-                    record_logical_frame_invocation(
-                        &invocation,
-                        LogicalFrameScan {
-                            tokens,
-                            current: FrameContext::DirectCaller,
-                            params: &[],
-                            registry,
-                            bindings,
-                            namespace,
-                            depth: depth + 1,
-                        },
-                        info,
-                    );
-                } else {
-                    info.caller_frame_opaque_writes = true;
-                    info.caller_frame_opaque_reads = true;
-                }
+            if record_logical_frame_statement(
+                script, stmt, registry, bindings, namespace, info, depth,
+            ) {
                 continue;
             }
             let execution_namespace = ExecutionNamespace::RuntimeSelected;
@@ -2164,6 +2137,50 @@ fn record_nested_upframe_effects(
             }
         }
     }
+}
+
+fn record_logical_frame_statement(
+    script: &Script,
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    bindings: Option<UpvarBindings<'_>>,
+    namespace: &crate::command_binding::SourceNamespaceKey,
+    info: &mut UpvarInfo,
+    depth: u32,
+) -> bool {
+    let Some(bindings) =
+        bindings.filter(|bindings| bindings.input.has_logical_source_name_context())
+    else {
+        return false;
+    };
+    let selected = script.retained_source_tokens_for_statement(stmt)
+        .and_then(|tokens| {
+            let metadata = tokens.source_binding.as_ref()?
+                .original_invocation_metadata_for_module(tokens, bindings.module, registry)?;
+            let invocation = crate::registry_invocation::original_logical_frame_invocation_with_metadata_context(
+                registry, metadata, tokens,
+            )?;
+            Some((tokens, invocation))
+        });
+    if let Some((tokens, invocation)) = selected {
+        record_logical_frame_invocation(
+            &invocation,
+            LogicalFrameScan {
+                tokens,
+                current: FrameContext::DirectCaller,
+                params: &[],
+                registry,
+                bindings,
+                namespace,
+                depth: depth + 1,
+            },
+            info,
+        );
+    } else {
+        info.caller_frame_opaque_writes = true;
+        info.caller_frame_opaque_reads = true;
+    }
+    true
 }
 
 /// Read a `[list CMD ARG…]` body word, recording the caller-frame names the

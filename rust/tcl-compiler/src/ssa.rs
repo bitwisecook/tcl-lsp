@@ -3093,6 +3093,53 @@ enum SsaVariableIdentity {
     Source(crate::signature_scan::variable_symbol::SignatureSourceVariableSymbol),
 }
 
+// Buckets retain full authenticated identities; hashes never decide equality.
+struct SsaIdentityBuckets<V> {
+    buckets: FxHashMap<u64, Vec<(SsaVariableIdentity, V)>>,
+}
+
+impl<V> Default for SsaIdentityBuckets<V> {
+    fn default() -> Self {
+        Self {
+            buckets: FxHashMap::default(),
+        }
+    }
+}
+
+impl<V> SsaIdentityBuckets<V> {
+    fn contains_key(&self, key: &SsaVariableIdentity) -> bool {
+        let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), key);
+        self.buckets
+            .get(&hash)
+            .is_some_and(|bucket| bucket.iter().any(|(stored, _)| stored == key))
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&SsaVariableIdentity, &V)> {
+        self.buckets
+            .values()
+            .flatten()
+            .map(|(key, value)| (key, value))
+    }
+}
+
+impl<V: Default> SsaIdentityBuckets<V> {
+    fn or_default(&mut self, key: SsaVariableIdentity) -> &mut V {
+        let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), &key);
+        let bucket = self.buckets.entry(hash).or_default();
+        let position = bucket.iter().position(|(stored, _)| stored == &key);
+        let index = if let Some(position) = position {
+            position
+        } else {
+            bucket.push((key, V::default()));
+            bucket.len() - 1
+        };
+        &mut bucket[index].1
+    }
+}
+
+type SsaIdentitySet = SsaIdentityBuckets<()>;
+type SsaDefinitionSites = SsaIdentityBuckets<FxHashSet<BlockId>>;
+
 /// Per-[`SsaFunction`] interner for location and source identities.
 ///
 /// Each identity receives one dense [`Symbol`]; display labels and the
@@ -4813,8 +4860,7 @@ fn compute_phi_vars_with_config(
     for (block, markers) in clobbers {
         for name in markers.values().flatten() {
             all_defsites
-                .entry(SsaVariableIdentity::Location(name.clone()))
-                .or_default()
+                .or_default(SsaVariableIdentity::Location(name.clone()))
                 .insert(*block);
         }
     }
@@ -4828,8 +4874,8 @@ fn compute_phi_vars_with_config(
         phi.insert(*id, HashSet::new());
     }
 
-    for (var, sites) in &all_defsites {
-        if !nonlocal_names.contains(var) {
+    for (var, sites) in all_defsites.iter() {
+        if !nonlocal_names.contains_key(var) {
             continue;
         }
         let mut work: Vec<BlockId> = sites.iter().copied().collect();
@@ -5025,10 +5071,7 @@ fn nonlocal_names_and_defsites(
     elems: &ArrayElems,
     config: tcl_lexer::LexerConfig,
     points: &PointResolveContexts,
-) -> (
-    FxHashSet<SsaVariableIdentity>,
-    FxHashMap<SsaVariableIdentity, FxHashSet<BlockId>>,
-) {
+) -> (SsaIdentitySet, SsaDefinitionSites) {
     let registry = selection.registry;
     let mut scanner = VarReferenceScanner::with_config(
         VarScanOptions {
@@ -5039,14 +5082,14 @@ fn nonlocal_names_and_defsites(
         },
         config,
     );
-    let mut nonlocal_names: FxHashSet<SsaVariableIdentity> = FxHashSet::default();
-    let mut defsites: FxHashMap<SsaVariableIdentity, FxHashSet<BlockId>> = FxHashMap::default();
+    let mut nonlocal_names = SsaIdentitySet::default();
+    let mut defsites = SsaDefinitionSites::default();
 
     for bn in reachable {
         let Some(block) = func.blocks.get(bn) else {
             continue;
         };
-        let mut defined_here: FxHashSet<SsaVariableIdentity> = FxHashSet::default();
+        let mut defined_here = SsaIdentitySet::default();
         for (index, stmt) in block.statements.iter().enumerate() {
             let context = points.before_statement(*bn, index);
             let mut direct_uses = bound_names(
@@ -5079,24 +5122,24 @@ fn nonlocal_names_and_defsites(
                 .chain(may_defs.iter().cloned())
             {
                 let u = SsaVariableIdentity::Location(u);
-                if !defined_here.contains(&u) {
-                    nonlocal_names.insert(u);
+                if !defined_here.contains_key(&u) {
+                    nonlocal_names.or_default(u);
                 }
             }
             for var in expand_defs(&all_defs, elems) {
                 let var = SsaVariableIdentity::Location(var);
-                defsites.entry(var.clone()).or_default().insert(*bn);
-                defined_here.insert(var);
+                defsites.or_default(var.clone()).insert(*bn);
+                defined_here.or_default(var);
             }
             if let Some((symbol, _, definition)) =
                 authored_scalar_source_variable(points, *bn, index, registry)
             {
                 let identity = SsaVariableIdentity::Source(symbol);
                 if definition {
-                    defsites.entry(identity.clone()).or_default().insert(*bn);
-                    defined_here.insert(identity);
-                } else if !defined_here.contains(&identity) {
-                    nonlocal_names.insert(identity);
+                    defsites.or_default(identity.clone()).insert(*bn);
+                    defined_here.or_default(identity);
+                } else if !defined_here.contains_key(&identity) {
+                    nonlocal_names.or_default(identity);
                 }
             }
             if let Some(receipt) =
@@ -5106,9 +5149,9 @@ fn nonlocal_names_and_defsites(
                     let identity = SsaVariableIdentity::Source(place.symbol().clone());
                     // Source effects may be observed without a successful
                     // lexical read; retain their joins conservatively.
-                    nonlocal_names.insert(identity.clone());
-                    defsites.entry(identity.clone()).or_default().insert(*bn);
-                    defined_here.insert(identity);
+                    nonlocal_names.or_default(identity.clone());
+                    defsites.or_default(identity.clone()).insert(*bn);
+                    defined_here.or_default(identity);
                 }
             }
         }
@@ -5116,8 +5159,8 @@ fn nonlocal_names_and_defsites(
             authored_scalar_source_variable(points, *bn, usize::MAX, registry)
         {
             let identity = SsaVariableIdentity::Source(symbol);
-            if !defined_here.contains(&identity) {
-                nonlocal_names.insert(identity);
+            if !defined_here.contains_key(&identity) {
+                nonlocal_names.or_default(identity);
             }
         }
         // Terminator reads are element-qualified like statement reads (a
@@ -5158,8 +5201,8 @@ fn nonlocal_names_and_defsites(
             .chain(expand_uses(&term_uses, &[], elems))
         {
             let u = SsaVariableIdentity::Location(u);
-            if !defined_here.contains(&u) {
-                nonlocal_names.insert(u);
+            if !defined_here.contains_key(&u) {
+                nonlocal_names.or_default(u);
             }
         }
     }

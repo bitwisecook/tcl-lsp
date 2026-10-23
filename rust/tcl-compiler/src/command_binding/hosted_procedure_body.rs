@@ -280,33 +280,14 @@ impl SourceCommandBindings {
                     &head,
                     &original,
                 )?;
-            let end = original.last()?.span().end();
-            let segments = crate::segmenter::segment_commands_with_offset_and_config(
-                text.get(site.offset as usize..end as usize)?,
-                site.offset,
-                row.config.nested(),
-            );
-            let [segment] = segments.as_slice() else {
-                return None;
-            };
-            let values = segment
-                .args()
-                .iter()
-                .map(String::as_str)
-                .collect::<Vec<_>>();
-            let closed = tcl_registry::events::closed_braced_argument_words(
+            let (end, declaration) = hosted_declaration_shape(
+                registry,
                 text,
-                segment.arg_tokens(),
-                segment.arg_single_token(),
+                site,
+                row.config,
+                &original,
+                metadata.shape().command(),
             )?;
-            let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
-                &values,
-                segment.arg_tokens(),
-                segment.arg_single_token(),
-                &closed,
-            )?;
-            let declaration = registry
-                .irules_top_level_declaration_shape(metadata.shape().command(), arguments)?;
             let tcl_registry::events::IrulesTopLevelDeclaration::Procedure {
                 name_index,
                 body_index,
@@ -368,6 +349,43 @@ impl SourceCommandBindings {
         }
         agreed
     }
+}
+
+fn hosted_declaration_shape(
+    registry: &tcl_registry::CommandRegistry,
+    text: &str,
+    site: &CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    original: &[tcl_lexer::NativeWord],
+    command: &str,
+) -> Option<(u32, tcl_registry::events::IrulesTopLevelDeclaration)> {
+    let end = original.last()?.span().end();
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(
+        text.get(site.offset as usize..end as usize)?,
+        site.offset,
+        config.nested(),
+    );
+    let [segment] = segments.as_slice() else {
+        return None;
+    };
+    let values = segment
+        .args()
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    let closed = tcl_registry::events::closed_braced_argument_words(
+        text,
+        segment.arg_tokens(),
+        segment.arg_single_token(),
+    )?;
+    let arguments = tcl_registry::events::IrulesDeclarationArguments::new(
+        &values,
+        segment.arg_tokens(),
+        segment.arg_single_token(),
+        &closed,
+    )?;
+    let declaration = registry.irules_top_level_declaration_shape(command, arguments)?;
+    Some((end, declaration))
 }
 
 #[cfg(test)]

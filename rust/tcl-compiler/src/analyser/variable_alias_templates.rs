@@ -20,6 +20,29 @@ struct SourceAliasAnchor {
     receiver: OriginalVariableSymbolReceiver,
 }
 
+// Hashes select buckets; the complete retained frame still decides equality.
+type FrameCommandSitesBucket = Vec<(SourceOriginalVariableFrame, Option<HashSet<u32>>)>;
+
+#[derive(Default)]
+struct OriginalFrameCommandSites {
+    buckets: HashMap<u64, FrameCommandSitesBucket>,
+}
+
+impl OriginalFrameCommandSites {
+    fn get(&mut self, frame: &SourceOriginalVariableFrame) -> &Option<HashSet<u32>> {
+        let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), frame);
+        let bucket = self.buckets.entry(hash).or_default();
+        let position = bucket.iter().position(|(stored, _)| stored == frame);
+        let index = if let Some(position) = position {
+            position
+        } else {
+            bucket.push((frame.clone(), original_frame_command_sites(frame)));
+            bucket.len() - 1
+        };
+        &bucket[index].1
+    }
+}
+
 impl AnalysisResult {
     /// Conditional alias-name relationships in this complete current source.
     /// Every anchor retains its real lexical declaration frame and original
@@ -66,7 +89,7 @@ impl AnalysisResult {
                 ),
             }
         }));
-        let mut direct = HashMap::<SourceOriginalVariableFrame, Option<HashSet<u32>>>::new();
+        let mut direct = OriginalFrameCommandSites::default();
         let mut templates = Vec::new();
         for anchor in anchors {
             let logical_scope = if input.has_logical_source_name_context() {
@@ -140,8 +163,7 @@ impl AnalysisResult {
             // owner; its declaration itself still names the written relation.
             if anchor.span != declaration.span()
                 && !direct
-                    .entry(frame.clone())
-                    .or_insert_with(|| original_frame_command_sites(&frame))
+                    .get(&frame)
                     .as_ref()
                     .is_some_and(|sites| sites.contains(&alias.invocation_offset()))
             {
