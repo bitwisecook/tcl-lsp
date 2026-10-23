@@ -55,6 +55,7 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn native_append_preserves_every_measured_primary_storage_and_identity_window() {
+    let _constructor_diagnostics = crate::interp::constructor_diagnostics::AppendScope::enter();
     // Native proof: naming.append.original-storage-and-identity
     // docs/design/analysis/name-resolution-proofs/append-original-storage-and-identity.md
     let fixtures = [

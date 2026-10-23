@@ -48,6 +48,8 @@ mod captured_rmw;
 #[cfg(test)]
 mod command_publication_tests;
 #[cfg(test)]
+pub(crate) mod constructor_diagnostics;
+#[cfg(test)]
 mod container_access_tests;
 #[cfg(test)]
 mod container_removal_tests;
@@ -1917,12 +1919,17 @@ fn install_ambient_release(version: tcl_dialect::TclVersion) {
 }
 
 pub(crate) fn default_host() -> Rc<dyn tcl_platform::Host> {
+    #[cfg(test)]
+    let mut constructor_diagnostic =
+        constructor_diagnostics::ConstructorDiagnostics::new(constructor_diagnostics::Kind::Host);
     #[cfg(not(target_arch = "wasm32"))]
     let host = Rc::new(tcl_host_native::NativeHost::new()) as Rc<dyn tcl_platform::Host>;
     #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
     let host = Rc::new(crate::host_wasm::WasiHost::new()) as Rc<dyn tcl_platform::Host>;
     #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
     let host = Rc::new(crate::host_wasm::BrowserHost::new()) as Rc<dyn tcl_platform::Host>;
+    #[cfg(test)]
+    constructor_diagnostic.stage("host_ready");
     host
 }
 
@@ -1973,6 +1980,10 @@ impl Interp {
             tcl_registry::special_vars::NativeBootstrapInputs,
         )>,
     ) -> Interp {
+        #[cfg(test)]
+        let mut constructor_diagnostic = constructor_diagnostics::ConstructorDiagnostics::new(
+            constructor_diagnostics::Kind::Bootstrap,
+        );
         let profile = native.as_ref().map_or_else(
             || crate::environment::profile_for_dialect(""),
             |(profile, _, _)| *profile,
@@ -1982,6 +1993,8 @@ impl Interp {
             .map_or(DEFAULT_RUNTIME_VERSION, |(profile, _, _)| {
                 profile.vm_runtime_version
             });
+        #[cfg(test)]
+        constructor_diagnostic.stage("profile_selected");
         let _constructor_allocation = obj::JimAllocationScope::enter(None, Rc::new(|| true));
         let result = obj::new_obj();
         let system_encoding = host.system_encoding();
@@ -2115,6 +2128,8 @@ impl Interp {
             retiring_oo_commands: RefCell::new(std::collections::HashSet::new()),
             original_command_retirement_recipes: RefCell::new(Vec::new()),
         }));
+        #[cfg(test)]
+        constructor_diagnostic.stage("state_allocated");
         interp.configure_variable_storage();
         interp.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
@@ -2151,13 +2166,22 @@ impl Interp {
             interp.refuse_native_execution(first);
             return interp;
         }
+        #[cfg(test)]
+        constructor_diagnostic.stage("policies_ready");
         if let Some((_, protocol, _)) = &native {
             builtins::install_native_core(&mut interp, *protocol);
         } else {
             builtins::install(&mut interp);
         }
+        #[cfg(test)]
+        constructor_diagnostic.stage("builtins_ready");
         interp.install_jim_local_commands();
+        #[cfg(test)]
+        constructor_diagnostic.stage("locals_ready");
         interp.seal_native_compiler_tokens();
+        #[cfg(test)]
+        constructor_diagnostic.stage("compiler_sealed");
+
         // C sets `tcl_version`/`tcl_patchLevel` in `Tcl_CreateInterp`
         // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
         // they exist in an interpreter that never sources `init.tcl`.
@@ -2203,6 +2227,8 @@ impl Interp {
         } else {
             interp.set_startup_globals();
         }
+        #[cfg(test)]
+        constructor_diagnostic.stage("globals_ready");
         interp
     }
 
@@ -2491,7 +2517,13 @@ impl Interp {
     /// profile's grammar, and the profile's availability mask becomes the
     /// builtin command-surface filter.
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
+        #[cfg(test)]
+        let mut constructor_diagnostic = constructor_diagnostics::ConstructorDiagnostics::new(
+            constructor_diagnostics::Kind::Pin,
+        );
         self.install_pin(tcl_registry::model::PinnedContext::for_profile(profile));
+        #[cfg(test)]
+        constructor_diagnostic.stage("profile_installed");
     }
 
     /// Pin the world this interpreter runs in: the environment, the release
@@ -3289,6 +3321,10 @@ impl Interp {
     /// chooses the store in production: the generation the interpreter is
     /// pinned to.
     fn attach_identities_from(&mut self, registry: &tcl_registry::CommandRegistry) {
+        #[cfg(test)]
+        let mut constructor_diagnostic = constructor_diagnostics::ConstructorDiagnostics::new(
+            constructor_diagnostics::Kind::Identities,
+        );
         let c_lookup = matches!(
             self.namespaces.borrow().variable_name_protocol,
             Some(tcl_syntax::naming::NativeNameProtocol::C(_))
@@ -3324,6 +3360,8 @@ impl Interp {
             };
             self.attest(generation, None, identities);
         }
+        #[cfg(test)]
+        constructor_diagnostic.stage("identities_ready");
     }
 
     /// The token generation of the builtin this interpreter registered at

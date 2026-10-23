@@ -562,6 +562,9 @@ jobs:
         run: |
           set -euo pipefail
           unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          if [[ "$RUNTIME_FULLTOM_FOCUSED" == 1 ]]; then
+            export TCL_LSP_RUNTIME_CONSTRUCTOR_DIAGNOSTIC=1
+          fi
           export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
           test ! -e "$CARGO_TARGET_DIR"
           for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
