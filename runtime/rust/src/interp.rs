@@ -20984,8 +20984,8 @@ mod tests {
     }
 
     unsafe extern "C" fn publication_retire(data: *mut c_void) {
-        // SAFETY: this exact command owns one boxed client record until its
-        // final Rc is retired; the delete procedure consumes it once.
+        // SAFETY: this command registered one boxed client record, consumed
+        // exactly once by its delete procedure.
         let state = unsafe { Box::from_raw(data.cast::<PublicationRetirement>()) };
         state.calls.set(state.calls.get() + 1);
         let mut interpreter = state.interpreter.upgrade().map(Interp).unwrap();
@@ -21017,14 +21017,17 @@ mod tests {
         _: c_int,
         _: *const *mut TclObj,
     ) -> c_int {
-        // SAFETY: dispatch retains the original command throughout this call.
+        // SAFETY: the client record is live at callback entry. Replacement may
+        // consume it, so retain only the observers before reentry.
         let state = unsafe { &*data.cast::<PublicationRetirement>() };
+        let active_calls = state.active_calls.clone();
+        let calls = state.calls.clone();
         let interpreter = unsafe { &mut *interpreter };
         let created = interpreter.create_obj_command(
             b"retiring",
             ObjCommand::new(publication_noop, core::ptr::null_mut(), None),
         );
-        state.active_calls.set(state.calls.get());
+        active_calls.set(calls.get());
         c_int::from(created.is_none())
     }
 
