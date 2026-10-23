@@ -4874,10 +4874,11 @@ impl<'r> Lowerer<'r> {
             )?)
             .ok()?;
             let command = tcl_syntax::naming::unroot_rooted_key(written).unwrap_or(written);
-            if candidates
-                .iter()
-                .any(|candidate| candidate.target.command != command)
-            {
+            if candidates.iter().any(|candidate| {
+                tcl_syntax::naming::unroot_rooted_key(&candidate.target.command)
+                    .unwrap_or(&candidate.target.command)
+                    != command
+            }) {
                 return None;
             }
             let input =
