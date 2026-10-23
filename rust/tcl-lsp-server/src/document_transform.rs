@@ -215,6 +215,21 @@ fn stale_transform() -> jsonrpc::Error {
     }
 }
 
+fn transform_document_changed(
+    doc: &DocumentState,
+    source: &TransformSource,
+    purpose: &SourcePublication<'_>,
+) -> bool {
+    (matches!(purpose, SourcePublication::Context) && doc.dialect_resolution_pending())
+        || doc.version != Some(source.version)
+        || doc.revision != source.revision
+        || doc.raw() != source.source.as_ref()
+        || doc.dialect != source.dialect
+        || doc.language_id != source.language_id
+        || doc.decode_report != source.decode_report
+        || doc.path_admission.as_deref() != Some(source.admission.as_ref())
+}
+
 impl Backend {
     pub(super) async fn capture_transform_source(
         &self,
@@ -331,14 +346,7 @@ impl Backend {
         let Some(doc) = documents.get(&source.uri) else {
             return Ok(None);
         };
-        if (matches!(purpose, SourcePublication::Context) && doc.dialect_resolution_pending())
-            || doc.version != Some(source.version)
-            || doc.revision != source.revision
-            || doc.raw() != source.source.as_ref()
-            || doc.dialect != source.dialect
-            || doc.language_id != source.language_id
-            || doc.decode_report != source.decode_report
-            || doc.path_admission.as_deref() != Some(source.admission.as_ref())
+        if transform_document_changed(doc, source, &purpose)
             || self.diag_inputs_epoch() != source.epoch
             || *generation != source.factory_generation
             || tcl_registry::overlay_epoch() != source.overlay_epoch

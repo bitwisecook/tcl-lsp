@@ -289,21 +289,7 @@ impl ProviderCaptureInputs<'_> {
             )
         };
         if !needed {
-            let sources = Arc::new(ConfiguredProviderSources {
-                resolver_revision,
-                rows: HashMap::new(),
-                store: Arc::clone(self.store),
-                dialects: self.dialects.clone(),
-                inventories: std::sync::Mutex::new(HashMap::new()),
-                proposal_selected: self.proposal.map(|proposal| proposal.selected.clone()),
-                proposal_captures: self
-                    .proposal
-                    .map(|proposal| Arc::downgrade(&proposal.captures)),
-            });
-            if let Some(proposal) = self.proposal {
-                proposal.retain(&sources);
-            }
-            return sources;
+            return self.retain_capture(resolver_revision, HashMap::new());
         }
         let paths = paths.unwrap_or_default();
         // Configuration handles are copied before taking the DB lock. Source
@@ -382,6 +368,14 @@ impl ProviderCaptureInputs<'_> {
                 })
                 .collect()
         };
+        self.retain_capture(resolver_revision, rows)
+    }
+
+    fn retain_capture(
+        &self,
+        resolver_revision: u64,
+        rows: HashMap<PathBuf, ProviderRow>,
+    ) -> Arc<ConfiguredProviderSources> {
         let sources = Arc::new(ConfiguredProviderSources {
             resolver_revision,
             rows,

@@ -2948,7 +2948,10 @@ mod tests {
                 .unwrap(),
         );
         assert_ne!(cleared.result_id.as_deref(), Some(previous.as_str()));
-        assert!(cleared.items.is_empty());
+        assert_eq!(
+            cleared.items,
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
         {
             let cache = backend.pull_diag_cache.lock().await;
             assert!(matches!(
@@ -3013,7 +3016,10 @@ mod tests {
             report.full_document_diagnostic_report.result_id.as_deref(),
             Some(previous.as_str())
         );
-        assert!(report.full_document_diagnostic_report.items.is_empty());
+        assert_eq!(
+            report.full_document_diagnostic_report.items,
+            [] as [tower_lsp_server::ls_types::Diagnostic; 0]
+        );
     }
 
     #[tokio::test]

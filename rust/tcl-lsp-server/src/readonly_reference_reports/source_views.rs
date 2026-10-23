@@ -690,10 +690,10 @@ impl Backend {
                 {
                     return None;
                 }
-                if mode == SourceViewPublicationMode::ReplaceFirstEdge {
-                    if let Some(existing) = table.reuse_current_batch(uri, &drafts, &index) {
-                        return Some(existing);
-                    }
+                if mode == SourceViewPublicationMode::ReplaceFirstEdge
+                    && let Some(existing) = table.reuse_current_batch(uri, &drafts, &index)
+                {
+                    return Some(existing);
                 }
                 let (next_id, staged) = table.stage(drafts)?;
                 if mode != SourceViewPublicationMode::ReplaceFirstEdge
@@ -864,7 +864,7 @@ impl Backend {
         else {
             return Ok(None);
         };
-        let Some(produced) = self
+        let Some(analysis) = self
             .capture_fresh_source_analysis(
                 uri,
                 document,
@@ -874,7 +874,7 @@ impl Backend {
         else {
             return Ok(None);
         };
-        let super::WorkspaceSymbolAnalysisKind::Fresh(producer) = produced.kind else {
+        let super::WorkspaceSymbolAnalysisKind::Fresh(producer) = analysis.kind else {
             return Ok(None);
         };
         let draft = OriginalSourceViewDraft {
@@ -1781,7 +1781,7 @@ impl Backend {
 
     /// Coverage here means every current association to a candidate parent
     /// owns an actual materialized producer and completed source-view scope.
-    /// A target URI or potential-body NoCut cannot manufacture that producer.
+    /// A target URI or potential-body `NoCut` cannot manufacture that producer.
     async fn current_original_scope_associations(
         &self,
         scopes: &[OriginalSourceRootScope],
@@ -2487,7 +2487,7 @@ impl Backend {
         Ok(state.finish_scope(root_id, root_uri, true))
     }
 
-    pub(crate) async fn original_source_view_settlement_is_indexed(
+    pub(crate) fn original_source_view_settlement_is_indexed(
         &self,
         settlement: &OriginalSourceViewSettlement,
     ) -> bool {
@@ -2646,6 +2646,8 @@ impl Backend {
         selected: &tcl_lsp_core::original_source_views::OriginalSourceViewDeclaration,
         views: &[Arc<PublishedOriginalSourceView>],
     ) -> Option<tower_lsp_server::ls_types::CallHierarchyItem> {
+        use tcl_lsp_core::original_declaration::OriginalDeclarationRole as Role;
+
         let mut matching = views.iter().filter(|view| {
             selected.publication
                 == tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(
@@ -2668,7 +2670,6 @@ impl Backend {
             .try_lock()
             .ok()?
             .issue_in_source_view(selected.identity.clone(), selected.publication.clone())?;
-        use tcl_lsp_core::original_declaration::OriginalDeclarationRole as Role;
         let kind = match selected.identity.role() {
             Role::Class => tower_lsp_server::ls_types::SymbolKind::CLASS,
             Role::Method(_) => tower_lsp_server::ls_types::SymbolKind::METHOD,
@@ -2766,7 +2767,7 @@ impl Backend {
         // Ownership may leave this lease; currency must be rejoined below.
         let Some(identity) = self
             .with_current_original_source_view(id, |view| {
-                (&view.draft.physical.uri == &item.uri).then_some(())?;
+                (view.draft.physical.uri == item.uri).then_some(())?;
                 let publication =
                     tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(id);
                 let identity = self
@@ -2847,7 +2848,7 @@ impl Backend {
         self.with_settled_original_source_scope(&ids, |views| {
             Self::same_original_source_view_inventory(&owners, views).then_some(())?;
             let view = views.iter().find(|view| view.id == id)?;
-            (&view.draft.physical.uri == &item.uri).then_some(())?;
+            (view.draft.physical.uri == item.uri).then_some(())?;
             let publication =
                 tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(id);
             let identity = self
