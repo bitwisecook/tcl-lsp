@@ -1,0 +1,93 @@
+{
+  "utc": "2026-10-23T14:28:24.940302+00:00",
+  "scheduled": "2026-10-23T14:25:37+00:00",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "header": "2026-10-23T13:17Z",
+      "age_minutes": 71.4156717,
+      "over60": true,
+      "explicit_owned_complete": true,
+      "user_notified_stale": true,
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/bigip-lsp.md"
+    },
+    {
+      "role": "compiler-codegen",
+      "header": "2026-10-23T14:17:44.792364+00:00 (ACTIVE; candidate095f freshCI39967894177 and fullSHApaired39968061509 running; no fresh failure observed; WORKa03 diagnostic root-owned)",
+      "age_minutes": 10.6691323,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md"
+    },
+    {
+      "role": "compiler-names",
+      "header": "2026-10-23T14:08:41.925094+00:00",
+      "age_minutes": 19.716920133333335,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md"
+    },
+    {
+      "role": "compiler",
+      "header": "2026-10-23T14:20:00+00:00 (runtime-first HOLD;58 further compiler lint sites independently static-cleared off-tree; no fresh build claims)",
+      "age_minutes": 8.415671699999999,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md"
+    },
+    {
+      "role": "coordinator",
+      "header": "2026-10-23T14:26:14.731239+00:00",
+      "age_minutes": 2.17015105,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md"
+    },
+    {
+      "role": "lsp",
+      "header": "2026-10-23T14:16:09Z",
+      "age_minutes": 12.2656717,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md"
+    },
+    {
+      "role": "perf",
+      "header": "2026-10-23 14:17 UTC",
+      "age_minutes": 11.415671699999999,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/perf.md"
+    },
+    {
+      "role": "review-triage",
+      "header": "2026-10-22T19:57:30Z",
+      "age_minutes": 1110.9156717,
+      "over60": true,
+      "explicit_owned_complete": true,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md"
+    },
+    {
+      "role": "vm-runtime",
+      "header": "2026-10-23T14:23:44.503490+00:00 (fresh NoTom15PASS2FAIL; C5 cacheoracle correction peer pending; gate docs static CLEAR)",
+      "age_minutes": 4.673946866666666,
+      "over60": false,
+      "explicit_owned_complete": false,
+      "user_notified_stale": false,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md"
+    }
+  ],
+  "disk_free_bytes": {
+    "/tmp": 2205663232,
+    "/workspace": 5249531904
+  },
+  "no_takeover": true,
+  "gate_admissions": []
+}

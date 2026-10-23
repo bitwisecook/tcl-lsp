@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T14:26:15.971287+00:00",
+  "scheduled_report_utc": "2026-10-23T14:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T14:55:37+00:00",
+  "change_since_previous_report": [
+    "Published actualVMtypingfixes0747a2a5a afterfreshdepth1fetch/rebase; activea03 productequivalence verified. Release095f carriesallknown minimaltypingrepairs plus51tracecleanup/11commentcleanup andonePrettierblankline; normalpush confirmed.",
+    "FreshshippingCI39967894177 on095f: actualstrictClippy323 compiler280+VM43; strictNoTom15P2F (fullTomunreached); WASM18P7F. Thesearecurrentfailures, notgreenstaticreview.",
+    "FreshfullSHApairedTclcorpus39968061509 running/queued. AccidentalshortSHA39967905570 failedcheckoutbeforebuild/harness; separateinvalidattemptretained, no acceptedmeasurement.",
+    "Newactualserverdiagnostic141535 sourcea03 running90581 withoriginalsemantics/executor88125/pinnedproviders/fullsourceguards; noextra lintrefactors. Earlier140102 Cargo101/groupempty, rootTERMsubsequentlyinterruptedfinalseals; originalfalseguardrecordpreserved.",
+    "SeparateBIGIPstatus13:17 COMPLETEOWNED over60minutes reportedtouser; perf14:17fresh/proofsactive, reviewtriagecompletedhistorical. No duplicateexternalrolesstarted."
+  ],
+  "committed": [
+    "a03a0bfa6baef8c3223c94f1f6223bb36cdfcc62"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Reachcurrentserverruntimefirstgate, fixactualproducer/refusalcauseonwork andselectivelycarryreleasewithoutobservers.",
+    "FixallactualstrictClippyfindings and2runtimecapabilityfailures usingC-selectedcacheoracle; fixcurrentWASM/SpecTcl/host/LSPfailureswithoutweakeningassertions.",
+    "CompleteSectionF/fullgreenexactshippingCI/zeroPASS-to-FAIL/Tclcorpusperf beforePR.14:56targetisnotcrediblewithcurrentgatesopen; noPRopened."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T14:17:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No releasegateadmissions orverifiedcountchanges. Formatting/staging/staticpeerresults are scoped. Current095f CIhasrealClippy/runtime/WASMfailures; actualcurrentserverruntime and shippinglatency/corpus acceptance remainopen.",
+  "disk_free_bytes": 5482930176,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

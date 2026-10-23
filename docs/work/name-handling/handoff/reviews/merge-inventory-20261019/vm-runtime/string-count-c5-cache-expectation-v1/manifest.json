@@ -1,0 +1,15 @@
+{
+  "work": {
+    "path": "runtime/rust/src/typed_value.rs",
+    "before_sha256": "f8e7a0b06c05ab17a3a23a1cdcd090658edd1ac75baa43c0d9d581822cd447a5",
+    "after_sha256": "3232378ea7bbbaa66a748a3293eb673085912ee99a3726a44e941e8f42a867cc",
+    "patch_sha256": "7700b2067a6a98f9c0f40ef0c0141b3c3540a4aa75789559ba0b2c9aa5407ece"
+  },
+  "candidate": {
+    "path": "runtime/rust/src/typed_value.rs",
+    "before_sha256": "8019cbee013b29eca1f32bc0b66d39b1679182ec96e1147e68f4a4fbe296712d",
+    "after_sha256": "6117244704f86c94e25ddadf6a21e2944257210a222d6ec94278e35af72add9a",
+    "patch_sha256": "2b3e585715f45c816fe1984df586e87ef0ee18cab37887ca5f9dc0b1d1446e96"
+  },
+  "oracle_sha256": "b8b2b9f56c271e54affe586019b2832a0b2e6e0f7245a7fd88f6fab279952b55"
+}

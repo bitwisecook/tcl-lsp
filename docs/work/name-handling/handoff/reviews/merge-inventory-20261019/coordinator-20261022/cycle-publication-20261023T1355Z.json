@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T14:04:17.677673+00:00",
+  "scheduled": "2026-10-23T13:55:37+00:00",
+  "source_snapshot": "c9a8863c86e333493a4585e1c3be3c062338fbd1",
+  "published_snapshot": "52cef72d35e6e2fa40163d70d8b52331c350bff1",
+  "external_product_base": "49766e6410e37b5793448918ecc395277dbb2a7f",
+  "product_tree_diff": [
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+    "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+    "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+    "rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs"
+  ],
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_confirmed": true,
+  "gate_admissions": []
+}

@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T14:16:12.345219+00:00",
+  "active_source": "a03a0bfa6baef8c3223c94f1f6223bb36cdfcc62",
+  "published_work": "0747a2a5a7bbc5dc68660f0315e6c62591b5c187",
+  "product_diff": [],
+  "candidate": "095f399bcad375bf66458a2d6673500916ec8cd4",
+  "CI": 39967894177,
+  "short_perf_dispatch": 39967905570,
+  "full_perf_dispatch_pending_visibility": false,
+  "no_release_gate_admissions": true,
+  "full_perf_run": 39968061509,
+  "short_perf_failure": "checkout treated shortsha as branch/tag and failedbeforeharness/Cargo; no benchmarkresult",
+  "updated_utc": "2026-10-23T14:17:18.443878+00:00"
+}

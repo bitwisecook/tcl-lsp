@@ -1,0 +1,12 @@
+{
+  "verdict": "STATIC_CLEAR documentation only; runtime tests remain unrun by peer",
+  "patch_sha256": "371736aa62eeadf39b1770d1a045b61b08a6688a36801da56a187d3290e551ba",
+  "checks": [
+    "Both actual WORK and candidate two-file before pins match",
+    "Independent zero-fuzz/no-offset copied application and exact final pins pass",
+    "Documentation names existing Make targets and their exact full semantic versus 17+1 capability rosters",
+    "No product code, runtime assertions, eligibility, gate result or suppression changes",
+    "Actual source-absence expectation documented as assertion, not backend-disable flag"
+  ],
+  "limits": "No Cargo, Git, source writes, or runtime acceptance"
+}

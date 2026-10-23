@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T13:57:46Z: actual diagnostic53561 first build FAILED101 before compilation: ctutils0.4.4 download rejected by restricted static.crates.io proxy network; build stdout empty, no compiler/runtime/first-gate outcome. Run135530 final seals pending. Root will preserve failure and allocate same frozen protocol/source/GO with explicit network after closure. Candidate-only LSP25 cleanup74a151c8 root-applied; first cold ownership gate remains UNKNOWN, no causalfix or guard relaxation. All release-F/host/performance/strict-Clippy acceptance OPEN.
+Current status 2026-10-23T14:16:09Z: repaired-source diagnostic root90581 RUNNING /workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T141535.649313Z; actualsourcea03a0bfa6/tree509e8e identity8b21097b with9typingfixes only, lint56 HELD. Initialcapture/prebuild, no freshbuild/runtime/firstgate verdict. Root will preserve fullfinalchecks. Prior135530 networkfailure sealed;140102 compilerfailure finalguards interrupted by rootTERM and inadmissible. Candidate095f399bc remotelypushed and freshCI/perf dispatch pending, no greenclaim. No LSP source edits/speculativeownershipfix; all F/host/performance/Clippy acceptance OPEN.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T13:57:46Z
+Last updated: 2026-10-23T14:16:09Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T13:57:46Z: monitor root network-enabled successor only after failed135530 run final closure. First53561 build failed before compilation at ctutils0.4.4 download, no semantic probe ran. Same actual98de source and frozenv5 protocol/GO; root alone executes Cargo/network/GO. Currentness epoch/config split is unproven static hypothesis. No product edits or retries that claim acceptance; failed evidence preserved. Existing runtime180/build2400/outer2700 budgets unchanged.
+Latest resume pointer 2026-10-23T14:16:09Z: monitor actual141535 repaired-source selectedserver build read-only, then samev3 worker firstcoarse gate/declinedURI/worldfacets. Root90581 owns network/Cargo/GO; actualsourcea03a0bfa6 HOLD. No typing/runtime claim until realclosure, fullfinalseals retained. CCG owns protocol successor; no duplicatedmaterializer or stalesource lint fixes. Prepareminimalofftreecausalfix only if genuinefirsttrace proves one; do not relaxcurrency/Native/opaque guards or retry queries.
 
 
 

@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-23T14:07:34.021517+00:00",
+  "status": "STATIC_PROVISIONING_READY_NO_FIX_NEEDED",
+  "candidate_files": {
+    ".github/workflows/ci.yml": "8fed38762492eaf5164ef17d45176815894f721c27bf941a5b0bc7527c8c465c",
+    "Makefile": "f99009555855fed036f5706ce56f3aadb8c33b3d90ff6a26fafe42c03c55d42b",
+    "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+    ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+    "rust/tcl-dialect/data/reference-toolchains.tsv": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+  },
+  "chain": [
+    "strictNoTom expectation1 step-local, original17+negative unchanged",
+    "fetch version9.0 via manifest9.0.4/core-9-0-4; require actual tommath.h",
+    "Make fullsemantic requires tommath.h and passes actual directory; --locked --features engine",
+    "build compiles nonempty Cobjects, archives static tommath, then emits have_tommath; errors fatal",
+    "expectation unset for fullstep; env change invalidates build fingerprint"
+  ],
+  "github_observed_latest_ci": {
+    "run": 39951250208,
+    "head": "a6fab9240dcdeca7536973fb01d32680f4286726",
+    "not_current_cleanup": true
+  },
+  "cargo_or_runtime": false,
+  "source_changes": false
+}

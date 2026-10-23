@@ -1,0 +1,138 @@
+{
+  "actual_c5": [
+    {
+      "version": "8.4.20",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclStringObj.c": "a86bf9f649ce6de16363984f1d8af398c464984e7d5677543f279ed87e35e62c",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011"
+      },
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl8.4.20/generic",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/8.4.20.c",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/oracle-8.4.20"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "original count=3 cached=3 unicode=1\nduplicate count=3 units=97,0,255 original_unicode_after=1\n",
+      "stderr_empty": true,
+      "source_sha256": "57e1fca682dbfe0d98dfd3c8ba2b41a149dc4acc0673952325971609fef84026"
+    },
+    {
+      "version": "8.5.19",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclStringObj.c": "d014bc85fc8f0d12abbd60116f403f9131dd4e933580833d2b02610e211ab449",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+      },
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl8.5.19/generic",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/8.5.19.c",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/oracle-8.5.19"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "original count=3 cached=3 unicode=1\nduplicate count=3 units=97,0,255 original_unicode_after=1\n",
+      "stderr_empty": true,
+      "source_sha256": "fa5ecbbc9590c7e3b8dc805f9ca65277adc5251055a463db4d4c0a19594ea236"
+    },
+    {
+      "version": "8.6.18",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclStringObj.c": "d5cae88e9008d6b9a6101f4c00d7e489fc66fb3d51c86b3b0eb13f7fd8e469b9",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclStringRep.h": "13780ca356d16dbad4e773516ca27bbc5bf3689bb90193455d0061b2d12258e2",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+      },
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl8.6.18/generic",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/8.6.18.c",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/oracle-8.6.18"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "original count=3 cached=3 unicode=0\nduplicate count=3 units=97,0,255 original_unicode_after=0\n",
+      "stderr_empty": true,
+      "source_sha256": "93de3cb3826d6bb360579d4dac637e38b4aaf75db7e8f3b27438b307895277bc"
+    },
+    {
+      "version": "9.0.4",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclStringObj.c": "d44c80d7de637da41ac841c6c55c25c4ee302efc774c2c4cfe5d8ff73193b7b4",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclStringRep.h": "9c1ad75f64b876f1018e3e06a613d00e62d404ef68285ce46438340cf80f6da2",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a": "c92aa0fa09d39bf9875d9cf792458fae5b8f898ad0386d7a038fa60824036bb2"
+      },
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl9.0.4/generic",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/9.0.4.c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/oracle-9.0.4"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "original count=3 cached=3 unicode=0\nduplicate count=3 units=97,0,255 original_unicode_after=0\n",
+      "stderr_empty": true,
+      "source_sha256": "94691bde3b9ae46452a9b74672b167b11980d12f0ad7d81e8b1279854d1c1624"
+    },
+    {
+      "version": "9.1.0",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclStringObj.c": "d1ecd65e375cee3b1ab86111cf5b90fb6bf4d7b5e71448cd361e4026d32a4bf8",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclStringRep.h": "eec19ce4eb14b12bd27bbc3e4c593ee5f4936f795ef72cdb6991835fb1104729",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/libtcl9.1.a": "f38364134408206aaf4a79ba0b8f45d7197ea1742ce36efb71532a41551d32cc"
+      },
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl9.1.0/generic",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/9.1.0.c",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-string-count-c5-oracle-v1/oracle-9.1.0"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "original count=3 cached=3 unicode=0\nduplicate count=3 units=97,0,255 original_unicode_after=0\n",
+      "stderr_empty": true,
+      "source_sha256": "94691bde3b9ae46452a9b74672b167b11980d12f0ad7d81e8b1279854d1c1624"
+    }
+  ],
+  "no_cargo_or_shared_target": true
+}

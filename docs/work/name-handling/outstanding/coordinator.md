@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T13:58:07.852767+00:00
+Last updated: 2026-10-23T14:26:14.731239+00:00
 
 ## In progress
 
@@ -47,10 +47,10 @@ Last updated: 2026-10-23T13:58:07.852767+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (13:55 UTC)
+### Current cycle and routing (14:25 UTC)
 
-- Current active product98de is under source HOLD while selected-server run53561 performs initial source/provider/tool/input guards; no current Cargo start or runtime result claimed. Earlier source135 typing does not admit this source.
-- Root applied42 functional carry edits plus51 release cleanup edits to local candidate e475; full format2438 still in progress. Names19 current-tense invariants/checkpoint cleanup and VM/CCG pure observer removals are independently reviewed; WORK stays instrumented.
-- Nested ILX fix6ccf is reviewed/published WORK; exact selected setter RHS read precedes outer store then association scan stops unconditionally. Actual original+additive regressions remain required; procedure-prefix and12-event issuer gaps remain.
-- Authenticated remote BIGIP owner13:17 completed unblocked owned work and reports blockers; perf owner13:53 is running fresh compiler retries and queued server/SpecTcl tests. Neither role duplicated or admitted as release proof.
-- Every outstanding role freshness is audited separately; completed review-triage retains historical19:57:30 timestamp. No validated row/count/gate admitted. Next cycle14:25:37 UTC.
+- Published actualVMtypingfixes0747a2a5a afterfreshdepth1fetch/rebase; activea03 productequivalence verified. Release095f carriesallknown minimaltypingrepairs plus51tracecleanup/11commentcleanup andonePrettierblankline; normalpush confirmed.
+- FreshshippingCI39967894177 on095f: actualstrictClippy323 compiler280+VM43; strictNoTom15P2F (fullTomunreached); WASM18P7F. Thesearecurrentfailures, notgreenstaticreview.
+- FreshfullSHApairedTclcorpus39968061509 running/queued. AccidentalshortSHA39967905570 failedcheckoutbeforebuild/harness; separateinvalidattemptretained, no acceptedmeasurement.
+- Newactualserverdiagnostic141535 sourcea03 running90581 withoriginalsemantics/executor88125/pinnedproviders/fullsourceguards; noextra lintrefactors. Earlier140102 Cargo101/groupempty, rootTERMsubsequentlyinterruptedfinalseals; originalfalseguardrecordpreserved.
+- SeparateBIGIPstatus13:17 COMPLETEOWNED over60minutes reportedtouser; perf14:17fresh/proofsactive, reviewtriagecompletedhistorical. No duplicateexternalrolesstarted.

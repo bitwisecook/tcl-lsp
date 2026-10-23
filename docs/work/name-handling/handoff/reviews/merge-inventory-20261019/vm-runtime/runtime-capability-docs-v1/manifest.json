@@ -1,0 +1,34 @@
+{
+  "work": {
+    "files": [
+      {
+        "path": "runtime/rust/README.md",
+        "before_sha256": "41567a6e0b3b3698c4c8d6fb37d509bff9a99cbe36ccb95c4a334363fb0113ea",
+        "after_sha256": "ac7a4e9bbca6c7b3405df6b5e9dc30d9c37e7f3670654368be725933428c2d1b"
+      },
+      {
+        "path": "docs/design/contracts/test-tiers-and-ci-gates.md",
+        "before_sha256": "c14465799daa029d6ea0ef366e3eea542a9720a17bede5c3e4d9b48edce4b6a2",
+        "after_sha256": "aaea6a3ad906c78b36fc22a842d244137e50184afec344b554fd2ee110d9d17b"
+      }
+    ],
+    "patch_sha256": "371736aa62eeadf39b1770d1a045b61b08a6688a36801da56a187d3290e551ba",
+    "copy_apply_zero_nooffset": true
+  },
+  "candidate": {
+    "files": [
+      {
+        "path": "runtime/rust/README.md",
+        "before_sha256": "41567a6e0b3b3698c4c8d6fb37d509bff9a99cbe36ccb95c4a334363fb0113ea",
+        "after_sha256": "ac7a4e9bbca6c7b3405df6b5e9dc30d9c37e7f3670654368be725933428c2d1b"
+      },
+      {
+        "path": "docs/design/contracts/test-tiers-and-ci-gates.md",
+        "before_sha256": "c14465799daa029d6ea0ef366e3eea542a9720a17bede5c3e4d9b48edce4b6a2",
+        "after_sha256": "aaea6a3ad906c78b36fc22a842d244137e50184afec344b554fd2ee110d9d17b"
+      }
+    ],
+    "patch_sha256": "371736aa62eeadf39b1770d1a045b61b08a6688a36801da56a187d3290e551ba",
+    "copy_apply_zero_nooffset": true
+  }
+}

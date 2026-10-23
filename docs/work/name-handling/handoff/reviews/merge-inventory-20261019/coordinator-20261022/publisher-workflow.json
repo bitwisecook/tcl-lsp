@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "65004ab56279a112ce4cdb0b9b886a8e914f52de",
-  "last_published_snapshot": "b8e20753b265ac83964a71acceabb2df6b0d6d9a",
+  "last_source_snapshot": "c9a8863c86e333493a4585e1c3be3c062338fbd1",
+  "last_published_snapshot": "0747a2a5a7bbc5dc68660f0315e6c62591b5c187",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,19 +16,19 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-23T13:38:57.123791+00:00",
+  "last_published_utc": "2026-10-23T14:16:12.345219+00:00",
   "product_tree_diff": [],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "Current mirror159 functional paths equal canonical published product tree; documentationcheckpoint65004\u2192b8e and active source mirror98de mapped explicitly after push. No active source rebase/checkout.",
-  "unpublished_active_base": "98de99ab6c5e9722cc94deae5f23f34a911e937b",
-  "active_current_head": "98de99ab6c5e9722cc94deae5f23f34a911e937b",
+  "unpublished_active_base": "a03a0bfa6baef8c3223c94f1f6223bb36cdfcc62",
+  "active_current_head": "a03a0bfa6baef8c3223c94f1f6223bb36cdfcc62",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-23T13:38:57.123791+00:00",
+  "updated_utc": "2026-10-23T14:16:12.345219+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
   "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
   "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
   "active_source_integration_pending": false,
-  "external_product_base": "94c7f61e86aa95cb4f403d2da129812026d89682",
+  "external_product_base": "49766e6410e37b5793448918ecc395277dbb2a7f",
   "source_equivalence_checked_at": "2026-10-23T13:48:48.108215+00:00",
-  "source_equivalence_published_head": "b8e20753b265ac83964a71acceabb2df6b0d6d9a"
+  "source_equivalence_published_head": "0747a2a5a7bbc5dc68660f0315e6c62591b5c187"
 }

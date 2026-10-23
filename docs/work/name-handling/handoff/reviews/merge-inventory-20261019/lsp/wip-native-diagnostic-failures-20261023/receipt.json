@@ -1,0 +1,152 @@
+{
+  "utc": "2026-10-23T14:13:45Z",
+  "runs": [
+    {
+      "run": "/workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T135530.738296Z",
+      "retained_files": {
+        "build.stderr": {
+          "bytes": 815,
+          "sha256": "c044642b931c1b664e3d5338eaa75b63a17cf8fa36d4c56fba63dced8f1b4c49"
+        },
+        "root-go.json": {
+          "bytes": 881,
+          "sha256": "cb77e3eb1374ca79211448718f8401ef5f1fc927eb56d91f8fdb1d84968ab737"
+        },
+        "lock-released.json": {
+          "bytes": 65,
+          "sha256": "886c048695d2272be806768791696c1fb72eb39d81f00df6d38fdf9ceb5adbfd"
+        },
+        "build.process.json": {
+          "bytes": 2464,
+          "sha256": "e277747a0364ef175c908a3fba5a8cda3152c5d722ce7903c2c8a42b539a2880"
+        },
+        "providers-after.stderr": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "providers-after.json": {
+          "bytes": 31165,
+          "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+        },
+        "build.stdout": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "providers-before.stderr": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source-before.json": {
+          "bytes": 12765577,
+          "sha256": "94a8a544708c49d7818c3bc93c56329d2b5407ff3bea67246873c4d9fc003da2"
+        },
+        "failure.json": {
+          "bytes": 108,
+          "sha256": "2b32c718ed75b3bdb049fb2efbcb13b05d0a9d65ee81a4143717cbc754579b6c"
+        },
+        "source-after.json": {
+          "bytes": 12765577,
+          "sha256": "94a8a544708c49d7818c3bc93c56329d2b5407ff3bea67246873c4d9fc003da2"
+        },
+        "providers-before.process.json": {
+          "bytes": 2442,
+          "sha256": "96437a6674cb19230f791b024db8df3ad60ac672f666754f383b673f106ba0f5"
+        },
+        "providers-after.stdout": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "plan.json": {
+          "bytes": 3074,
+          "sha256": "4dfae83916625cfba0acc49e1f26b6a451e1f5e8698a6b6c442c836f444cea51"
+        },
+        "providers-before.json": {
+          "bytes": 31165,
+          "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+        },
+        "providers-before.stdout": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "final.json": {
+          "bytes": 9119,
+          "sha256": "a3bd4a0c7d7feb48ff766cdfcebefa1ad41416c1c160023dbdeb78d71b8b73d3"
+        },
+        "providers-after.process.json": {
+          "bytes": 2438,
+          "sha256": "b5f1df1e15f44f2c319b37d9c31ad168f7f3d8230f0858a6f37984d6d6eb9f62"
+        },
+        "build-command.json": {
+          "bytes": 225,
+          "sha256": "93de4c5eabb093cb44aee11881d9502f47bf6f7c01ca5a4123f7d5ad7c76f580"
+        }
+      },
+      "runtime_executed": false
+    },
+    {
+      "run": "/workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T140102.343082Z",
+      "retained_files": {
+        "build.stderr": {
+          "bytes": 8593,
+          "sha256": "ba078655b5712787284f50c27b5d68293e2c624cff64771ad2d8eb17621ba3df"
+        },
+        "root-go.json": {
+          "bytes": 881,
+          "sha256": "cb77e3eb1374ca79211448718f8401ef5f1fc927eb56d91f8fdb1d84968ab737"
+        },
+        "lock-released.json": {
+          "bytes": 65,
+          "sha256": "871ed4e90ace7834a2903bb747f8d0511044a37dba827a2aadf78687d4c047d5"
+        },
+        "build.process.json": {
+          "bytes": 2474,
+          "sha256": "04ea9e91319bc87d9e1523a4ed6f1ca2545794cf81ddb4346f76d2453f5ac665"
+        },
+        "build.stdout": {
+          "bytes": 168043,
+          "sha256": "fa453b5ed2daceb6e3244e42781b3fc93a44767eedec87e22b7f2a6cdd6aee6e"
+        },
+        "providers-before.stderr": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "source-before.json": {
+          "bytes": 12765577,
+          "sha256": "94a8a544708c49d7818c3bc93c56329d2b5407ff3bea67246873c4d9fc003da2"
+        },
+        "failure.json": {
+          "bytes": 108,
+          "sha256": "c007b63dba667cfc02e4e69daffe3ddc20fc944cab2f0166d87fd18eec712321"
+        },
+        "providers-before.process.json": {
+          "bytes": 2441,
+          "sha256": "b4febc39669e0dca32c20d4fdc7b047bace79550a4d4bc33fc60d15e7726d349"
+        },
+        "plan.json": {
+          "bytes": 3074,
+          "sha256": "4dfae83916625cfba0acc49e1f26b6a451e1f5e8698a6b6c442c836f444cea51"
+        },
+        "providers-before.json": {
+          "bytes": 31165,
+          "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+        },
+        "providers-before.stdout": {
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "final.json": {
+          "bytes": 6255,
+          "sha256": "41863b7b2da5f7e2e78536d87d24409132de892b319f1b828ef5d223a98929d6"
+        },
+        "build-command.json": {
+          "bytes": 225,
+          "sha256": "93de4c5eabb093cb44aee11881d9502f47bf6f7c01ca5a4123f7d5ad7c76f580"
+        }
+      },
+      "runtime_executed": false
+    }
+  ],
+  "second_run_signal": "Root verified SIGTERM sent14:11:58 after Cargoclosed14:11:15, interruptingfinalhashing; generichandler text does not prove2700timeout",
+  "second_run_admission": false,
+  "old_manifests_modified": false
+}

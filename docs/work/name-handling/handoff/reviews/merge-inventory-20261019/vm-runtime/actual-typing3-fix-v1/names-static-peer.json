@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T14:10:18.255335+00:00",
+  "verdict": "CLEAR bounded actual typing3 repair for separately pinned WORK/candidate; typing/runtime execution unrun",
+  "patch_sha256": "9a6f16d930e5f683db5232292698e1f55ab1434e5c5f84c2198a2b3be10054c0",
+  "manifest_sha256": "e5c5cc7d3739eac03c3f510d65556de89d992e842c3da83b8ed95d8cd15dd28c",
+  "checks": [
+    "work exact3 currentbefore/proposedpins/copyapply0-nooffset/finals/assertions/fmt PASS",
+    "candidate exact3 currentbefore/proposedpins/copyapply0-nooffset/finals/assertions/fmt PASS",
+    "Identical original fix bytes for both source variants; candidate-only prior observer cleanup preserved.",
+    "Namespace recipe restored from existing passed-by-value dialect with exact existing issuer refusal. Sole caller already selects Some(protocol) on this same dialect before capture/currentness checks and reaches helper only after retained target selection. Recipe method is pure value projection; no Native fallback/new availability grant.",
+    "Typed inference closure invokes same byte_array_string_recipe once; removes private module path without widening visibility.",
+    "JimScriptLocation<Value> is exact instantiated type of existing Value file/line/text fields; no field/value/runtime behavior change.",
+    "No source/Gitmutation/Cargo by reviewer."
+  ]
+}

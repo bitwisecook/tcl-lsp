@@ -1,0 +1,7 @@
+{
+  "copy_apply_both_zero_nooffset": true,
+  "exact_both_finals": true,
+  "rustfmt2021": "PASS",
+  "only_version_exact_unicode_cache_assertion_changed": true,
+  "cargo_runtime": false
+}

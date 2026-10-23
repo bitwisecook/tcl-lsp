@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T14:08:41.918647+00:00",
+  "archive_sha256": "a85b4e436b9a20620b12486e5b91088963996deadea1f66e9a1faf664bece902",
+  "scope": "Lossless off-tree candidate16 exactunion before/after/patch/maps/CCGpeer, original6e externaltyping fixes and independentcomment11 peer. No Names sourcewrite/Cargo/runtime admission.",
+  "external_commit": "6e729fe982fc748d3be30ec23fcc41f81a16ab09",
+  "union_patch_sha256": "d3aa661b0ff24818f32bc10cdcff54db05a121ad646ede4ef8a51231e9223309",
+  "peer_sha256": "5a0d0bcbe02768134074fbf9b1c36d46300f0255e3e61c509b0dc19057af6ef0"
+}

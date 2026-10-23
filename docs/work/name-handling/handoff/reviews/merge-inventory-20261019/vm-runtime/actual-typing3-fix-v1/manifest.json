@@ -1,0 +1,45 @@
+{
+  "work": {
+    "files": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_namespace_names.rs",
+        "before_sha256": "bd323ec2d08ecb709918cc2b4566779f060c4cd07504f0ca789d3d8b0442f874",
+        "after_sha256": "2e9ae6f94cb4afb16ba0d11c770e92b138654abc2a0f66325d7d64bc2b584406"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_binary.rs",
+        "before_sha256": "cd9af54260498c840a22ccc549902f02cbf954282f70a2b06a76f4f1628fdd55",
+        "after_sha256": "7aac1921afa9466d23c18a9a20ea55158c0c43d7fcaafab90701f9ebc701274d"
+      },
+      {
+        "path": "rust/tcl-vm/src/exec.rs",
+        "before_sha256": "b0dc96af0f623902245188dcb86f5d4b8d221e11763861b7d12b9de22cec7eee",
+        "after_sha256": "5925101c5532b321a36c5d01ba03f4807fe5660a819ffc1b9fd2e545c2105418"
+      }
+    ],
+    "patch_sha256": "9a6f16d930e5f683db5232292698e1f55ab1434e5c5f84c2198a2b3be10054c0",
+    "copy_apply_zero_nooffset": true
+  },
+  "candidate": {
+    "files": [
+      {
+        "path": "rust/tcl-vm/src/interp/native_namespace_names.rs",
+        "before_sha256": "a206973998c233d6f6402342dce0d8b819a9b1a6bacc25d6e3cf9dd7e3aa2513",
+        "after_sha256": "cfb6307bbee17553de174de03e91ebd80c7599c233eb07bbf2ccd043aae6376f"
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_binary.rs",
+        "before_sha256": "20e56c8297d4dcdeff78a9bc6f587ebb8b80852f88c43ccf419cd6aab2b13bd8",
+        "after_sha256": "96473d8e03d5a7cd0aa71fd1b438e94b8e82d4780f811e48ea2a2484b6f2e152"
+      },
+      {
+        "path": "rust/tcl-vm/src/exec.rs",
+        "before_sha256": "de437df99d6f1758ecc1e3ac61e995dac1106609030166e0d4e039614a48fe81",
+        "after_sha256": "4c1e3bdfc49b5a39f07e7f91347ae38d6b6b64ba9104f3dd821382eb412a1db8"
+      }
+    ],
+    "patch_sha256": "9a6f16d930e5f683db5232292698e1f55ab1434e5c5f84c2198a2b3be10054c0",
+    "copy_apply_zero_nooffset": true
+  },
+  "basis": "Actual140102 E0425/E0603/E0107 only; no source writes/Cargo; candidate observer cleanup preserved"
+}

@@ -2,11 +2,36 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T13:52:06.658222+00:00 (candidate-only residual VM observer cleanup v2 Names STATIC CLEAR; WORK source HOLD)
+Last updated: 2026-10-23T14:23:44.503490+00:00 (fresh NoTom15PASS2FAIL; C5 cacheoracle correction peer pending; gate docs static CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Fresh095f strict NoTom capability CI120463034154 actually15PASS2FAIL;
+full semantic step not reached. Native string-count cache failure is an exact
+legacy-version expectation error: actual pinned C5 oracle gives84/85 Unicode
+present,86/90/91 absent aftercount; allcount3/duplicateunits97,0,255/sourcecache
+unchanged. Oracle b8b2b9f5; exact test-only correction WORK7700b206/candidate
+2b3e5857 frozen, originalunits/count/origin/dup controls retained; peer pending.
+Second command-cache scalar conversion row remains genuine unresolved firstcause,
+compiler assisting. No assertion skips or backend grants. Durable gate docs
+371736aa Names STATIC CLEAR036c839e; no sourcewrites during HOLDa03.
+
+Actual140102 build reports VM E0425 namespace recipe, E0603 private materializer
+module path, E0107 JimScriptLocation generic. Minimal3fix frozen at
+`/tmp/vm-actual-typing3-fix-v1/work/proposal.patch` SHA9a6f16d9; candidate
+counterpart same patch bytes with separate actual3before/final pins and observer
+cleanup retained. Both fmt2024/copyapply0/exactfinal PASS; Names STATIC CLEAR138d9231.
+No canonical source changes/Cargo; actual typing remains failed until root retry.
+
+Root reports release residual cleanup applied/published e7b413. FullTom CI
+provisioning read-only audit finds existing actual source-fetch/header-required/
+explicit-directory/nonempty-Ccompile/staticarchive/have_tommath chain coherent;
+strict intentional absence is step-local and unset for full semantic suite.
+No missing provisioning fix needed. Fresh GitHub list still shows older a6fab
+CI39951250208, so no new actual backend/PASS claim. Original WIP4 catch/N17
+root queue requested after server87370 closes; no role launch/GO/Cargo.
 
 Candidate residual VM observers: explicit v2 patch
 `/tmp/vm-candidate-residual-observer-removal-v2/proposal.patch`
