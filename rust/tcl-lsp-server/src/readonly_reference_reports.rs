@@ -3687,6 +3687,80 @@ mod workspace_symbol_original_admission_tests {
         symbols
     }
 
+    async fn assert_alias_has_no_open_rows(backend: &Backend, uri: &Uri) {
+        assert!(
+            !backend
+                .documents
+                .lock("original alias no open row")
+                .await
+                .contains_key(uri)
+        );
+        assert!(!backend.db_files.lock().await.contains_key(uri));
+    }
+
+    fn assert_alias_admission(
+        selected: &WorkspaceSymbolSourceAnalysis,
+        retained: &DocumentPathAdmission,
+        snapshot: &super::super::DocumentState,
+        uri: &Uri,
+        store: &crate::vfs::MemoryStore,
+    ) {
+        assert_ne!(WorkspaceSymbolSourceAnalysis::admission(selected), retained);
+        WorkspaceSymbolSourceAnalysis::admission(selected)
+            .check_for(uri, store)
+            .unwrap();
+        assert_eq!(snapshot.text.as_ref(), SOURCE);
+        assert_eq!(
+            retained.path(),
+            WorkspaceSymbolSourceAnalysis::admission(selected).path()
+        );
+    }
+
+    async fn assert_alias_generations(
+        backend: &Backend,
+        uri: &Uri,
+        revision: Option<u64>,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) {
+        assert_eq!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .document_revision(uri.as_str()),
+            revision
+        );
+        assert_eq!(backend.diag_inputs_epoch(), inputs_epoch);
+        assert_eq!(
+            *backend.class_factory_generation.read().await,
+            factory_generation
+        );
+    }
+
+    async fn assert_alias_response_withdrawn(
+        backend: &Backend,
+        analyses: &HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
+        rows: &[(
+            SymbolInformation,
+            Uri,
+            super::super::DocumentState,
+            Option<u64>,
+        )],
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) {
+        assert!(matches!(
+            backend
+                .finish_workspace_symbol_response(analyses, rows, inputs_epoch, factory_generation)
+                .await,
+            Err(super::super::DocumentSourceUnavailable::Store {
+                cause: crate::vfs::SourceUriPathUnavailable::WithdrawnMapping,
+                ..
+            })
+        ));
+    }
+
     #[tokio::test]
     async fn original_closed_source_mapping_cannot_borrow_equal_bytes_from_a_new_alias_allocation()
     {
@@ -3705,14 +3779,7 @@ mod workspace_symbol_original_admission_tests {
             .write()
             .await
             .add_document(uri.as_str(), &original);
-        assert!(
-            !backend
-                .documents
-                .lock("original alias no open row")
-                .await
-                .contains_key(&uri)
-        );
-        assert!(!backend.db_files.lock().await.contains_key(&uri));
+        assert_alias_has_no_open_rows(&backend, &uri).await;
         let symbols = actual_symbols(&backend).await;
         let snapshot = backend.read_document(&uri).await.unwrap().unwrap();
         let retained = snapshot.path_admission.as_ref().unwrap().clone();
@@ -3754,46 +3821,23 @@ mod workspace_symbol_original_admission_tests {
             .await
             .unwrap()
             .unwrap();
-        assert_ne!(
-            WorkspaceSymbolSourceAnalysis::admission(&selected),
-            retained.as_ref()
+        assert_alias_admission(
+            &selected,
+            retained.as_ref(),
+            &snapshot,
+            &uri,
+            store.as_ref(),
         );
-        WorkspaceSymbolSourceAnalysis::admission(&selected)
-            .check_for(&uri, store.as_ref())
-            .unwrap();
-        assert_eq!(snapshot.text.as_ref(), SOURCE);
-        assert_eq!(
-            retained.path(),
-            WorkspaceSymbolSourceAnalysis::admission(&selected).path()
-        );
-        assert_eq!(
-            backend
-                .workspace_index
-                .read()
-                .await
-                .document_revision(uri.as_str()),
-            revision
-        );
-        assert_eq!(backend.diag_inputs_epoch(), inputs_epoch);
-        assert_eq!(
-            *backend.class_factory_generation.read().await,
-            factory_generation
-        );
+        assert_alias_generations(&backend, &uri, revision, inputs_epoch, factory_generation).await;
         let analyses = HashMap::from([(uri.as_str().to_owned(), Some(selected))]);
-        assert!(matches!(
-            backend
-                .finish_workspace_symbol_response(
-                    &analyses,
-                    &rows,
-                    inputs_epoch,
-                    factory_generation
-                )
-                .await,
-            Err(super::super::DocumentSourceUnavailable::Store {
-                cause: crate::vfs::SourceUriPathUnavailable::WithdrawnMapping,
-                ..
-            })
-        ));
+        assert_alias_response_withdrawn(
+            &backend,
+            &analyses,
+            &rows,
+            inputs_epoch,
+            factory_generation,
+        )
+        .await;
 
         // A new genuine source read may use the replacement allocation. The
         // refusal above is currency of the old source issuer, not path absence.
