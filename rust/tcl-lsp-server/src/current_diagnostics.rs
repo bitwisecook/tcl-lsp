@@ -305,6 +305,16 @@ enum CurrentDiagnostics {
     },
 }
 
+pub(super) fn trace_diagnostic_context_check(uri: &Uri, stage: &str, accepted: bool) -> bool {
+    #[cfg(debug_assertions)]
+    if std::env::var("TCL_LSP_TRACE_COARSE_SOURCE").as_deref() == Ok("1") {
+        eprintln!("DIAGNOSTIC_CONTEXT uri={uri} stage={stage} accepted={accepted}");
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = (uri, stage);
+    accepted
+}
+
 impl DiagInputs {
     pub(super) async fn capture_diagnostic_pass(
         &self,
@@ -346,6 +356,7 @@ impl DiagInputs {
         } else {
             None
         };
+        trace_diagnostic_context_check(uri, "capture.input_present", input.is_some());
         drop(db);
         let slot_generation = self
             .diag_slots
@@ -1623,6 +1634,10 @@ struct ProducedDirectDiagnosticReport {
 }
 
 impl DiagnosticPass {
+    fn trace_context_check(&self, stage: &str, accepted: bool) -> bool {
+        trace_diagnostic_context_check(self.path_admission.uri(), stage, accepted)
+    }
+
     pub(super) async fn workspace_source_input_guards(
         &self,
     ) -> Option<(
@@ -1688,14 +1703,21 @@ impl DiagnosticPass {
 
     fn matches_completed_analysis(&self, analysis: &AnalysisResult) -> bool {
         let Some(input) = self.input.as_ref() else {
-            return false;
+            return self.trace_context_check("completed.input_present", false);
         };
         let source = tcl_lexer::normalise_lone_cr(&self.source);
-        tcl_compiler::source_graph::current_analysis(&source, analysis).is_some()
-            && analysis.resolved_input.as_ref() == Some(input.as_ref())
-            && analysis.resolved_registry().is_some_and(|registry| {
+        self.trace_context_check(
+            "completed.source_current",
+            tcl_compiler::source_graph::current_analysis(&source, analysis).is_some(),
+        ) && self.trace_context_check(
+            "completed.resolved_input",
+            analysis.resolved_input.as_ref() == Some(input.as_ref()),
+        ) && self.trace_context_check(
+            "completed.registry",
+            analysis.resolved_registry().is_some_and(|registry| {
                 registry.snapshot().semantic_key() == self.registry.semantic_key()
-            })
+            }),
+        )
     }
 }
 

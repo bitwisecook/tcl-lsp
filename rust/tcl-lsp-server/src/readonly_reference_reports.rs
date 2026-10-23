@@ -683,39 +683,47 @@ impl Backend {
         .await
     }
 
-    /// An invalidated computation may be recomputed once only while its exact
-    /// document, configured input, provider admission and URI generation survive.
-    /// This check authorizes fresh computation, never publication of old data.
-    pub(super) async fn coarse_source_needs_recompute(
+    /// Retain a fresh source only after resolving its current dialect generation.
+    /// Old tokens are discarded; the replacement analysis and final publication
+    /// must authenticate the newly captured generations independently.
+    pub(super) async fn coarse_source_recompute_snapshot(
         &self,
         source: &CoarseSemanticTokenSource,
-    ) -> DocumentSourceResult<bool> {
+    ) -> DocumentSourceResult<Option<super::DocumentState>> {
+        let WorkspaceSymbolAnalysisKind::Fresh(document) = &source.analysis.kind else {
+            return Ok(None);
+        };
+        self.resolve_dirty_open_document_dialect(&document.uri, "coarse_recompute_resolve")
+            .await?;
         let epoch = self.diag_inputs_epoch();
         let generation = *self.class_factory_generation.read().await;
-        if epoch == source.inputs_epoch && generation == source.factory_generation {
-            return Ok(false);
-        }
         let admissions = [source.analysis.admission()];
-        Ok(self
-            .with_current_readonly_source_state(
-                epoch,
-                generation,
-                &admissions,
-                None,
-                |state| {
-                    source
-                        .analysis
-                        .matches_current_state(
-                            state,
-                            source.inputs_epoch,
-                            source.factory_generation,
-                        )
-                        .then_some(())
-                },
-                |_, ()| Some(()),
-            )
-            .await?
-            .is_some())
+        self.with_current_readonly_source_state(
+            epoch,
+            generation,
+            &admissions,
+            None,
+            |state| {
+                let current = state.open.get(&document.uri)?;
+                if epoch == source.inputs_epoch
+                    && generation == source.factory_generation
+                    && document.open_snapshot_matches(current)
+                {
+                    return None;
+                }
+                (document.was_open
+                    && document.recompute_snapshot_matches(current)
+                    && document.uri_generation_matches(state)
+                    && document.matches_input_state(
+                        state,
+                        source.inputs_epoch,
+                        source.factory_generation,
+                    ))
+                .then(|| current.clone())
+            },
+            |_, current| Some(current.clone()),
+        )
+        .await
     }
 
     pub(super) async fn capture_code_action_source(
@@ -2198,6 +2206,21 @@ impl WorkspaceSymbolSourceAnalysis {
 }
 
 impl WorkspaceSymbolFreshInput {
+    /// Eligibility for discarding old data and recapturing, never publication.
+    fn recompute_snapshot_matches(&self, current: &super::DocumentState) -> bool {
+        matches!(self.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
+            && current.backing_file_deleted == self.snapshot.backing_file_deleted
+            && current.revision == self.snapshot.revision
+            && current.version == self.snapshot.version
+            && current.raw() == self.snapshot.raw()
+            && current.dialect == self.snapshot.dialect
+            && (current.publication == self.snapshot.publication
+                || (self.snapshot.publication == super::DocumentPublication::Salsa
+                    && current.publication == super::DocumentPublication::Indexed))
+            && current.path_admission == self.snapshot.path_admission
+            && !current.dialect_resolution_pending()
+    }
+
     fn open_snapshot_matches(&self, current: &super::DocumentState) -> bool {
         (match self.purpose {
             FreshSourceAnalysisPurpose::ReadonlyComplete
@@ -4244,18 +4267,20 @@ mod coarse_semantic_source_tests {
             .unwrap()
             .unwrap();
         assert!(
-            !backend
-                .coarse_source_needs_recompute(&source)
+            backend
+                .coarse_source_recompute_snapshot(&source)
                 .await
                 .unwrap()
+                .is_none()
         );
         backend.invalidate_diag_inputs();
         assert!(!coarse_source_is_current(&backend, &source).await);
         assert!(
             backend
-                .coarse_source_needs_recompute(&source)
+                .coarse_source_recompute_snapshot(&source)
                 .await
                 .unwrap()
+                .is_some()
         );
         let fresh = backend
             .capture_coarse_semantic_source(&uri, &snapshot)
@@ -4271,12 +4296,150 @@ mod coarse_semantic_source_tests {
             .unwrap()
             .version = Some(99);
         assert!(
-            !backend
-                .coarse_source_needs_recompute(&source)
+            backend
+                .coarse_source_recompute_snapshot(&source)
                 .await
                 .unwrap()
+                .is_none()
         );
         assert!(!coarse_source_is_current(&backend, &fresh).await);
+    }
+
+    #[tokio::test]
+    async fn coarse_recompute_retains_resolved_same_profile_generation() {
+        let backend = crate::tests::test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({"dialect":"tcl8.4"}))
+            .await
+            .unwrap();
+        let uri: Uri = "file:///coarse-resolved-generation.tcl".parse().unwrap();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let source = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &source).await);
+        backend.reresolve_open_document_dialects().await.unwrap();
+        assert!(!coarse_source_is_current(&backend, &source).await);
+        let current = backend
+            .coarse_source_recompute_snapshot(&source)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(current.raw(), snapshot.raw());
+        assert_eq!(current.dialect, snapshot.dialect);
+        assert!(current.dialect_resolution_generation > snapshot.dialect_resolution_generation);
+        assert!(!current.dialect_resolution_pending());
+        let fresh = backend
+            .capture_coarse_semantic_source(&uri, &current)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &fresh).await);
+        backend
+            .apply_global_config(&serde_json::json!({"dialect":"tcl9.0"}))
+            .await
+            .unwrap();
+        backend.reresolve_open_document_dialects().await.unwrap();
+        assert!(
+            backend
+                .coarse_source_recompute_snapshot(&fresh)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn coarse_recompute_refuses_changed_config_provider_and_source_generation() {
+        let mut backend = crate::tests::test_backend();
+        let store = Arc::new(crate::vfs::MemoryStore::new());
+        let uri: Uri = "file:///coarse-recompute-provider.tcl".parse().unwrap();
+        store.upsert_uri_aliases(
+            &[uri.as_str()],
+            "/coarse-recompute-provider.tcl",
+            "puts \"\\x4142\"".as_bytes().to_vec(),
+        );
+        backend.store = store.clone();
+        let snapshot = actual_open_source(&backend, &uri).await;
+        let source = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &source).await);
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .coarse_source_recompute_snapshot(&source)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let config = backend.resolved_db_config(&uri).await;
+        config
+            .set_extra_commands(&mut *backend.db.lock().await)
+            .to(vec!["changed_config".to_owned()]);
+        assert!(
+            backend
+                .coarse_source_recompute_snapshot(&source)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let refreshed = backend
+            .capture_coarse_semantic_source(&uri, &snapshot)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &refreshed).await);
+        backend
+            .documents
+            .lock("source ABA generation")
+            .await
+            .get_mut(&uri)
+            .unwrap()
+            .revision += 1;
+        assert!(
+            backend
+                .coarse_source_recompute_snapshot(&refreshed)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        // Restoring equal bytes cannot undo the source generation change.
+        assert_eq!(
+            backend.documents.lock("same source bytes").await[&uri].raw(),
+            snapshot.raw()
+        );
+        let current = backend.documents.lock("current provider snapshot").await[&uri].clone();
+        let provider_source = backend
+            .capture_coarse_semantic_source(&uri, &current)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(coarse_source_is_current(&backend, &provider_source).await);
+        backend.invalidate_diag_inputs();
+        assert!(
+            backend
+                .coarse_source_recompute_snapshot(&provider_source)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(store.remove_uri(uri.as_str()));
+        store.upsert_uri_aliases(
+            &[uri.as_str()],
+            "/coarse-recompute-provider.tcl",
+            "puts \"\\x4142\"".as_bytes().to_vec(),
+        );
+        assert!(!matches!(
+            backend
+                .coarse_source_recompute_snapshot(&provider_source)
+                .await,
+            Ok(Some(_))
+        ));
     }
 
     #[tokio::test]
