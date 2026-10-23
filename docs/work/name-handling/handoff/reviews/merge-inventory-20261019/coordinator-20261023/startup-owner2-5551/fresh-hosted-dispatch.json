@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T20:18:04.679873+00:00",
+  "sha": "f10f5da99aac2acd44e8cda22df34619a8c2625a",
+  "modes": [
+    "lsp-startup-diagnostics",
+    "scoped-lsp-clippy-diagnostics",
+    "runtime-fulltom-focused-diagnostics",
+    "spectcl-fold-diagnostics",
+    "jim-source-diagnostics"
+  ]
+}

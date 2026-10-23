@@ -1,0 +1,81 @@
+{
+  "actual_first_error": {
+    "Cargo_JSON_compiler_message_records": 0,
+    "Cargo_terminal_success": false,
+    "Rust_primary_error_count": 1,
+    "all_primary_messages": [
+      "fields `extra_callers` and `tainted_global_writes` are never read"
+    ],
+    "classification": "dead_code for two retained post-analysis ownedfields under -Dwarnings",
+    "file": "rust/tcl-compiler/src/compilation_unit.rs",
+    "line": 3967,
+    "message": "fields `extra_callers` and `tainted_global_writes` are never read",
+    "source": "build.stderr",
+    "stderr_Cargo_waiting_warning_is_not_a_Rust_source_warning": true
+  },
+  "actual_utc": "2026-10-23T20:09:53.639877+00:00",
+  "artifact_id": 12527629787,
+  "artifact_seal_false_because_no_selected_binary": true,
+  "authenticated_protocol_and_input_pins": {
+    ".github/workflows/perf.yml": "24c68fd2598d84248ad78727f32e4274161df0b2c0da6df74f566a11613a7296",
+    "Cargo.lock": "1ad727b9bc95100e4f90bbccb5eb0d1d4c8b646b06d3345950055f482b41419e",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/README.md": "b77c5f6f185ea51a198521e3ef857a45c86c2a408c87271d23eca1427c7d6c2c",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/context/bounded_client.py": "dcaac7b9121b0f842d8a9bda0bf6f72efdeae963f464d39f92f6680f1b099a31",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/context/reproduce.py": "dcfeaf161e18d029864b0a188493f11e4e753f01f478c74e8c845c00cf20592f",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-inputs.json": "b9c24d2c779b8b51b0adcec4d86fc473d7f4ce80c5f84ecda7468a7289af0061",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/original-protocol-provenance.json": "2e0775ccd17d133ff4bcc4dfdf2d2b14741133a0face224dbeccb3a628ab3b04",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py": "479ce4bf6c6b734652c01405173f292e42a5724f513d06e25d64aee7ce4ab47b",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/bounded_client.py": "e9f7c03b945a49e1e64d4eb7097548050728f2823b6c794ae42d3dcf4d382aeb",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/semantic_checks.py": "8bf578c6fa59507682385df9276f8c29f5bcfa500dd5480eaeac3165176b7b71",
+    "docs/work/name-handling/validation-tools/lsp-startup-diagnostics/typical/worker.py": "39a2e9c510344d0b629b444d98c6dee691be4179606723d8c5613a20e624d7c4",
+    "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "rust-toolchain.toml": "8564dd1e7a16b6c544b227d925a5e6d5b6580cc24ae9624c0e1b8617de4ed975",
+    "rust/tcl-compiler/src/compilation_unit.rs": "d5c404acf512b20de494cb5a588878592b9541dbc9a4c932dbb372b6235d5b48",
+    "rust/tcl-registry/src/resolved_invocation.rs": "7ed7446dc8c87d746fe581699549727a1430eb59a9c3bdae5acbd9d28c9e533b"
+  },
+  "both_original_workers": "UNRUN; no cases/measurement/result",
+  "eight_package_typing_admission": false,
+  "full_seal_counts": {
+    "dependencies": 21500,
+    "providers": 2256,
+    "source": 124997,
+    "tools": 7
+  },
+  "historical_local_failed_parent_repaired": false,
+  "job_id": 120625927438,
+  "large_JSON_read_directly_from_retained_ZIP_without_extraction": true,
+  "no_deadline_disk_or_log_guard_stop": true,
+  "no_selected_server_binary_event": true,
+  "processes": [
+    {
+      "deadline_seconds": 600,
+      "elapsed_seconds": 2.562480096,
+      "exit_code": 0,
+      "lifecycle_complete": true,
+      "minimum_free_bytes": 76076945408,
+      "name": "fetch"
+    },
+    {
+      "deadline_seconds": 2400,
+      "elapsed_seconds": 128.069858661,
+      "exit_code": 101,
+      "lifecycle_complete": true,
+      "minimum_free_bytes": 75589804032,
+      "name": "build"
+    }
+  ],
+  "run_id": 40015358189,
+  "semantic_acceptance": false,
+  "shipping_performance_admission": false,
+  "source_before_after_equal": true,
+  "source_provider_tool_dependency_final_seals": true,
+  "source_sha": "5551cdbdcf4963cdaeab9b2d10611b713bc9f361",
+  "source_tree": "c302e47cba38972406f824a55fabc57a4e6a5c5c",
+  "tracked_inventory_equals_exact_Git_tree": true,
+  "tracked_source_paths": 124997,
+  "verdict": "VALID_COMPLETE_HOSTED_DIAGNOSTIC_BUILD_FAILURE_NO_RUNTIME_ADMISSION",
+  "zip_CRC_and_every_retained_small_extracted_byte_verified": true,
+  "zip_bytes": 10030591,
+  "zip_sha256": "9c5668d8639493047c30711e94a9cabb5c506463861ce0e0888a7cdaaab1a001"
+}

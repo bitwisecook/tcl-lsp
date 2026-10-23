@@ -1,0 +1,28 @@
+{
+  "updated_utc": "2026-10-23T20:11:00.060027+00:00",
+  "verdict": "BOUNDED_STATIC_MINIMUM_OWNED_RETENTION_WORK_AND_CLEAN_REPAIR_CLEAR_UNCOMPILED",
+  "files": [
+    {
+      "kind": "work",
+      "patch_sha256": "b0be35a9337f602904f8fd4e64f22106a64d8072c787135433dd22a3794adc12",
+      "manifest_sha256": "6ce7f92cbafbfead5510360998c60c6fb81d2178be733d385e9487841fdc4749",
+      "before_sha256": "d5c404acf512b20de494cb5a588878592b9541dbc9a4c932dbb372b6235d5b48",
+      "after_sha256": "6dc0590c3dfe0d6a6ead54c16d955f4c64f61671f189cd867a9728b15bbf167a",
+      "current_and_previous_sixrepair_final_before_joins": "EXACT",
+      "only_four_field_labels_changed_same_types_order_initialization_expressions": "PASS",
+      "copied_forward_reverse0nooffset_exact_final_pinnedfmt": "PASS"
+    },
+    {
+      "kind": "clean",
+      "patch_sha256": "497aae690a248af6e547b5eb2bc8b2b8b00b3ba5b5feea82ac1103b3b63c6772",
+      "manifest_sha256": "d2150d15bad42fd5b916c124c1e5e7765221e0d0e62b0a76670507d012efab21",
+      "before_sha256": "8f1f436539302850f42f7460f27555f7859fc8e5a6faff9b7ecd1919578b1ce1",
+      "after_sha256": "75a1bd881e8e2b46f7b829c912a82abd83d8d13304b4d19e33ec1c72edd3518d",
+      "current_and_previous_sixrepair_final_before_joins": "EXACT",
+      "only_four_field_labels_changed_same_types_order_initialization_expressions": "PASS",
+      "copied_forward_reverse0nooffset_exact_final_pinnedfmt": "PASS"
+    }
+  ],
+  "semantics": "Private RetainedPostAnalysis owned retainers receive underscore field labels and explicit old-value constructor expressions only. Same ExtraCallSiteScanContext Vec and tainted-writes HashMap types, original move/evaluation order and declaration positions remain, retaining allocations through original post partial-move remainder drop after assemble_retained_unit returns. No value deletion, dummy reads, early drop, clone, allow or expect. Original build_retained_body_units borrowing, taint/procedure facts use and final assembly all untouched; current WORK/CLEAN entire outsidebytes/guards/tests/observers/cleanup unchanged. Actual5551 raw dead_code cause and whole preceding compiler6 final images authenticated.",
+  "limits": "Fresh strict build required for actual deadfield closure. No server binary/runtime/startup/Context/strictLSPClippy/wholefuture/gate admission."
+}

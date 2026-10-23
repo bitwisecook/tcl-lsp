@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T20:25:54.123724+00:00",
+  "scheduled_report_utc": "2026-10-23T20:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T20:55:37+00:00",
+  "change_since_previous_report": [
+    "Published19:55 officialreport/WIP9a06bf0, then normal workf10f5da99 and release27906cf6 carries; all concurrent external perf docs preserved. Later source changes remain work-first with reviewed clean counterparts. No forcepush/PR/merge/tag. Latest work62b38799 and clean release009a45759 are pushed.",
+    "Latest strict startup40015358189 on5551 cleared the earlier six compiler diagnostics but failed at two unused retained-owner fields. Exactsource/provider/dependency/tool seals complete, no server/workers. Owner2 minimum repair work8eb64/release1f913 only renames private retaining fields and explicit labels; values/types/order/drop endpoints unchanged and independent peer d9253b17 cleared.",
+    "Integrated peer-cleared Core extract-proc2, extract-variable2, subject/regions/event3, namespace/symbol/navigation3 and Server inheritance/capabilities/invalidation3 on work and clean release. All original guards/assertions/owner lifetimes preserved; held predecessor drafts remain excluded. Preparation coverage does not establish typing or strict-lint closure.",
+    "Integrated WORK-only Spec original10+catch1 and Jim original7 diagnostic producers, plus strict JSON source guard used by scopedClippy and FullTom. JSON reversible paths fix future escaped-fixture capture without repairing older PARTIAL633 evidence. Independent sourceguard/protocol/component composition reviews retained.",
+    "At20:18 dispatched exact f10 startup40018124401, scopedClippy40018128947, focusedruntime40018134089, Spec40018138675 and Jim40018142770. Spec/Jim failed only their two-minute checkout limit; all original tests UNRUN, no artifacts. Narrow checkout-only cap correction under review; other three modes remain running. No semantic result follows from checkout failure. Reviewed checkout-only Spec/Jim2-to10min fix2f37fdf0 integrated/pushed62b38799; only those two failed modes retried20:24, other three runs untouched.",
+    "WORK-only numeric prestate and append phase observers integrated, preserving all original eval/assertion order,1035 fresh interpreters and180s. Clean release carries only Rc observer-lifetime UBsafety fix, with complete original assertions and production callback/deletion schedule unchanged.",
+    "Release-only documentation audit removed README development-history section and three minifier decision/evidence comments, retaining actual product tooling, acknowledgements, licence, semantic descriptions and every code/assertion byte. Prior development ledgers/evidence/probes stay excluded; repository-wide audit remains open.",
+    "External perf20:00 reports controls16/16 BOTH and bothlexer586/586 BOTH0W; corpus first22 old Tcl fixtures Equal, full corpus/mixed/PackSet and OLD comparison still pending. NEW compiler228/229 reached with142PASS86FAIL and originaldeepnest stillactive. Original interpreted SpecTcl P2F retained; no full acceptance. Warning in temporary switch source requires no clean-deliverable fix.",
+    "Latest full release9c CI remains red: strict lint, runtime, heavy/shards, WASM/WASI, SpecTcl and editor/e2e; two Rust shards and one native e2e still incomplete. Complete24312 baseline join, actual shipping startup/scan/context and Tcl performance remain unaccepted. Dedicated iRules performance waiver does not waive correctness.",
+    "Every local build remains stopped below2GiB; cargo/rustc zombies remain, target paths untouched. Closed large JSON artifacts inspected ZIP-only; previous lossless compression/dedup/reclaim receipts retain exact original bytes and rehydration. No active input or young executable deletion.",
+    "BIG-IP tracker13:17 remains stale over60minutes; user notified without takeover. Review-triage completed. Pending Instruction publicflag API/allowance policy has no answer and remains pending. No admissions/validated rows closed."
+  ],
+  "committed": [
+    "ab261b0af5117a379febbf6371b913410e695759"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish20:25 officialreport/WIP and rearm20:55 reminder.",
+    "Monitor exact62b Spec/Jim retries and exactf10 startup/scoped/runtime without cancelling active runs.",
+    "Classify actual new hosted startup/scoped/runtime artifacts and make narrow owner fixes on work, with clean release counterparts.",
+    "Finish remaining strict lint, Jim/SpecTcl/runtime failures, clean release documentation/comments and all required native/editor/browser/WASI/sectionF checks.",
+    "Require accepted Tcl performance and complete zero-P2F baseline join before creating PR; no merge/tag/release."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 20:00 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new audit admissions or validated-row closures. Current source refactors are statically reviewed; new hosted results pending or checkout-only failure. Prior633 scoped/runtime capture remains PARTIAL. Full baseline and Tcl performance gates open.",
+  "disk_free_bytes": 2072231936,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,0 +1,94 @@
+{
+  "updated_utc": "2026-10-23T20:09:21.392656+00:00",
+  "status": "ACTUAL_FRESH_HOSTED_BUILD_FAILED_BEFORE_SERVER_RUNTIME",
+  "run_id": 40015358189,
+  "job_id": 120625927438,
+  "artifact_id": 12527629787,
+  "head_sha": "5551cdbdcf4963cdaeab9b2d10611b713bc9f361",
+  "zip_bytes": 10030591,
+  "zip_sha256": "9c5668d8639493047c30711e94a9cabb5c506463861ce0e0888a7cdaaab1a001",
+  "zip_metadata_size_digest_crc_paths_all_members_verified": true,
+  "large_JSON_inspection": "ZIP-only; extracted files all <=1MB",
+  "raw_build_stderr_sha256": "39b6b3028502ecb61cac06c1287f920f85dc0fa0f79c994fb5a761cd444ed10f",
+  "first_observed_build_cause": {
+    "file": "rust/tcl-compiler/src/compilation_unit.rs",
+    "struct": "RetainedPostAnalysis",
+    "fields": [
+      "extra_callers at3967",
+      "tainted_global_writes at3969"
+    ],
+    "diagnostic": "owned fields are never read",
+    "lint": "dead_code under-Dwarnings",
+    "compiler_E_codes": [],
+    "previous_six_errors_not_observed_in_this_raw_build": true,
+    "owner_endpoint_obligation": "Preserve owned allocations and original drop endpoints in minimum repair; no deletion-based shortcut inferred from unused warning."
+  },
+  "cargo_json_compiler_message_records": 0,
+  "server_binary_events": 0,
+  "processes": [
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 2.562480096,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 76076945408
+    },
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 101,
+      "seconds": 128.069858661,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 75589804032
+    }
+  ],
+  "independently_recompared_seals": {
+    "source": {
+      "exact": true,
+      "files": 124997
+    },
+    "providers": {
+      "exact": true,
+      "files": 2256
+    },
+    "dependencies": {
+      "exact": true,
+      "files": 21500
+    },
+    "tools": {
+      "exact": true,
+      "files": 7
+    }
+  },
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "cases": [],
+  "runtime_reached": false,
+  "selected_server_compilation_0w": false,
+  "scope_limits": "No current server binary/startup/Context workers, no source runtimecause, no timeout/diskfloor cause. No typing/strictLSPClippy/all136future/performance/gate admission. Failed original evidence preserved; no rerun by LSP."
+}
