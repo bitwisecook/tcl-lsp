@@ -1,0 +1,23 @@
+{
+  "source": "2a5be113a7b480cdf81d35f9e7e55536a74f53ee",
+  "worktree": "/workspace/bigip-coordination",
+  "command": "cargo clippy --locked --manifest-path rust/bigip-query-wasm/Cargo.toml --target wasm32-unknown-unknown --lib --no-deps --message-format=json -- -D warnings",
+  "exit": 0,
+  "warnings": 0,
+  "environment": {
+    "CARGO_TARGET_DIR": "/workspace/bigip-wasm-clippy-target",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CC_wasm32_unknown_unknown": "/workspace/clang-local/usr/bin/clang-19",
+    "AR_wasm32_unknown_unknown": "/usr/bin/ar",
+    "LD_LIBRARY_PATH": "/workspace/clang-local/usr/lib/x86_64-linux-gnu"
+  },
+  "raw_sha256": {
+    "wasm-latest-clippy.jsonl": "1dfb11ab69b5c76305ba6867bebe1fcdaddd0d601e6e86d0913565848715ee5f",
+    "wasm-latest-clippy.stderr": "b34c9076c64607b3da436c15027a1a8dfe98aee5501bbcdf2394783bb81e6e56"
+  },
+  "lockfile_sha256": "26b47afc9b12b8dbec5c50c0d699ba8ceac0f3ef3f6ad41a3df859a5216599d0",
+  "scope": "Includes the published compiler event-geometry repair and ctutils0.4.4 advisory lockfile. Separate target from concurrent native builder; no simultaneous target sharing."
+}

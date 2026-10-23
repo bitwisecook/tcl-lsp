@@ -29,3 +29,9 @@ contract and run unchanged simulation/live assertions under its actual C9
 engine, distinct F5 source grammar, and measured logical providers. Keep native
 admission, event-name and variable/name policy guards intact. This agent owns
 the CLI consumer, not tcl-irule-test or VM/compiler startup internals.
+
+The original current explain-flow tests subsequently finished naturally:
+3harness PASS/2FAIL in278.56s, with both simulation outputs explicitly
+reporting `native compiler preflight provider required`. Neither was externally
+interrupted. Full raw/summary: native-combined-20261023.{txt.gz,json}.
+Two tshark paths early-returned; that is not tshark coverage.

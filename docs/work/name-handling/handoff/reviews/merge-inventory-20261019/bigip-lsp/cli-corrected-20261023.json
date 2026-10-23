@@ -1,0 +1,67 @@
+{
+  "source": "d71e826d plus tracking-only a34e4005/bb698bed",
+  "plan": {
+    "cargo": [
+      "test",
+      "--locked",
+      "--no-fail-fast",
+      "-p",
+      "f5-cli",
+      "--lib",
+      "--test",
+      "cli",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "runs": [
+      {
+        "target": "f5_cli",
+        "args": [
+          "archive_content_donors_retain_original_bytes_before_mutation",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "f5_cli",
+        "args": [
+          "source_event_report_separates_owned_empty_and_unavailable",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "cli",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      }
+    ],
+    "log": "/workspace/scratch/bigip-20261023/cli-final.log"
+  },
+  "exit": 101,
+  "byte_provider": {
+    "pass": 1,
+    "fail": 0,
+    "seconds": 0.01
+  },
+  "source_event_unit": {
+    "pass": 0,
+    "fail": 1,
+    "seconds": 1.57
+  },
+  "cli17": {
+    "pass": 15,
+    "fail": 2,
+    "seconds": 56.28
+  },
+  "failures": [
+    "source_event_report_separates_owned_empty_and_unavailable",
+    "explain_virtual_json",
+    "explain_virtual_text"
+  ],
+  "scope": "All byte-fidelity/refusal regressions pass after narrow fixture corrections. Event inventory still missing on this older Compiler snapshot; origin/work now contains a producer repair, requiring focused rerun.",
+  "all_test_executables_deleted": true,
+  "raw_sha256": "6641202c73aa5558f428f64ba127450f2e794353d3f3c78c984ce15a5da06860"
+}

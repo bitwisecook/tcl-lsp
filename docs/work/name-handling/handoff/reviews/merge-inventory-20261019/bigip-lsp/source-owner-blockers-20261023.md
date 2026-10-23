@@ -85,3 +85,21 @@ association under its own analysis, preserving all obligations and withdrawal
 for the later notify. The outer reply assignment must not erase a source read
 inside its RHS before that read is considered. No consumer syntax walk,
 variable-name inference, recreated argument receipt or runtime handle target.
+
+## Same-frame if positive after a procedure declaration
+
+The original ILX16 frame test's positive also fails independently of setter-RHS
+nesting. An isolated handler with `set own [ILX::init p e]` then
+`if {1} {ILX::call $own m}` produces one compiler association and p/e candidate.
+Prepending `set handle [ILX::init p e]` still produces that candidate. Prepending
+`proc helper {} {ILX::call $handle m}` instead removes all produced method
+cards and associations, including the later handler's own constructor/read.
+The full original frame fixture likewise produces none. This is not an outer
+constructor barrier interpretation; the proc declaration is the differentiator.
+Raw `if-prefix-owner-probe-20261023.txt.gz` contains all four exact sources.
+
+The compiler's procedure/source-vector owner must retain genuine later
+conditional method syntax and the independently supported same-frame source
+relation, while refusing inheritance of the outer handle in a new procedure
+or handler frame. The original first two negatives and final if positive all
+remain required; no fixture, depth, expected location or assertion changed.

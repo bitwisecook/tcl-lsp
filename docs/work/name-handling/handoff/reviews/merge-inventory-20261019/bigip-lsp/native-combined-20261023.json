@@ -1,0 +1,184 @@
+{
+  "source": "d392eb63 compiled binaries, see exact source equivalence, source patch and11 binary manifest",
+  "plan": {
+    "cargo": [
+      "test",
+      "--locked",
+      "--no-fail-fast",
+      "-p",
+      "f5-cli",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-server",
+      "--lib",
+      "--test",
+      "e2e",
+      "--bin",
+      "f5-query",
+      "--test",
+      "cli",
+      "--test",
+      "irule",
+      "--test",
+      "explain_flow",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "runs": [
+      {
+        "target": "tcl_compiler",
+        "args": [
+          "registry_invocation::source_remote_first_operand::tests::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "tcl_lsp_core",
+        "args": [
+          "ilx_navigation::tests::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "f5-query",
+        "args": [
+          "archive_content_donors_retain_original_bytes_before_mutation",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "f5-query",
+        "args": [
+          "source_event_report_separates_owned_empty_and_unavailable",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "cli",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "irule",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "explain_flow",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "tcl_lsp_server",
+        "args": [
+          "f5_model_documents_answer_pull_with_their_model_report",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "e2e",
+        "args": [
+          "issue1707_ilx_methods::",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "e2e",
+        "args": [
+          "xc_translate_",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "e2e",
+        "args": [
+          "w109_disabled_still_abstains_for_bigip_and_apl_documents",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      }
+    ],
+    "log": "/workspace/scratch/bigip-20261023/native-combined.log"
+  },
+  "exit": 101,
+  "build_warnings": 0,
+  "compiler_controls": {
+    "pass": 4,
+    "fail": 1,
+    "seconds": 71.96
+  },
+  "core_ilx": {
+    "pass": 19,
+    "fail": 0,
+    "seconds": 104.55
+  },
+  "initial_cli": {
+    "pass": 13,
+    "fail": 4,
+    "seconds": 27.87,
+    "scope": "Pre-fixture-correction; final17 rerun pending."
+  },
+  "initial_bin_filters": {
+    "selected_tests": 0,
+    "scope": "Thin f5-query test binary; not a provider pass. Final f5_cli library filters scheduled."
+  },
+  "irule14": {
+    "pass": 11,
+    "natural_fail": 2,
+    "external_interruption": 1,
+    "seconds": 852.71
+  },
+  "explain_flow": {
+    "harness_pass": 3,
+    "fail": 2,
+    "seconds": 278.56,
+    "limitations": "Two tshark tests early-return because binary absent. Both simulations naturally reproduce NativePreflightRequired; no interruption."
+  },
+  "f5_pull": {
+    "pass": 1,
+    "fail": 0,
+    "seconds": 0.43,
+    "status": "current_diagnostics.rs handed back"
+  },
+  "ilx16": {
+    "pass": 4,
+    "fail": 12,
+    "natural_assertion_failures": 11,
+    "diagnostic_timeouts": 1,
+    "seconds": 480.94,
+    "timeout_selector": "the_javascript_end_answers_through_the_ilx_references_command",
+    "limits": "Healthy harness scheduler probe; original first-site/JS assertions retained. Same-frame proc-prefix and setter-RHS compiler source gaps reproduced independently."
+  },
+  "xc_e2e": {
+    "pass": 5,
+    "fail": 0,
+    "seconds": 32.83
+  },
+  "w109_e2e": {
+    "pass": 1,
+    "fail": 0,
+    "seconds": 11.83
+  },
+  "all_test_executables_deleted": true,
+  "raw_sha256": {
+    "native-combined.log": "d21cbfeffb9375bcc9d562aa831ab2cdbd18c8b67ffc8ad628637e40da8a08f2",
+    "native-combined.build.jsonl": "2b22134c4a45f62c05ec5d6074931c653e1cc7d0bae913831a913aea11ec13fc"
+  },
+  "limits": "Not a guarded shipping acceptance capture. Follow-up source changes were applied after build; initial executable hashes and runtime fixture bytes pinned. All failures and zero-test filters remain explicit."
+}

@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T12:31Z
+Last updated: 2026-10-23T12:43Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -289,3 +289,21 @@ CI5206 product3b1 heavy job120175508112 completed: 354 exact outcomes,312PASS42F
  barriers: nested setter-RHS source association is missing.
 - Corrected CLI/library run89483 active; original f5-query consumers are done.
   Gens build99672 closed0 after31+3PASS.
+
+### Integrated-tip continuation
+
+- All first combined runs closed; exact summary/raw in
+  bigip-lsp/native-combined-20261023.json. ILX16=4PASS/11assertionFAIL/1timeout;
+  XC e2e5/5, W1091/1, F5 pull1/1. current_diagnostics.rs handed back.
+- Narrow corrected CLI run: provider1/1PASS, CLI15/17PASS (all byte guards
+  pass), source-event unit0/1. The three remaining failures are event inventory.
+- New Compiler original-event operand repair is already published on work
+  (d1a0fe02, included2a5be113). Do not carry that older event-word failure as
+  current without rerun: synchronise main now and run affected CLI/source-event/
+  trace cases plus XC library; preserve every original assertion.
+- Latest WASM strict lint on2a5be113 PASS0warnings, includes that repair and
+  advisory lockfile; bigip-lsp/wasm-latest-clippy-20261023.json.
+- Nested setter-RHS and procedure-prefix ILX minimal probes still need checking
+  against the newly integrated Compiler, then route any remaining gaps.
+  Latest frame probe distinguishes proc prefix (no cards) from outer constructor
+  prefix (same-frame candidate retained). Source-owner-blockers has exact inputs.
