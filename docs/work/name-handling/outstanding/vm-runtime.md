@@ -2,11 +2,27 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T12:04:32.542269+00:00 (hosted16ran1PASS15FAIL/artifactuploadfailed; labelv4+consolev5 staticCLEAR/root handoff)
+Last updated: 2026-10-23T12:25:18.293231+00:00 (hosted v5 actual16=1PASS15FAIL; full raw artifact verified; env10/ABI2/OO-regsub-trace3 routed)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Current hosted v5 run39950833444/job120404591918 completed at12:16:03:
+original16=1PASS15FAIL, no signals/protocol failures. Catch PASS; env10,
+ABI2, OO/regsub/trace3 FAIL. Artifact12500329274 downloaded losslessly;
+ZIP SHA6ccc593595acb927434feca84c98611f94a3e0af88dc7d3963eb5b41d0a86968.
+Raw /tmp/vm-hosted-v5-run39950833444; original16-first-causes.json and
+independent-verification.json retain each assertion/subcase boundary.
+Independent exact source-clean before/after, all18 process closures, fresh
+Cargo artifact/roster joins, intentional absentTom metadata/cfg and raw0W
+verified. Diagnostic evidence only; no release gate waiver or full acceptance.
+Compiler owns ABI2; Names owns OO/regsub/trace3; VM owns env10 bootstrap.
+ABI string-owner fixture3b25488a static peer CLEAR, runtime unrun. NoTom
+bignum refusal/fullTom semantic-gate design is pending root/user decision.
+Root native1 source/archive HOLD: no raw .rs/.py/.tcl writes anywhere active;
+no VM Cargo/Git/GO/source changes. Off-tree proposals only.
+
 
 Root accepted freshv5 hosteddispatch12:06:15 exact WORKa8e7bc7a.
 Actualrun39950833444/runtimejob120404591918 now checkoutRUNNING, setupPASS;

@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T12:04:47.206548+00:00 (ACTIVE; actualv13 PASS0W; actual focused5 fourFAIL/onePASS; narrow successor peerCLEAR)
+Last updated: 2026-10-23T12:23:35.154986+00:00 (ACTIVE; new fd11 native1 WIP RUNNING fresh selected-target build; no new typing/runtime result)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**New identity native1 WIP actual execution, 2026-10-23T12:23:35.154986+00:00:** Root mirrored reviewed product37 into active Work fd11c84e0c8f598a88169f4ce5d6cbb8738a7581/treec1d1288ad210c554849a3f821defad1a9700e478 (canonical published Worka8e7); source135 eight-package typing and focused5 evidence remain historical and DO NOT cover new source. Separate root-authorised WIP native1 protocolv2 `/tmp/ccg-native1-wip-fd11-v2` plan dc40a063e282ebcd4d483384f306dd1c06fa6416c8dca5580a3bad547d01bc8b/input3e832a700b68f434866d72f8581c25d5fd6ab2815dc8831f3f830b8b98c45218, Compiler bounded peer dcae08ae, rootGO9255a3d4. Exact current full collector **100653**, including Python/proof source archives; snapshot402f5e94, no old135 map reuse. Own type evidence can only be its fresh strict0W selected-target CargoJSON compilation; no eight-package/section F/release admission. Original catch selector/assertions/native env/180s unchanged; global nonblocking build lock spans build+run/full source/provider seals,88125 lifecycle, aggregate20MiB/2GiB, separate build40min and root whole-tool45min bound.
+
+Initial root61552 launch12:18 closed prelock/refusal for one dirty design Markdown; no Cargo. Root preserved exact note in `/tmp/naming-root-own-mirror-markdown-preserved.txt`/receipt then restored fd11 committed bytes, other product diff empty. Retry **root53116 RUNNING**, launcher `/tmp/ccg-native1-wip-fd11-v2-runs/20261023T122111.320467Z`, actual suite20261023T122117.147715Z: initial current source/provider seals passed and fresh tcl-vm target build started (compiler compiling), no selected-target clean/type/runtime result yet. Do not restore design note during capture; root restores preserved note only after final guard closure. Work source/proofarchive HOLD; notes.md/json allowed, no source writes by this role.
 
 **Reviewed actual-cause successor, 2026-10-23T12:04:47.206548+00:00:** N17 original-source-owned fold traversal/helper component `/tmp/ccg-n17-original-owned-fold-traversal-v1/proposal.patch` SHA830af853bc94126f804cb8404a6eea316893c1f029530f46d75a1f7035efbbe2 is independent Names **STATIC CLEAR**2da714cb and Compiler **STATIC CLEAR**44984781. Both verify current beforepins/copied zero-fuzz/nooffset exact finals and authentic original-source cards + current single-store/body-ID joins; Installed excluded, all original assertions and productive gates unchanged. Exact original whole test file outside proved helper and SSA/assertion tail preservation proof472cd3ea. Production primary propagation now reaches authenticated source declaration bodies; two unrelated forwarding loops unchanged. Typing and expected42/xy/live5/hostless runtime remain unrun.
 
